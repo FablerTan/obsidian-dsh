@@ -13,7 +13,7 @@ export interface SettingsHost {
 	getRuntimeInfo(): DshRuntimeInfo | null;
 	/** 检测到的 dsh 安装（带版本），供「dsh 版本」下拉与「运行环境」展示。 */
 	detectDshInstalls(): Promise<DshInstall[]>;
-	/** 页面桥（dsh-obsidian-bridge）状态；面板未打开/iframe 时返回对应状态。 */
+	/** 页面桥（dsh-obsidian-bridge）状态；面板未打开时返回对应状态。 */
 	getBridgeStatus(): Promise<DshBridgeStatus>;
 }
 
@@ -24,8 +24,6 @@ function describeBridgeStatus(status: DshBridgeStatus): string {
 			return '已连接' + (status.version === undefined ? '' : '（v' + String(status.version) + '）');
 		case 'panel-closed':
 			return 'DSH 面板未打开（打开面板后可检测）';
-		case 'iframe':
-			return '当前承载方式为 iframe，桥不可用';
 		case 'missing':
 			return '未检测到 dsh-obsidian-bridge：请安装后重启 DSH 服务并重开面板';
 		default:
@@ -199,8 +197,8 @@ export class DshSettingTab extends PluginSettingTab {
 		hint.createEl('code', { text: 'dsh-obsidian-bridge' });
 		hint.appendText('（obsidian profile）：');
 		hint.createEl('code', {
-			text: 'dsh plugin --profile obsidian add link:/Users/fabler/dsh/dsh-plugin/self-made/dsh-obsidian-bridge',
+			text: 'dsh plugin --profile obsidian add link:<本仓库>/packages/dsh-obsidian-bridge',
 		});
-		hint.appendText('，然后在面板里点「重启 DSH 服务」。');
+		hint.appendText('（路径按实际 checkout 替换），然后在面板里点「重启 DSH 服务」。');
 	}
 }

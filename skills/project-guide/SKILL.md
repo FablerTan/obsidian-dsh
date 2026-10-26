@@ -62,7 +62,7 @@ Obsidian 自身 API（Plugin / ItemView / Vault / requestUrl…）**不要读类
 |---|---|
 | 现在做到哪了 / 下一步 / 已知设计债 | `docs/roadmap.md` |
 | 最近改了什么 / 有哪些提案在等批准 | `docs/changes/README.md` + 对应提案 |
-| 某条链路怎么跑（服务生命周期、webview/iframe 承载、探测） | `docs/architecture.md` |
+| 某条链路怎么跑（服务生命周期、webview 承载、探测） | `docs/architecture.md` |
 | 某个功能在哪个文件 / 怎么改 | `docs/development.md` 的「改动地图」 |
 | 报错、起不来、面板空白、端口占用 | `docs/troubleshooting.md` |
 | 目录约定、默认值、版本、验证要求 | `AGENTS.md` |
@@ -74,11 +74,12 @@ Obsidian 自身 API（Plugin / ItemView / Vault / requestUrl…）**不要读类
 按顺序问，第一个「是」就是答案：
 
 1. 它管 dsh 进程的启动 / 探测 / 重启 / 停止 / 路径解析？ → `src/service/`
-2. 它是 Obsidian 视图、webview/iframe 承载、面板打开？ → `src/view/`
+2. 它是 Obsidian 视图、webview 承载、面板打开？ → `src/view/`
 3. 它是设置项定义、默认值、校验、设置页控件？ → `src/settings/`
 4. 它被多个域共用（常量、类型、sleep、日志、vault 路径、探测实现）？ → `src/shared/`
 5. 它只是把上面几块接起来并注册到 Obsidian？ → `src/main.ts`
-6. 都不是（文档 / 技能 / 提案 / 构建配置）→ 看第 3 节目录地图。
+6. 它是 dsh 侧客户端插件（单栏 / workspace / 原生数据桥）？ → `packages/dsh-obsidian-bridge/`
+7. 都不是（文档 / 技能 / 提案 / 构建配置）→ 看第 3 节目录地图。
 
 反问题：**这段逻辑能脱离 Obsidian 运行吗？** 能 → `service/`；不能 → `view/`。
 
@@ -87,15 +88,16 @@ Obsidian 自身 API（Plugin / ItemView / Vault / requestUrl…）**不要读类
 | 路径 | 放什么 | 禁止 |
 |---|---|---|
 | `src/main.ts` | 组合根：注册视图/命令/ribbon/状态栏/设置页，注入依赖，结果映射成 Notice | 业务分支、spawn、探测细节 |
-| `src/service/` | `manager.ts`（进程托管）、`locator.ts`（可执行文件 + PATH）、`probe.ts`（fetch 兜底探测） | import obsidian、弹 Notice、碰 DOM |
-| `src/view/` | `dsh-view.ts`（ItemView）、`surface.ts`（webview 优先 / iframe 回退与 reload）、`open.ts`（打开面板） | import main.ts、自己读 settings |
+| `src/service/` | `manager.ts`（进程托管）、`locator.ts`（可执行文件 + PATH） | import obsidian、弹 Notice、碰 DOM |
+| `src/view/` | `dsh-view.ts`（ItemView）、`surface.ts`（webview 与 reload）、`bridge.ts`（页面桥）、`open.ts`（打开面板） | import main.ts、自己读 settings |
 | `src/settings/` | `schema.ts`（类型 / 默认值 / `serviceUrl` / 校验）、`tab.ts`（设置页） | 进程逻辑、视图细节 |
 | `src/shared/` | `constants.ts`（视图类型 + `isDshPage`）、`types.ts`（Probe 契约）、`async.ts`、`log.ts`、`host.ts`（vault 路径 + requestUrl 探测） | 业务逻辑（出现分支说明该去具体域） |
 | `docs/` | 人读文档：roadmap / architecture / development / troubleshooting / skills | 实现日志、草稿、临时脚本 |
 | `docs/changes/` | 改代码前的提案（draft → approved → done） | 未批准前直接改代码 |
 | `skills/<name>/` | 给 agent 的技能：`SKILL.md` + 可选 `scripts/` / `references/` / `data/` | 项目文档、不可复现的产物 |
 | `.dsh/skills/<name>` | 指向 `../../skills/<name>` 的符号链接 | 放真实文件 |
-| 根目录 | 插件运行必需文件 + 构建配置 + `README.md` / `AGENTS.md` + `docs/`、`skills/`、`.dsh/` | 任何临时代码、脚本、备份 |
+| `packages/dsh-obsidian-bridge/` | dsh 侧客户端插件：`lib/client.js`（单栏 / workspace / v2 数据桥）、`cordis.patch.yml`、独立 `package.json` | import `src/`、被打进 `main.js` |
+| 根目录 | 插件运行必需文件 + 构建配置 + `README.md` / `AGENTS.md` + `docs/`、`skills/`、`packages/`、`.dsh/` | 任何临时代码、脚本、备份 |
 
 ## 4. src 分层（单向依赖）
 

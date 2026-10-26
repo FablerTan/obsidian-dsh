@@ -14,8 +14,8 @@ export function vaultPath(app: App): string {
  * 基于 Obsidian requestUrl 的可信探测。
  *
  * requestUrl 不受 CORS 限制、能读到真实状态码与正文，因此可以区分「dsh 在跑」
- * 「dsh 在跑但需要 token（0.2.1+）」与「端口被别的程序占用」—— 这是 fetch 的
- * opaque 响应做不到的（见 service/probe.ts）。
+ * 「dsh 在跑但需要 token（0.2.x）」与「端口被别的程序占用」—— 这是 fetch 的
+ * opaque 响应做不到的。
  * 自带超时竞速：requestUrl 没有 timeout 参数，慢响应按 down 处理。
  */
 export function createDshProbe(timeoutMs = 1500): Probe {
@@ -23,7 +23,7 @@ export function createDshProbe(timeoutMs = 1500): Probe {
 		const request = requestUrl({ url, method: 'GET', throw: false })
 			.then((response): ProbeResult => {
 				if (response.status === 200) return isDshPage(response.text) ? 'running' : 'foreign';
-				// 0.2.1+：裸 URL 需要浏览器会话 token，正文是固定提示；
+				// 0.2.x：裸 URL 需要浏览器会话 token，正文是固定提示；
 				// 用这段正文与陌生程序的 401 区分，避免误判成「需要 token 的 dsh」。
 				if (response.status === 401 && response.text.includes('dsh web authentication required')) {
 					return 'auth';

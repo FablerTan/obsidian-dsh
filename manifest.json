@@ -1,7 +1,7 @@
 {
 	"id": "obsidian-dsh",
 	"name": "DSH in Obsidian",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"minAppVersion": "1.4.0",
 	"description": "在 Obsidian 中嵌入 DeepSeek Harness：插件自动拉起独立 dsh 服务（obsidian profile / 端口 3081 / cwd=vault）并嵌入 GUI。",
 	"author": "fabler",

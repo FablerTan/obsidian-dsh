@@ -4,16 +4,17 @@ import { DshServiceManager, type DshServiceOutcome } from './service/manager';
 import { listDshCandidates, PATH_DSH_PLACEHOLDER, probeDshVersion } from './service/locator';
 import { mergeSettings, serviceUrl, type DshPluginSettings } from './settings/schema';
 import { DshSettingTab, type SettingsHost } from './settings/tab';
-import { VIEW_TYPE_DSH } from './shared/constants';
+import { VIEW_TYPE_DSH, VIEW_TYPE_NATIVE_CHAT } from './shared/constants';
 import { createDshProbe, vaultPath } from './shared/host';
 import { logPlugin, logPluginWarn } from './shared/log';
 import type { DshBridgeStatus, DshInstall, DshRuntimeInfo } from './shared/types';
 import { callDshBridge, describeDshBridgeError, probeDshBridge, waitForDshBridge } from './view/bridge';
 import { DshWebView, type DshPanelHost } from './view/dsh-view';
-import { openDshPanel } from './view/open';
+import { DshNativeChatView } from './view/native/native-chat-view';
+import { openDshPanel, openNativeChat } from './view/open';
 
 /**
- * DSH in Obsidian — 方案 B：自动拉起独立的 dsh 服务 + webview 嵌入（不支持时回退 iframe）。
+ * DSH in Obsidian — 方案 B：自动拉起独立的 dsh 服务 + Electron webview 嵌入（无 iframe 回退）。
  *
  * 服务：dsh --profile obsidian --port <port>，工作目录 = 当前 vault。
  *  - 独立 profile：与日常用的 web profile（:3080）互不干扰；
@@ -25,7 +26,7 @@ import { openDshPanel } from './view/open';
  *
  * 本文件是**组合根**：只做注册与装配，业务逻辑分层在
  *   service/  dsh 进程托管（locator / probe / manager）
- *   view/     面板与承载面（dsh-view / surface / open）
+ *   view/     面板与承载面（dsh-view / surface / bridge / native / open）
  *   settings/ 配置与设置页（schema / tab）
  *   shared/   跨域基础件（constants / async / log / host）
  */
@@ -59,6 +60,7 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 
 		// 视图：读取设置中的端口
 		this.registerView(VIEW_TYPE_DSH, (leaf) => new DshWebView(this, leaf));
+		this.registerView(VIEW_TYPE_NATIVE_CHAT, (leaf) => new DshNativeChatView(this, leaf));
 
 		// ribbon 图标
 		this.addRibbonIcon('bot', '打开 DSH 面板', () => {
@@ -81,6 +83,13 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 			name: '新建 DSH 会话',
 			callback: () => {
 				void this.newDshSession();
+			},
+		});
+		this.addCommand({
+			id: 'open-native-chat',
+			name: '打开原生 DSH 聊天（实验）',
+			callback: () => {
+				void this.openNativeChatView();
 			},
 		});
 		this.addCommand({
@@ -116,7 +125,7 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 		return serviceUrl(this.settings.port);
 	}
 
-	/** DshPanelHost：承载面用地址（0.2.1+ 为带 token 的启动 URL）。 */
+	/** DshPanelHost：承载面用地址（0.2.x 为带 token 的启动 URL）。 */
 	get embedUrl(): string {
 		return this.service.embedUrl;
 	}
@@ -193,7 +202,7 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 
 	/**
 	 * 新建会话：确保服务 → 打开面板 → 等页面桥 → 绑定库目录工作区 → 新建。
-	 * 桥只存在于 webview；iframe 回退或未安装 dsh 插件时给明确提示。
+	 * 桥只存在于 webview；未安装 dsh 插件时给明确提示。
 	 */
 	private async newDshSession(): Promise<void> {
 		if (!(await this.ensureDsh())) return;
@@ -232,6 +241,10 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 		await openDshPanel(this.app);
 	}
 
+	private async openNativeChatView(): Promise<void> {
+		await openNativeChat(this.app);
+	}
+
 	private async ensureDsh(): Promise<boolean> {
 		return this.reportOutcome(await this.service.start(), false);
 	}
@@ -253,6 +266,15 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 		} else if (outcome.reason === 'auth') {
 			new Notice(
 				'DSH：端口上的 dsh 需要 token，插件无法接管（通常是上次遗留的实例）。请先结束它（pkill -f "dsh --profile ' +
+					this.settings.profile +
+					'"），再点「重启服务」',
+				15000,
+			);
+		} else if (outcome.reason === 'unsupported') {
+			new Notice(
+				'DSH：端口 ' +
+					String(this.settings.port) +
+					' 上是 0.1.x 或不带 token 鉴权的实例，本插件只支持 0.2.x；请先结束它（pkill -f "dsh --profile ' +
 					this.settings.profile +
 					'"），再点「重启服务」',
 				15000,

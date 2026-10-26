@@ -1,31 +1,30 @@
 import { logPlugin, logPluginWarn } from '../shared/log';
 
 /**
- * 面板的承载面：优先 Electron <webview>，环境不支持时回退 <iframe>。
+ * 面板承载面：Electron <webview>。
  *
- * 为什么不是直接 iframe：dsh 0.2.1+ 的会话 cookie 是 SameSite=Strict，
+ * 为什么不是 iframe：dsh 0.2.x 的会话 cookie 是 SameSite=Strict，
  * iframe 在 Obsidian 的 app:// 顶层里属于跨站，303 之后不会带 cookie，必然 401；
  * <webview> 的 guest 是独立顶层浏览上下文，Strict cookie 正常。
  *
  * webview 不是 Obsidian 的公开插件 API，但核心 Web viewer / Canvas 网页卡片
- * 都用它（webviewTag 已开），因此这里做能力探测 + 回退，不把 iframe 路径删掉。
+ * 都用它（webviewTag 已开）。这里只做能力探测：不可用时返回 null，由 view 明确报错，
+ * 不再回退 iframe（0.2.x 的 token 登录在跨站 iframe 里走不通）。
  */
-export type DshSurfaceKind = 'webview' | 'iframe';
-
 export interface DshSurface {
-	readonly kind: DshSurfaceKind;
+	readonly kind: 'webview';
 	/** 换源（端口变更后使用）。 */
 	load(url: string): void;
 	/**
 	 * 重新加载当前地址（或换到新地址后重新加载）。
 	 *
 	 * 服务后起时承载面已经停在 Chromium 错误页，仅改状态条文案不会重试；
-	 * 传 url 用于 dsh 0.2.1+ 每次重启后 token 变化的情况。
+	 * 传 url 用于 dsh 0.2.x 每次重启后 token 变化的情况。
 	 */
 	reload(url?: string): void;
 	/** 从 DOM 移除（ItemView 关闭）。 */
 	destroy(): void;
-	/** 在页面里执行脚本（webview 专用；iframe 会拒绝）。 */
+	/** 在页面里执行脚本（页面桥）。 */
 	executeJavaScript<T>(code: string): Promise<T>;
 }
 
@@ -39,16 +38,17 @@ interface ElectronWebviewElement extends HTMLElement {
 	executeJavaScript<T>(code: string, userGesture?: boolean): Promise<T>;
 }
 
-/** 创建承载面；webview 不可用时回退 iframe。 */
+/** 创建承载面；webview 不可用时返回 null。 */
 export function createDshSurface(
 	parent: HTMLElement,
 	url: string,
 	partition: string | null,
-): DshSurface {
+): DshSurface | null {
 	const webview = createWebview(parent, url, partition);
-	if (webview !== null) return webview;
-	logPluginWarn('当前环境不支持 webview，面板回退到 iframe（dsh 0.2.1 的 token 登录可能失败）');
-	return createIframe(parent, url);
+	if (webview === null) {
+		logPluginWarn('当前环境不支持 webview，DSH 面板无法承载');
+	}
+	return webview;
 }
 
 /**
@@ -59,7 +59,7 @@ export function createDshSurface(
  */
 function createWebview(parent: HTMLElement, url: string, partition: string | null): DshSurface | null {
 	const doc = parent.ownerDocument;
-	// webview 在 Electron 里注册为自定义元素；未注册说明当前环境没有 webviewTag，直接回退。
+	// webview 在 Electron 里注册为自定义元素；未注册说明当前环境没有 webviewTag。
 	const registry = doc.defaultView?.customElements;
 	if (typeof registry?.get !== 'function') return null;
 	if (typeof registry.get('webview') !== 'function') return null;
@@ -107,33 +107,4 @@ function navigate(el: ElectronWebviewElement, url: string): void {
 	} catch {
 		// 某些 Electron 版本在 detached 元素上会同步抛错；忽略，下一轮 reload 会再试。
 	}
-}
-
-/** iframe 回退：行为与 0003 的 iframe 封装保持一致。 */
-function createIframe(parent: HTMLElement, url: string): DshSurface {
-	const el = parent.ownerDocument.createElement('iframe');
-	el.className = 'dsh-surface-iframe';
-	el.src = url;
-	parent.appendChild(el);
-
-	let current = url;
-	return {
-		kind: 'iframe',
-		load(next) {
-			current = next;
-			el.src = next;
-		},
-		reload(next) {
-			if (next !== undefined) current = next;
-			el.src = 'about:blank';
-			el.src = current;
-		},
-		destroy() {
-			el.remove();
-		},
-		executeJavaScript<T>(): Promise<T> {
-			// iframe 是跨源文档，Obsidian 没有注入脚本的通道；桥在这种情况下不可用。
-			return Promise.reject(new Error('iframe 承载不支持 executeJavaScript'));
-		},
-	};
 }

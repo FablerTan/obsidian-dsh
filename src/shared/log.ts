@@ -21,7 +21,7 @@ export function logPluginError(message: string, error?: unknown): void {
 }
 
 /**
- * 打码 URL 里的会话 token（dsh 0.2.1+ 会打印带 token 的启动 URL）。
+ * 打码 URL 里的会话 token（dsh 0.2.x 会打印带 token 的启动 URL）。
  * 只在展示/日志层使用，token 本身仍保留在内存里供承载面首次登录。
  */
 export function redactToken(text: string): string {

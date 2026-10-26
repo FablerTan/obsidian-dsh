@@ -15,6 +15,8 @@
 | [0003](0003-dsh-version-selection-and-token-auth.md) | dsh 版本选择 + 0.2.1 token 鉴权支持（删除 0.1.1 的前置） | ✅ 已完成 |
 | [0004](0004-webview-embedding.md) | 用 Electron `<webview>` 替换 iframe（解决 0.2.1 SameSite=Strict cookie 401） | ✅ 已完成（待人工确认） |
 | [0005](0005-obsidian-native-surfaces.md) | 用 Obsidian ribbon/命令 + dsh 桥收敛 DSH 左栏（新建会话 / 单栏常开 / 只用 vault 项目） | 🚧 已实施，待人工确认 |
+| [0006](0006-native-chat-panel.md) | 原生聊天面板：官方 DSH core + Obsidian 原生 UI（方案 A；桥合并进 dsh-obsidian-bridge v2） | ✅ 已完成（CDP 回归通过，视觉/IME 待人工确认） |
+| [0007](0007-drop-legacy-and-migrate-bridge.md) | 只支持 dsh 0.2.x：移除 0.1.1 / iframe 兼容 + bridge 插件迁入本仓库 | ✅ 已完成（待人工确认） |
 
 ## 状态机
 

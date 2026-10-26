@@ -92,6 +92,34 @@ function checkTypes() {
 	}
 }
 
+function checkBridgePlugin() {
+	const dir = path.join(root, 'packages', 'dsh-obsidian-bridge');
+	const pkgFile = path.join(dir, 'package.json');
+	assert(existsSync(pkgFile), '缺少 packages/dsh-obsidian-bridge/package.json');
+	let pkg;
+	try {
+		pkg = JSON.parse(readFileSync(pkgFile, 'utf8'));
+	} catch (error) {
+		throw new CheckError('packages/dsh-obsidian-bridge/package.json 不是合法 JSON：' + error.message);
+	}
+	assert(pkg.name === 'dsh-obsidian-bridge', '桥插件 package.json 的 name 必须是 dsh-obsidian-bridge');
+	assert(pkg.dsh?.client?.platform === 'web', '桥插件必须是 web 平台客户端插件');
+	for (const rel of ['lib/index.js', 'lib/client.js']) {
+		const file = path.join(dir, rel);
+		assert(existsSync(file), '缺少 packages/dsh-obsidian-bridge/' + rel);
+		try {
+			execFileSync(process.execPath, ['--check', file], {
+				cwd: root,
+				stdio: 'pipe',
+				encoding: 'utf8',
+			});
+		} catch (error) {
+			const output = `${error.stdout ?? ''}${error.stderr ?? ''}`.trim();
+			throw new CheckError('桥插件语法检查失败 ' + rel + (output ? `:\n${output}` : ''));
+		}
+	}
+}
+
 async function buildMain() {
 	try {
 		const result = await esbuild.build({
@@ -170,6 +198,9 @@ async function main() {
 
 	checkTypes();
 	console.log('[check] tsc -noEmit -skipLibCheck 通过');
+
+	checkBridgePlugin();
+	console.log('[check] dsh-obsidian-bridge 清单与语法通过');
 
 	const builtMain = await buildMain();
 	const diskMain = path.join(root, 'main.js');

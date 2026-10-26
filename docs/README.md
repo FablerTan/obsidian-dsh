@@ -6,8 +6,9 @@
 |---|---|
 | [roadmap.md](roadmap.md) | 路线图：已完成 / 下一步（含验收标准）/ 非目标 / 风险 |
 | [changes/](changes/README.md) | **变更提案**：改代码前先写，用户批准后再执行（含模板与编号索引） |
-| [architecture.md](architecture.md) | 架构：服务生命周期、profile 与端口、视图与承载面（webview/iframe）、配置持久化 |
+| [architecture.md](architecture.md) | 架构：服务生命周期、profile 与端口、视图与承载面（webview）、配置持久化 |
 | [development.md](development.md) | 开发：环境、构建、安装到 vault、调试、代码结构与改动地图 |
+| [obsidian-cdp.md](obsidian-cdp.md) | 开发期让 dsh 通过 CDP + MCP 操作 / 调试 Obsidian：启动、配置、常用操作、全流程与排障 |
 | [troubleshooting.md](troubleshooting.md) | 故障排查：服务起不来、面板空白、端口冲突、PATH 问题 |
 | [skills.md](skills.md) | `skills/` 目录约定与 obsidian-docs 文档检索技能 |
 

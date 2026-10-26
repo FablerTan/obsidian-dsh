@@ -1,8 +1,8 @@
 /**
  * 就绪探测的四态结果。
  *
- * - running: 端口上是可直接访问的 dsh（能识别出 dsh 页面）
- * - auth:    端口上是 dsh，但需要浏览器会话 token（0.2.1+），裸 URL 打不开
+ * - running: 端口上是可直接访问的 dsh 页面（0.1.x 或未启用 token 鉴权；本插件只支持 0.2.x，会判为不兼容）
+ * - auth:    端口上是 dsh，但需要浏览器会话 token（0.2.x），裸 URL 打不开
  * - foreign: 端口被别的程序占用（能连上，但不是 dsh）
  * - down:    没有服务在监听
  */
@@ -49,7 +49,7 @@ export interface DshRuntimeInfo {
 }
 
 /** DSH 页面里 obsidian-bridge 的探测结果（设置页展示）。 */
-export type DshBridgeState = 'connected' | 'panel-closed' | 'iframe' | 'missing' | 'error';
+export type DshBridgeState = 'connected' | 'panel-closed' | 'missing' | 'error';
 
 export interface DshBridgeStatus {
 	state: DshBridgeState;

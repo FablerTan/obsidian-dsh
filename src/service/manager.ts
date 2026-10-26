@@ -3,7 +3,6 @@ import { sleep } from '../shared/async';
 import { logChild, logPlugin, logPluginError, logPluginWarn, redactToken } from '../shared/log';
 import type { DshCommand, DshRuntimeInfo, Probe, ProbeResult } from '../shared/types';
 import { buildSpawnEnv, inspectDshRuntime, resolveDshInstall } from './locator';
-import { defaultProbe } from './probe';
 
 /** dsh 服务配置（端口、profile、指定安装由设置页决定，运行期可能变化）。 */
 export interface DshServiceConfig {
@@ -18,7 +17,7 @@ export type DshServiceOutcome =
 	| { ok: true; alreadyRunning: boolean }
 	| {
 			ok: false;
-			reason: 'locator' | 'exited' | 'timeout' | 'occupied' | 'auth';
+			reason: 'locator' | 'exited' | 'timeout' | 'occupied' | 'auth' | 'unsupported';
 			exitCode?: number | null;
 	  };
 
@@ -29,8 +28,8 @@ export interface DshServiceOptions {
 	cwd: string;
 	/** 状态文案回调（由插件写进状态条，保持本模块不依赖 Obsidian）。 */
 	onStatus: (text: string) => void;
-	/** 就绪探测；不传则用 fetch 兜底（只能判断「有东西在监听」）。 */
-	probe?: Probe;
+	/** 可信探测（由插件注入 Obsidian requestUrl 实现），用于 spawn 前的四态判定。 */
+	probe: Probe;
 	/** 运行信息回调：实际使用的 dsh 路径 / 版本 / 其他版本安装（由插件层做可见提示）。 */
 	onRuntime?: (info: DshRuntimeInfo) => void;
 }
@@ -44,31 +43,31 @@ const KILL_GRACE_MS = 2000;
 const STOP_TIMEOUT_MS = 3000;
 /** stdout/stderr 行缓冲上限：URL 与日志都按整行处理，留余量防止跨 chunk 被截断。 */
 const OUTPUT_BUFFER_LIMIT = 65536;
-/** dsh 0.2.1+ 的就绪信号：`dsh web: <带 token 的 URL>`。 */
+/** dsh 0.2.x 的就绪信号：`dsh web: <带 token 的 URL>`。 */
 const WEB_URL_PATTERN = /dsh web: (https?:\/\/[^\s]+)/;
 
 /**
  * dsh 服务的进程托管：探测 → 拉起 → 等待就绪 → 重启 / 停止。
  *
  * 纯 Node 逻辑，不 import Obsidian：状态文案走 onStatus 回调，探测实现走注入，
- * UI 归 view 层。就绪判定兼容两代 dsh：
- *  - 0.1.1：裸 URL 返回 200 + __ModuleLoader__（四态探测）；
- *  - 0.2.1+：裸 URL 需要 token，改从 stdout 的 `dsh web: <url>` 行拿就绪信号与承载面地址。
+ * UI 归 view 层。只支持 dsh 0.2.x：裸 URL 需要 token，就绪信号与承载面地址都来自
+ * stdout 的 `dsh web: <url>` 行。
  *
- * 行为约束见 docs/changes/0001（稳定性）、0002（版本可见性）、0003（版本选择 + token）、0004（webview 承载）。
+ * 行为约束见 docs/changes/0001（稳定性）、0002（版本可见性）、0003（版本选择 + token）、
+ * 0004（webview 承载）、0007（移除 0.1.1 / iframe 兼容）。
  */
 export class DshServiceManager {
 	private child: ChildProcess | null = null;
 	private starting: Promise<DshServiceOutcome> | null = null;
 	private readonly probe: Probe;
-	/** 0.2.1+ 启动日志里的带 token URL；null 表示没有（0.1.1 或尚未就绪）。 */
+	/** 0.2.x 启动日志里的带 token URL；null 表示尚未就绪（或没有可用实例）。 */
 	private webUrl: string | null = null;
 	/** stdout / stderr 的行缓冲：抓到完整行后再做 token 打码与日志输出。 */
 	private stdoutBuffer = '';
 	private stderrBuffer = '';
 
 	constructor(private readonly options: DshServiceOptions) {
-		this.probe = options.probe ?? defaultProbe;
+		this.probe = options.probe;
 	}
 
 	/** 服务地址（不带 token，用于探测与展示）。 */
@@ -76,7 +75,7 @@ export class DshServiceManager {
 		return 'http://127.0.0.1:' + String(this.options.getConfig().port);
 	}
 
-	/** 承载面地址：0.2.1+ 带 token（首次登录后浏览器用 cookie），其余等同 url。 */
+	/** 承载面地址：0.2.x 带 token（首次登录后浏览器用 cookie）；未就绪时回退裸 url。 */
 	get embedUrl(): string {
 		return this.webUrl ?? this.url;
 	}
@@ -86,10 +85,9 @@ export class DshServiceManager {
 		return this.probe(this.url);
 	}
 
-	/** 端口上是否已经有可用的 dsh（面板用来决定是否显示已连接）。 */
+	/** 本次拉起的 0.2.x 实例是否已就绪（面板用来决定是否显示已连接）。 */
 	async isReachable(): Promise<boolean> {
-		if (this.webUrl !== null && this.child !== null) return true;
-		return (await this.check()) === 'running';
+		return this.webUrl !== null && this.child !== null;
 	}
 
 	/** 确保服务在跑：已监听则什么都不做，否则拉起；并发调用复用同一个 Promise。 */
@@ -141,7 +139,7 @@ export class DshServiceManager {
 
 	private async doStart(): Promise<DshServiceOutcome> {
 		// 已由本 manager 拉起且仍在运行：直接复用。
-		// （0.2.1 的裸 URL 探测返回 auth，不能用来判断自己的子进程。）
+		// （0.2.x 的裸 URL 探测返回 auth，不能用来判断自己的子进程。）
 		if (this.webUrl !== null && this.child !== null) {
 			this.options.onStatus('运行中');
 			return { ok: true, alreadyRunning: true };
@@ -149,17 +147,18 @@ export class DshServiceManager {
 		const config = this.options.getConfig();
 		const before = await this.check();
 		if (before === 'running') {
-			this.options.onStatus('运行中');
-			// 服务已在运行（可能是上次会话遗留）：无法确认它用的哪份二进制，
-			// 但可以把插件的解析结果标为「未确认」交给插件层展示，避免版本信息完全不可见。
-			const resolved = resolveDshInstall(config.dshPath);
-			if (resolved !== null) {
-				void this.reportRuntime(resolved.install.command, this.child !== null, resolved.fallback);
-			}
-			return { ok: true, alreadyRunning: true };
+			// 0.2.x 的裸 URL 需要 token（探测为 auth）；能直接 200 打开的多半是 0.1.x
+			// 或不带鉴权的实例，本插件不再接受。
+			this.options.onStatus('版本不支持');
+			logPluginWarn(
+				'端口 ' +
+					String(config.port) +
+					' 上是可直接访问的 dsh 页面（0.1.x 或未启用 token 鉴权）；本插件只支持 0.2.x，请结束后重启',
+			);
+			return { ok: false, reason: 'unsupported' };
 		}
 		if (before === 'auth') {
-			// 0.2.1+ 的 token 是进程内生成的，插件无法接管非本次拉起的实例。
+			// 0.2.x 的 token 是进程内生成的，插件无法接管非本次拉起的实例。
 			this.options.onStatus('需手动结束');
 			logPluginWarn(
 				'端口 ' +
@@ -192,20 +191,12 @@ export class DshServiceManager {
 			child.once('exit', (code) => resolve(code));
 		});
 		for (let attempt = 0; attempt < READY_ATTEMPTS; attempt++) {
-			// 0.2.1+：stdout 的 URL 行就是就绪信号（同时提供带 token 的承载面地址）。
+			// 0.2.x 的唯一就绪信号：stdout 的 `dsh web: <url>` 行（同时提供带 token 的承载面地址）。
 			if (this.webUrl !== null) {
 				this.options.onStatus('运行中');
 				return { ok: true, alreadyRunning: false };
 			}
-			const now = await this.check();
-			if (now === 'running') {
-				this.options.onStatus('运行中');
-				return { ok: true, alreadyRunning: false };
-			}
-			// auth / foreign：自己刚拉起的 0.2.1 在打印 URL 前，裸 URL 可能先 401（auth），
-			// 前端 fallback 注册前甚至短暂 404（foreign）；两者都继续等。
-			// 端口真的被别人占用时，子进程会因 EADDRINUSE 退出，由下面的 exit race 收敛；
-			// 预检查阶段（spawn 前）的 foreign 仍然立刻报「端口被占用」。
+			// 端口被别人占用时，子进程会因 EADDRINUSE 退出，由 exit race 收敛。
 			const code = await Promise.race([exited, sleep(READY_INTERVAL_MS).then(() => null)]);
 			if (code !== null) {
 				this.options.onStatus('启动失败(退出码 ' + String(code) + ')');
@@ -309,7 +300,7 @@ export class DshServiceManager {
 	}
 
 	/**
-	 * 从一整行 stdout 里解析 0.2.1+ 的 `dsh web: <url>` 就绪信号。
+	 * 从一整行 stdout 里解析 0.2.x 的 `dsh web: <url>` 就绪信号。
 	 *
 	 * 必须等整行到齐再匹配：URL 行可能在 `?token=` 前后被拆成两个 chunk，
 	 * 提前匹配会拿到截断的地址（丢 token），面板登录就会失败。

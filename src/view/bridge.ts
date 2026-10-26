@@ -7,13 +7,12 @@ import type { DshWebView } from './dsh-view';
  * 与 DSH 页面里的 `dsh-obsidian-bridge` 通信。
  *
  * 通道是 Electron `<webview>.executeJavaScript()`：脚本在 guest 页面里执行，
- * 返回 JSON 可序列化的结果。桥只存在于 webview 承载；iframe 回退时明确拒绝。
+ * 返回 JSON 可序列化的结果。桥只存在于 Electron webview 承载。
  * 这里不 import main.ts，只依赖 App 与 DshWebView 的窄方法。
  */
 
 export type DshBridgeErrorReason =
 	| 'panel-closed'
-	| 'iframe'
 	| 'missing'
 	| 'version'
 	| 'timeout'
@@ -90,9 +89,6 @@ export async function callDshBridge<T>(
 ): Promise<T> {
 	const view = findDshView(app);
 	if (view === null) throw new DshBridgeError('panel-closed', 'DSH 面板未打开');
-	if (view.surfaceKind === 'iframe') {
-		throw new DshBridgeError('iframe', '当前承载方式为 iframe，无法访问 DSH 页面');
-	}
 	if (view.surfaceKind === null) throw new DshBridgeError('panel-closed', 'DSH 面板尚未加载');
 
 	let reply: BridgeReply<T>;
@@ -132,8 +128,6 @@ export async function waitForDshBridge(app: App, timeoutMs = 15000): Promise<num
 			throw new DshBridgeError('version', 'obsidian-bridge 未返回版本');
 		} catch (error) {
 			lastError = error;
-			// iframe 不可能恢复，立即停止等待。
-			if (error instanceof DshBridgeError && error.reason === 'iframe') throw error;
 			if (
 				error instanceof DshBridgeError &&
 				(error.reason === 'missing' || error.reason === 'version')
@@ -160,11 +154,9 @@ export async function probeDshBridge(app: App): Promise<DshBridgeStatus> {
 			const state: DshBridgeState =
 				error.reason === 'panel-closed'
 					? 'panel-closed'
-					: error.reason === 'iframe'
-						? 'iframe'
-						: error.reason === 'missing' || error.reason === 'version'
-							? 'missing'
-							: 'error';
+					: error.reason === 'missing' || error.reason === 'version'
+						? 'missing'
+						: 'error';
 			return { state, message: error.message };
 		}
 		return { state: 'error', message: error instanceof Error ? error.message : String(error) };
@@ -179,8 +171,6 @@ export function describeDshBridgeError(error: unknown): string {
 	switch (error.reason) {
 		case 'panel-closed':
 			return 'DSH 面板还没打开，请重试';
-		case 'iframe':
-			return '当前承载方式为 iframe，无法新建会话；请确认 webview 可用后重开面板';
 		case 'missing':
 			return '未检测到 dsh-obsidian-bridge；请安装该 dsh 插件、重启 DSH 服务并重开面板';
 		case 'version':

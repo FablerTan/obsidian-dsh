@@ -22,12 +22,14 @@ obsidian-dsh/
 ├─ AGENTS.md              # 给 AI agent 的项目结构约定
 ├─ src/
 │  ├─ main.ts             # 组合根：注册与装配（不含业务逻辑）
-│  ├─ service/            # dsh 进程域：manager / locator / probe（纯 Node）
-│  ├─ view/               # 面板域：dsh-view / surface / open
+│  ├─ service/            # dsh 进程域：manager / locator（纯 Node）
+│  ├─ view/               # 面板域：dsh-view / surface / bridge / native / open
 │  ├─ settings/           # 配置域：schema / tab
 │  └─ shared/             # 跨域基础件：constants / async / log / host
 ├─ docs/                  # 项目文档（路线图 / 架构 / 开发 / 排查 / 技能）
 ├─ skills/                # 给 agent 的技能（obsidian-docs：官方文档检索）
+├─ packages/
+│  └─ dsh-obsidian-bridge/ # dsh 侧客户端插件（单栏 / 工作区 / 新建会话；v2 并入原生数据桥）
 └─ .dsh/skills/           # → ../../skills/ 的符号链接（DSH 技能发现入口）
 ```
 
@@ -60,7 +62,7 @@ Obsidian：设置 → 第三方插件 → 启用 **DSH in Obsidian** → 点左�
   「dsh 版本」可选自动或检测到的某个安装（显示版本+路径），「重新检测」刷新列表；
   「运行环境」显示实际使用的 dsh 路径/版本，以及机器上其他版本的安装。
 - **状态栏**：`DSH: 运行中 / 启动失败 / …`，点击直接打开面板。
-- **命令面板**：`打开 DSH 面板`、`新建 DSH 会话`、`重启 DSH 服务`；功能区也有「新建 DSH 会话」图标。
+- **命令面板**：`打开 DSH 面板`、`新建 DSH 会话`、`重启 DSH 服务`；实验入口 `打开原生 DSH 聊天（实验）`（右栏一个实例，支持会话切换、模型/权限、当前笔记引用、审批/提问）；功能区也有「新建 DSH 会话」图标。
 - **新建会话**：自动起服务 → 打开面板 → 在**当前库目录**对应的 dsh 工作区新建并切入会话；不需要先进面板点左栏。
 - **单栏模式**：由 dsh 侧 `dsh-obsidian-bridge` 常开（左栏、右栏都收起），没有开关；未安装桥时只影响新建命令，面板照常可用。
 
@@ -70,20 +72,19 @@ Obsidian：设置 → 第三方插件 → 启用 **DSH in Obsidian** → 点左�
 > `dsh-obsidian-mentions` / `dsh-ui-obsidian-layout` 已不在 profile（见外部仓库 `PROFILES.md`），
 > 下面两段保留作历史参考。
 
-- `dsh-obsidian-bridge`（v0.1.0，纯客户端）：**单栏常开 + 新建会话 + 只认 vault 工作区**。
-  安装：`dsh plugin --profile obsidian add link:/Users/fabler/dsh/dsh-plugin/self-made/dsh-obsidian-bridge`，
+- `dsh-obsidian-bridge`（v0.2.0，纯客户端，本仓库 `packages/dsh-obsidian-bridge/`）：**单栏常开 + 新建会话 + 只认 vault 工作区 + 原生聊天数据桥**。
+  安装：`dsh plugin --profile obsidian add link:<repo>/packages/dsh-obsidian-bridge`，
   装完在面板里点「重启 DSH 服务」。它把 Obsidian 库目录解析成唯一目标工作区（不存在则创建），
   用 CSS 把左右两栏的 grid 轨道归零（Web 构建收起左栏后仍留 56px，必须 CSS）并同步收起 store；
   页面里暴露 `window.__DSH_OBSIDIAN_BRIDGE__`，Obsidian 通过 `<webview>.executeJavaScript()` 调用。
-  详见外部仓库 `self-made/dsh-obsidian-bridge/README.md`。
+  详见 [packages/dsh-obsidian-bridge/README.md](packages/dsh-obsidian-bridge/README.md)。
 - `$DSH_HOME/profiles/obsidian/` 已创建：bundles 基础为 `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app`
   （`dsh plugin add` 会把 `dsh-obsidian-bridge` 自动并入 `dsh.profile.bundles`；内置包从 dsh 安装目录解析，无需 npm 安装）。
 - 可执行文件解析顺序：node 直接跑 `~/.local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js`（存在时优先）
   → PATH `dsh` → `~/.local/bin/dsh` → `/opt/homebrew/bin/dsh` → `/usr/local/bin/dsh`。
-  设置页「dsh 版本」可以直接选检测到的任一份（含 0.1.1 / 0.2.1），不用改安装顺序；启动日志会打印实际路径与版本。
-- dsh 0.2.1+ 的 Web UI 需要浏览器会话 token：插件从启动输出里读取带 token 的 URL，用 Electron `<webview>` 承载
-  （token 只在首次登录用，随后走 cookie；日志里 `token=***`）。0.1.1 走原来的 200 探测，两个版本都支持。
-  环境不支持 webview 时自动回退 iframe；此时 0.2.1 的 SameSite=Strict cookie 在跨站 iframe 中不会发送，会提示改用 0.1.1。
+  设置页「dsh 版本」可以直接选检测到的任一份（要求 0.2.x），不用改安装顺序；启动日志会打印实际路径与版本。
+- dsh 0.2.x 的 Web UI 需要浏览器会话 token：插件从启动输出里读取带 token 的 URL，用 Electron `<webview>` 承载
+  （token 只在首次登录用，随后走 cookie；日志里 `token=***`）。只支持 0.2.x；0.1.x 与 iframe 回退已移除（提案 0007）。
 - 想给 obsidian profile 加功能插件：手动在 `~/.dsh/profiles/obsidian/cordis.patch.yml` 挂行，
   或 `dsh plugin --profile obsidian add <pkg>`（仅限 npm 上完整发布的包）。
 - `dsh-obsidian-mentions`（v0.1.1）：输入框 **@ 索引项目文件/文件夹**，选中后文件内容注入
@@ -104,10 +105,14 @@ Obsidian：设置 → 第三方插件 → 启用 **DSH in Obsidian** → 点左�
 
 ## 已知边界
 
-- 面板是 Electron `<webview>` 套壳（回退 iframe），非 Obsidian 原生组件渲染；跨源仍无法访问内部 DOM。
+- 面板是 Electron `<webview>` 套壳，非 Obsidian 原生组件渲染；跨源仍无法访问内部 DOM；只支持 dsh 0.2.x，webview 不可用时直接报错。
+- 原生聊天入口是 **Phase 1 React UI**：隐藏官方页面 + 原生消息/工具卡/输入框；模型选择只列已配置的 provider，
+  provider / API key 仍在 DSH 设置页配置。obsidian profile 的模型接入需与桌面 profile 对齐
+  （`llm-pi-ai` + `agent-default-model`），否则会报 `Authentication Fails`，见
+  [docs/development.md](docs/development.md#profile-的模型接入与桌面端一致)。
 - 若 dsh 通过樱花等隧道暴露，需在 dsh 侧配 `--trusted-host`（loopback 访问不需要）。
 - Obsidian 从 Finder 启动时 PATH 不完整，已用候选路径兜底；若仍找不到 dsh，看开发者控制台日志。
-- 0.2.1+ 的 token 是每进程新生成的：插件只能接管自己拉起的实例；上次遗留的实例会显示「需手动结束」，
+- 0.2.x 的 token 是每进程新生成的：插件只能接管自己拉起的实例；上次遗留的实例会显示「需手动结束」，
   按提示 `pkill -f "dsh --profile obsidian"` 后重启服务。重启服务后旧面板可能需要重开。
 
 ## skills/ — 给 agent 的技能
@@ -129,10 +134,10 @@ node skills/obsidian-docs/scripts/obsdocs.mjs get 编辑与格式化/属性  # �
 | 文档 | 内容 |
 |---|---|
 | [docs/roadmap.md](docs/roadmap.md) | 路线图：已完成 / 下一步（含验收标准）/ 非目标 / 风险 |
-| [docs/architecture.md](docs/architecture.md) | 架构：服务生命周期、profile 与端口、视图与承载面（webview/iframe） |
+| [docs/architecture.md](docs/architecture.md) | 架构：服务生命周期、profile 与端口、视图与承载面（webview） |
 | [docs/development.md](docs/development.md) | 开发：前置条件、构建、安装、调试、代码改动地图 |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | 故障排查：起不来 / 面板空白 / 端口冲突 / PATH |
 | [docs/skills.md](docs/skills.md) | `skills/` 目录约定与 obsidian-docs 技能 |
 | [AGENTS.md](AGENTS.md) | 给 AI agent 的项目结构约束（目录、版本、验证） |
 
-当前进度：方案 A / B 已完成，M2 稳定性（含 M2-5 版本可见性、dsh 版本选择 + 0.2.1 token 支持、webview 承载）已完成；下一步是 M3 数据互通（postMessage 导出桥）。
+当前进度：方案 A / B 已完成，M2 稳定性（含 M2-5 版本可见性、dsh 版本选择 + 0.2.x token 支持、webview 承载）已完成；0.3.0 起只支持 dsh 0.2.x，bridge 插件迁入本仓库（[0007](docs/changes/0007-drop-legacy-and-migrate-bridge.md)）；M4 原生聊天（[0006](docs/changes/0006-native-chat-panel.md)）Phase 1 实施中（React UI + 模型/权限/当前笔记）。

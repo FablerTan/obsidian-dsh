@@ -1,0 +1,11 @@
+# dsh-obsidian-bridge bundle patch: inserts the plugin row into the obsidian
+# profile roster. Applied as a profile bundle layer (the `dsh.bundle.patch`
+# manifest field); activate with
+# `dsh plugin --profile obsidian add link:<path-to-this-package>`.
+#
+# Pure client plugin: the host half (exports ".") is a no-op; the browser half
+# (exports "./client") sets window.__DSH_OBSIDIAN_BRIDGE__ and enforces the
+# single-column layout for the Obsidian panel.
+- insert:
+    - id: dsh-obsidian-bridge
+      name: dsh-obsidian-bridge
