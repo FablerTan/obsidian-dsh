@@ -1,0 +1,11 @@
+# 系统与编辑器
+.DS_Store
+
+# 依赖
+node_modules/
+
+# Obsidian 运行时设置（本机私有；符号链接安装时落在仓库根）
+data.json
+
+# 可重建的技能缓存
+skills/*/data/cache/

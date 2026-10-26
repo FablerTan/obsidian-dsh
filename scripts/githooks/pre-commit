@@ -1,0 +1,29 @@
+#!/bin/sh
+# obsidian-dsh — commit 前验收闸门（由 npm run hooks:install / npm install 安装）
+#
+# 强制：① 暂存集不含 .DS_Store / data.json / node_modules / 技能缓存；
+#       ② 版本三处一致、无运行时依赖、tsc 通过、main.js 与源码构建一致。
+# 通过时打印 [check] 摘要；失败时打印完整输出并拒绝提交。
+# 临时绕过（不推荐，须在 commit message 注明理由）：SKIP_COMMIT_CHECK=1 git commit …
+
+root="$(git rev-parse --show-toplevel)" || exit 1
+cd "$root" || exit 1
+
+if [ -n "$SKIP_COMMIT_CHECK" ]; then
+	echo "[pre-commit] SKIP_COMMIT_CHECK 已设置，跳过检查（交付前仍应显式跑 npm run check）"
+	exit 0
+fi
+
+echo "[pre-commit] npm run check -- --staged …"
+if out="$(npm run check -- --staged 2>&1)"; then
+	echo "$out"
+	exit 0
+fi
+
+echo "$out"
+echo
+echo "[pre-commit] ✗ 提交检查未通过，已拒绝提交。"
+echo "  · 版本 / main.js / 暂存集问题见上面的 [check] 输出"
+echo "  · 修好后重新 git add，再 git commit"
+echo "  （确需绕过可 SKIP_COMMIT_CHECK=1 git commit …，但须在 commit message 注明理由）"
+exit 1

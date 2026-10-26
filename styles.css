@@ -1,0 +1,50 @@
+/* DSH 面板：承载面（webview / iframe）填满整个视图，无边框无内边距 */
+.dsh-web-view {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.dsh-web-view iframe {
+	display: block;
+	width: 100%;
+	height: 100%;
+	border: none;
+	background: var(--background-primary);
+}
+
+/* Electron webview（与核心 Web viewer 同款）：guest 自己处理滚动与布局 */
+.dsh-web-view webview {
+	display: flex;
+	flex: 1 1 auto;
+	min-height: 0;
+	width: 100%;
+	height: 100%;
+	border: none;
+	background: var(--background-primary);
+}
+
+/* 顶部状态条：显示服务地址与连接状态 */
+.dsh-web-banner {
+	flex: none;
+	padding: 4px 12px;
+	font-size: 12px;
+	line-height: 1.6;
+	color: var(--text-muted);
+	background: var(--background-secondary);
+	border-bottom: 1px solid var(--background-modifier-border);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.dsh-web-banner.dsh-web-ok {
+	color: var(--text-success);
+}
+
+/* 设置页：dsh 桥插件的安装命令允许折行，避免撑破设置面板 */
+.dsh-bridge-hint code {
+	white-space: pre-wrap;
+	word-break: break-all;
+}

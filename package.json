@@ -1,0 +1,27 @@
+{
+	"name": "obsidian-dsh",
+	"version": "0.2.0",
+	"description": "Embed the DeepSeek Harness (dsh web) GUI in Obsidian as a native panel.",
+	"main": "main.js",
+	"type": "module",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"check": "node scripts/check.mjs",
+		"hooks:install": "sh scripts/install-hooks.sh",
+		"postinstall": "sh scripts/install-hooks.sh"
+	},
+	"keywords": [
+		"obsidian",
+		"dsh",
+		"deepseek",
+		"agent"
+	],
+	"license": "MIT",
+	"devDependencies": {
+		"@types/node": "^22.15.17",
+		"esbuild": "0.25.5",
+		"obsidian": "latest",
+		"typescript": "^5.8.3"
+	}
+}
