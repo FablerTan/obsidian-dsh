@@ -22,7 +22,7 @@ Obsidian 插件（56 个源文件、约 9200 行 TS/TSX，按职责域分层：`
 | `src/shared/` | 跨域基础件：constants / types / async / errors / log / host | 不放业务逻辑 |
 | `main.js` | esbuild 构建产物 | **禁止手改**，只能由 `npm run build` 生成 |
 | `manifest.json` / `versions.json` / `styles.css` | 插件清单、兼容表、样式 | 不要往 manifest 加自定义字段 |
-| `docs/` | 给人看的项目文档（roadmap / architecture / development / troubleshooting / skills） | 不放实现日志、TODO 草稿；新文档要登记进 [docs/README.md](docs/README.md) |
+| `docs/` | 给人看的项目文档（install / roadmap / architecture / development / troubleshooting / skills） | 不放实现日志、TODO 草稿；新文档要登记进 [docs/README.md](docs/README.md) |
 | `docs/changes/` | 代码改动前的提案（draft → approved → done），含模板与编号索引 | **未批准前不要改代码**；每个需求一份，含 ≥ 2 条实现路径对比 |
 | `skills/<name>/SKILL.md` | 给 agent 的技能入口 | 项目文档不要放这里 |
 | `skills/<name>/data/` | 可重建的索引 / 缓存 | 不提交缓存与不可复现产物 |

@@ -1,6 +1,6 @@
 # 项目文档
 
-本目录存放**需要长期维护、会随实现变化**的说明。根目录 [README.md](../README.md) 只保留快速开始与用户视角的介绍，细节都在这里。
+本目录存放**需要长期维护、会随实现变化**的说明。根目录 [README.md](../README.md) 只保留插件介绍与快速开始，细节都在这里。
 
 | 文档 | 内容 |
 |---|---|
@@ -8,7 +8,7 @@
 | [changes/](changes/README.md) | **变更提案**：改代码前先写（含 ≥ 2 条实现路径），用户选路并批准后再执行（含模板与编号索引） |
 | [architecture.md](architecture.md) | 架构：服务生命周期、profile 与端口、原生面板与隐藏 core、配置持久化 |
 | [development.md](development.md) | 开发：环境、构建、安装到 vault、调试、代码结构与改动地图 |
-| [install.md](install.md) | **安装指南（给 agent）**：前置条件 → dsh 0.2.x → obsidian profile → 模型接入 → 构建 → 装进 vault → 桥 → 验收 / 失败矩阵 / 回滚 |
+| [install.md](install.md) | **安装指南（给 agent）**：A 只装产物 / B 源码构建两条路线 → dsh 0.2.x → obsidian profile → 模型接入 → 插件与桥 → 验收 / 失败矩阵 / 更新回滚 |
 | [obsidian-cdp.md](obsidian-cdp.md) | 开发期让 dsh 通过 CDP + MCP 操作 / 调试 Obsidian：启动、配置、常用操作、全流程与排障 |
 | [troubleshooting.md](troubleshooting.md) | 故障排查：服务起不来、原生面板空白、端口冲突、PATH 问题 |
 | [skills.md](skills.md) | `skills/` 目录约定与 obsidian-docs 文档检索技能 |
