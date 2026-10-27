@@ -38,7 +38,7 @@ issue: 把 DSH 的「新建会话 / 单栏 / 只用 vault 项目」收敛成 Obs
   - 不删除/改写用户已有的其它 DSH 工作区与会话（只是不再从 UI 暴露）；
   - 不支持 iframe 回退下的桥（跨源）。
 - 约束：
-  - dsh 插件放外部仓库 `/Users/fabler/dsh/dsh-plugin`（其 AGENTS §0 需同步登记本次例外）；
+  - dsh 插件放外部仓库 `~/dsh/dsh-plugin`（其 AGENTS §0 需同步登记本次例外）；
   - 不自行重启 DSH 服务；安装完成后由用户重启并验证。
 
 ## 3. 方案
@@ -135,7 +135,7 @@ issue: 把 DSH 的「新建会话 / 单栏 / 只用 vault 项目」收敛成 Obs
 
 ### 实际改动
 
-- dsh 侧（外部仓库 `/Users/fabler/dsh/dsh-plugin/self-made/dsh-obsidian-bridge`）：
+- dsh 侧（外部仓库 `~/dsh/dsh-plugin/self-made/dsh-obsidian-bridge`）：
   - 新插件 `dsh-obsidian-bridge@0.1.0`：host 空壳 + client 桥；
   - `configure({ paths })` 解析/创建 vault 工作区（同时接受原路径与 realpath）；
   - `newSession()` → `ctx.uiWorkspace.startSession(vaultWorkspaceId)`；

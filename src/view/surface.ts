@@ -10,6 +10,9 @@ import { logPlugin, logPluginWarn } from '../shared/log';
  * webview 不是 Obsidian 的公开插件 API，但核心 Web viewer / Canvas 网页卡片
  * 都用它（webviewTag 已开）。这里只做能力探测：不可用时返回 null，由 view 明确报错，
  * 不再回退 iframe（0.2.x 的 token 登录在跨站 iframe 里走不通）。
+ *
+ * 0008 起只有原生聊天视图内部的隐藏 core 使用它；分区由插件指定为专用分区，
+ * 不与核心 Web viewer / Canvas 共用 cookie。
  */
 export interface DshSurface {
 	readonly kind: 'webview';
@@ -56,6 +59,7 @@ export function createDshSurface(
  *
  * 用 parent.ownerDocument 而不是全局 document：面板可能位于弹窗（popout）窗口。
  * partition 必须在首次导航前设置；取不到分区时留空，使用默认会话。
+ * 原生聊天传的是插件专用分区（persist:dsh-obsidian）。
  */
 function createWebview(parent: HTMLElement, url: string, partition: string | null): DshSurface | null {
 	const doc = parent.ownerDocument;

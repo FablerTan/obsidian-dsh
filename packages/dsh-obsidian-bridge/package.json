@@ -1,6 +1,6 @@
 {
   "name": "dsh-obsidian-bridge",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Obsidian 嵌入专用：把 vault 设为唯一工作区、新建会话、强制单栏（收起左右栏）的客户端桥；v2 已并入原生聊天数据桥。",
   "type": "module",

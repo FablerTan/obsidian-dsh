@@ -1,7 +1,9 @@
-import { Notice, type App } from 'obsidian';
+import { Notice, TFolder, type App } from 'obsidian';
 import { useEffect, useRef, useState } from 'react';
 import type {
+	NativeChatLive,
 	NativeChatSnapshot,
+	NativeContextUsage,
 	NativeModelSelection,
 	NativeModels,
 	NativeNote,
@@ -9,32 +11,50 @@ import type {
 	NativePermissions,
 	NativeQuestionAnswer,
 	NativeSessionSummary,
+	NativeTeamProjection,
 } from '../../../shared/native-types';
 import { sleep } from '../../../shared/async';
-import { vaultPath } from '../../../shared/host';
+import { errorText } from '../../../shared/errors';
+import { projectPathWithin, vaultPath } from '../../../shared/host';
+import {
+	streamRefreshMs,
+	type MentionScope,
+	type SkillScope,
+	type StreamRefreshMode,
+} from '../../../settings/schema';
+import { NativeBridgeError } from '../../../shared/native-types';
 import type { NativeCoreBridge } from '../core-bridge';
 import { describeNativeBridgeError } from '../core-bridge';
+import type { MentionEntry } from '../mention';
+import { filterMentionEntries } from '../mention-scope';
 import type { NoteTracker } from '../note-tracker';
 import { Composer } from './composer';
+import { ContextDetails } from './context-meter';
 import { Icon } from './icon';
-import {
-	ModelMenu,
-	PermissionMenu,
-	RenameSessionModal,
-	SessionMenu,
-} from './menus';
+import { ModelMenu } from './model-menu';
+import { PermissionMenu } from './permission-menu';
+import { RenameSessionModal, SessionMenu } from './session-menu';
 import { PendingCard } from './pending';
 import { SessionPicker } from './session-picker';
+import { TeamPanel } from './team-panel';
 import { Timeline } from './timeline';
 
 type Phase = 'booting' | 'ready' | 'error';
 
-function mention(path: string): string {
-	return /[\s"']/.test(path) ? '@"' + path + '"' : '@' + path;
-}
+const NEW_SESSION_TITLE = '新会话';
 
-function messageOf(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
+/**
+ * DSH 会用工作目录名（或空串）给还没有标题的新会话兜底；展示时统一换成「新会话」。
+ * 0033 起这里只做展示兜底：新建会话时不要 rename，否则标题会被 DSH 当成用户固定标题，
+ * 首消息 / 随对话的自动标题就再也不会更新。
+ */
+function sessionTitle(session: NativeSessionSummary): string {
+	const parts = (session.cwd ?? '').split(/[\\/]/).filter((part) => part !== '');
+	const folder = parts.length > 0 ? parts[parts.length - 1] : null;
+	const placeholder =
+		session.blank === true &&
+		(session.title === '' || (folder !== null && session.title === folder));
+	return placeholder ? NEW_SESSION_TITLE : session.title;
 }
 
 export interface NativeChatRootProps {
@@ -42,7 +62,16 @@ export interface NativeChatRootProps {
 	bridge: NativeCoreBridge;
 	noteTracker: NoteTracker;
 	ensureReady: () => Promise<void>;
-	openDshPanel: () => void;
+	/** 模型/凭据不在插件里配置，给出 obsidian profile 的说明。 */
+	onExplainSettings: () => void;
+	/** 原生面板错误页的重启服务按钮。 */
+	onRestartService: () => Promise<void>;
+	/** 设置页的流式刷新节奏（0021）；每次轮询读取，切换后即时生效。 */
+	getStreamRefresh: () => StreamRefreshMode;
+	/** 设置页的「@」引用范围（0030）；每次打开菜单时读取。 */
+	getMentionScope: () => MentionScope;
+	/** 设置页的「/」技能范围（0037）；每次打开 / 菜单时读取，只影响菜单显示。 */
+	getSkillScope: () => SkillScope;
 }
 
 export function NativeChatRoot({
@@ -50,28 +79,51 @@ export function NativeChatRoot({
 	bridge,
 	noteTracker,
 	ensureReady,
-	openDshPanel,
+	onExplainSettings,
+	onRestartService,
+	getStreamRefresh,
+	getMentionScope,
+	getSkillScope,
 }: NativeChatRootProps) {
 	const [phase, setPhase] = useState<Phase>('booting');
 	const [bootError, setBootError] = useState<string | null>(null);
 	const [sessions, setSessions] = useState<NativeSessionSummary[]>([]);
 	const [sessionId, setSessionId] = useState<string | null>(null);
 	const [snapshot, setSnapshot] = useState<NativeChatSnapshot | null>(null);
+	const [live, setLive] = useState<NativeChatLive | null>(null);
+	const [liveTick, setLiveTick] = useState(0);
 	const [models, setModels] = useState<NativeModels | null>(null);
 	const [permissions, setPermissions] = useState<NativePermissions | null>(null);
 	const [note, setNote] = useState<NativeNote | null>(noteTracker.getSnapshot());
-	const [noteDismissed, setNoteDismissed] = useState(false);
 	const [draft, setDraft] = useState('');
 	const [busy, setBusy] = useState(false);
 	const [loadingOlder, setLoadingOlder] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [pickerOpen, setPickerOpen] = useState(false);
-	const [menu, setMenu] = useState<'model' | 'permission' | 'more' | null>(null);
+	const [menu, setMenu] = useState<{
+		kind: 'model' | 'permission' | 'more' | 'context' | 'team';
+		anchor: DOMRect;
+	} | null>(null);
+	const [context, setContext] = useState<NativeContextUsage | null>(null);
+	const [team, setTeam] = useState<NativeTeamProjection | null>(null);
 
 	const mountedRef = useRef(true);
 	const tokenRef = useRef(0);
 	const cursorRef = useRef(0);
+	const liveCursorRef = useRef(-1);
+	const liveNoticeRef = useRef(false);
 	const sessionIdRef = useRef<string | null>(null);
+	/** 上一次快照里的标题：DSH 侧标题变化时用它触发会话列表重读（0033）。 */
+	const titleRef = useRef<string | null>(null);
+	/** 上下文请求序号：同一会话的并发请求只接受最新一次结果。 */
+	const contextRequestRef = useRef(0);
+	/** 团队投影请求序号（0035），与上下文同样的「只接受最新一次」策略。 */
+	const teamRequestRef = useRef(0);
+	/** 同一帧内的多个 live 包只保留最后一个。 */
+	const pendingLiveRef = useRef<NativeChatLive | null>(null);
+	const liveRafRef = useRef<number | null>(null);
+	/** 上一次真正渲染 live 的时间（ms），用于「平衡 / 省电」档的最小间隔。 */
+	const lastLiveRenderRef = useRef(0);
 
 	useEffect(() => {
 		mountedRef.current = true;
@@ -81,24 +133,92 @@ export function NativeChatRoot({
 		return () => {
 			mountedRef.current = false;
 			tokenRef.current += 1;
+			if (liveRafRef.current !== null) {
+				window.cancelAnimationFrame(liveRafRef.current);
+				liveRafRef.current = null;
+			}
+			pendingLiveRef.current = null;
 			unsubscribe();
 		};
 	}, [noteTracker]);
 
-	useEffect(() => {
-		setNoteDismissed(false);
-	}, [note?.path]);
-
 	const refreshSessions = async (): Promise<void> => {
 		const list = await bridge.listSessions();
-		if (mountedRef.current) setSessions(list.sessions);
+		const vault = vaultPath(app);
+		if (mountedRef.current) {
+			setSessions(
+				list.sessions
+					.filter((entry) => projectPathWithin(entry.cwd, vault))
+					.map((entry) => ({ ...entry, title: sessionTitle(entry) })),
+			);
+		}
+	};
+
+	const refreshContext = async (id: string): Promise<void> => {
+		if (!bridge.supportsContext()) {
+			if (mountedRef.current && id === sessionIdRef.current) setContext(null);
+			return;
+		}
+		const request = ++contextRequestRef.current;
+		try {
+			const next = await bridge.context();
+			if (
+				mountedRef.current &&
+				id === sessionIdRef.current &&
+				request === contextRequestRef.current
+			) {
+				setContext(next);
+			}
+		} catch {
+			// 占用只是辅助信息：失败时显示灰色空环，不阻塞消息流。
+			if (
+				mountedRef.current &&
+				id === sessionIdRef.current &&
+				request === contextRequestRef.current
+			) {
+				setContext(null);
+			}
+		}
+	};
+
+	const refreshTeam = async (id: string): Promise<void> => {
+		if (!bridge.supportsTeam()) {
+			if (mountedRef.current && id === sessionIdRef.current) setTeam(null);
+			return;
+		}
+		const request = ++teamRequestRef.current;
+		try {
+			const next = await bridge.team();
+			if (
+				mountedRef.current &&
+				id === sessionIdRef.current &&
+				request === teamRequestRef.current
+			) {
+				setTeam(next);
+			}
+		} catch {
+			// 团队只是辅助信息：投影缺失 / 旧桥时隐藏入口，不阻塞消息流。
+			if (
+				mountedRef.current &&
+				id === sessionIdRef.current &&
+				request === teamRequestRef.current
+			) {
+				setTeam(null);
+			}
+		}
 	};
 
 	const refreshSnapshot = async (): Promise<void> => {
 		const next = await bridge.snapshot();
 		if (!mountedRef.current || next.sessionId !== sessionIdRef.current) return;
 		cursorRef.current = next.revision;
+		const previousTitle = titleRef.current;
+		titleRef.current = next.title;
 		setSnapshot(next);
+		// DSH 侧标题（首消息 fallback / 标题 provider / 随对话更新）变了：列表立即跟随，不用手动刷新。
+		if (previousTitle !== null && previousTitle !== next.title) void refreshSessions();
+		void refreshContext(next.sessionId);
+		void refreshTeam(next.sessionId);
 		try {
 			const nextPermissions = await bridge.permissions();
 			if (mountedRef.current && next.sessionId === sessionIdRef.current) {
@@ -129,18 +249,66 @@ export function NativeChatRoot({
 		}
 	};
 
+	/**
+	 * 同一帧内的多个 live 包只渲染一次（0021）：桥端每个 chunk 立即通知，
+	 * 这里按设置里的最小间隔合帧——屏幕帧率就是「逐字 / 每帧」两档的上限。
+	 */
+	const scheduleLive = (next: NativeChatLive | null): void => {
+		pendingLiveRef.current = next;
+		if (liveRafRef.current !== null) return;
+		liveRafRef.current = window.requestAnimationFrame((now) => {
+			liveRafRef.current = null;
+			if (!mountedRef.current) return;
+			const gap = streamRefreshMs(getStreamRefresh());
+			if (gap > 0 && now - lastLiveRenderRef.current < gap - 1) {
+				scheduleLive(pendingLiveRef.current);
+				return;
+			}
+			lastLiveRenderRef.current = now;
+			setLive(pendingLiveRef.current);
+			setLiveTick((value) => value + 1);
+		});
+	};
+
+	const clearLiveNow = (): void => {
+		if (liveRafRef.current !== null) {
+			window.cancelAnimationFrame(liveRafRef.current);
+			liveRafRef.current = null;
+		}
+		pendingLiveRef.current = null;
+		lastLiveRenderRef.current = 0;
+	};
+
 	const poll = (token: number): void => {
 		void (async () => {
 			while (mountedRef.current && token === tokenRef.current) {
 				try {
-					const event = await bridge.nextEvent(cursorRef.current, 20000);
+					const event = await bridge.nextEvent(
+						cursorRef.current,
+						20000,
+						liveCursorRef.current,
+					);
 					if (!mountedRef.current || token !== tokenRef.current) return;
 					if (event.changed) {
 						cursorRef.current = event.cursor;
 						await refreshSnapshot();
 					}
+					// 桥 v3：live 游标独立于结构 revision；旧桥没有 liveCursor，直接跳过。
+					if (
+						event.liveCursor !== undefined &&
+						event.liveCursor !== liveCursorRef.current
+					) {
+						liveCursorRef.current = event.liveCursor;
+						scheduleLive(event.live ?? null);
+					}
 				} catch (pollError) {
 					if (!mountedRef.current || token !== tokenRef.current) return;
+					if (pollError instanceof NativeBridgeError && pollError.reason === 'not-subscribed') {
+						// 切换会话时桥侧会先 cleanup（active 短暂为 null）；这是正常过渡，静默重试，
+						// 否则会在标题栏下方闪出一条假错误。
+						await sleep(300);
+						continue;
+					}
 					setError('事件通道中断：' + describeNativeBridgeError(pollError));
 					await sleep(1200);
 				}
@@ -155,12 +323,23 @@ export function NativeChatRoot({
 		const token = ++tokenRef.current;
 		sessionIdRef.current = id;
 		cursorRef.current = next.revision;
+		liveCursorRef.current = -1;
+		clearLiveNow();
+		setLive(null);
+		setLiveTick(0);
 		setSessionId(id);
+		titleRef.current = next.title;
 		setSnapshot(next);
+		contextRequestRef.current += 1;
+		teamRequestRef.current += 1;
+		setContext(null);
+		setTeam(null);
 		setPickerOpen(false);
 		setMenu(null);
 		setError(null);
 		await Promise.all([loadModels(), loadPermissions()]);
+		void refreshContext(id);
+		void refreshTeam(id);
 		poll(token);
 	};
 
@@ -169,6 +348,14 @@ export function NativeChatRoot({
 		setBootError(null);
 		try {
 			await ensureReady();
+			if (!bridge.supportsLiveStream() && !liveNoticeRef.current) {
+				liveNoticeRef.current = true;
+				new Notice(
+					'dsh-obsidian-bridge 需要更新：重新 link 并重启 DSH 服务后，Assistant 输出才会流式显示。',
+					15000,
+				);
+			}
+
 			// 服务刚重启时会话列表可能还没同步完，短暂重试，避免空状态误显示「还没有会话」。
 			let list = await bridge.listSessions();
 			for (let attempt = 0; attempt < 10 && list.sessions.length === 0; attempt += 1) {
@@ -176,7 +363,12 @@ export function NativeChatRoot({
 				list = await bridge.listSessions();
 			}
 			if (!mountedRef.current) return;
-			setSessions(list.sessions);
+			const vault = vaultPath(app);
+			setSessions(
+				list.sessions
+					.filter((entry) => projectPathWithin(entry.cwd, vault))
+					.map((entry) => ({ ...entry, title: sessionTitle(entry) })),
+			);
 			setPhase('ready');
 		} catch (bootFailure) {
 			if (!mountedRef.current) return;
@@ -189,6 +381,18 @@ export function NativeChatRoot({
 		void boot();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
+
+	const restartThenBoot = async (): Promise<void> => {
+		await onRestartService();
+		await boot();
+	};
+
+	const toggleMenu = (
+		kind: 'model' | 'permission' | 'more' | 'context' | 'team',
+		anchor: DOMRect,
+	): void => {
+		setMenu((value) => (value?.kind === kind ? null : { kind, anchor }));
+	};
 
 	const openSession = async (id: string): Promise<void> => {
 		if (busy) return;
@@ -203,16 +407,21 @@ export function NativeChatRoot({
 		}
 	};
 
-	const createSession = async (): Promise<void> => {
-		if (busy) return;
+	const createSession = async (): Promise<boolean> => {
+		if (busy) return false;
 		setBusy(true);
 		setError(null);
 		try {
 			const created = await bridge.createSession(vaultPath(app));
+			// 不再 rename「新会话」：显式重命名会被 DSH 当成用户固定标题，自动标题从此不再更新（0033）。
+			// 未发消息的空白会话由 sessionTitle() 统一展示成「新会话」。
 			await refreshSessions();
 			await attachSession(created.sessionId);
+			if (mountedRef.current) setPhase('ready');
+			return true;
 		} catch (failure) {
 			if (mountedRef.current) setError('新建会话失败：' + describeNativeBridgeError(failure));
+			return false;
 		} finally {
 			if (mountedRef.current) setBusy(false);
 		}
@@ -221,21 +430,20 @@ export function NativeChatRoot({
 	const send = async (): Promise<void> => {
 		const text = draft.trim();
 		if (text === '' || sessionId === null) return;
-		const content = note !== null && !noteDismissed ? mention(note.path) + '\n' + text : text;
 		setBusy(true);
 		setError(null);
 		try {
-			await bridge.send(content);
+			await bridge.send(text);
 			if (!mountedRef.current) return;
 			setDraft('');
 			await refreshSnapshot();
 		} catch (failure) {
 			if (!mountedRef.current) return;
-			const message = messageOf(failure);
+			const message = errorText(failure);
 			setError('发送失败：' + describeNativeBridgeError(failure));
 			if (message.includes('writer-held')) {
 				new Notice(
-					'这个会话正被另一个客户端占用（例如官方面板或桌面端）。请新建会话，或换一个空闲会话。',
+					'这个会话正被另一个客户端占用（例如桌面端或另一个 Obsidian 窗口）。请新建会话，或换一个空闲会话。',
 					15000,
 				);
 			} else {
@@ -256,6 +464,23 @@ export function NativeChatRoot({
 			if (mountedRef.current) setError('停止失败：' + describeNativeBridgeError(failure));
 		} finally {
 			if (mountedRef.current) setBusy(false);
+		}
+	};
+
+	/** "/" 菜单里的宿主命令（/compact）：结果由时间线节点呈现，失败进错误条。 */
+	const runCommand = async (line: string): Promise<void> => {
+		setError(null);
+		try {
+			const execution = await bridge.executeCommand(line);
+			if (!execution.matched) {
+				setError('未知命令：' + line + '（当前会话的组合里没有注册它）');
+				return;
+			}
+			if (execution.result.kind === 'error') {
+				setError(line + ' 执行失败：' + (execution.result.text ?? '未知原因'));
+			}
+		} catch (failure) {
+			setError('命令执行失败：' + describeNativeBridgeError(failure));
 		}
 	};
 
@@ -339,13 +564,34 @@ export function NativeChatRoot({
 		}).open();
 	};
 
-	const openNote = (): void => {
-		if (note === null) return;
-		void app.workspace.openLinkText(note.path, '', false);
+	/** @ 菜单的候选来源：vault 当前快照，打开菜单时取一次，并按设置裁剪范围（0030）。 */
+	const listMentionEntries = (): MentionEntry[] => {
+		const entries: MentionEntry[] = app.vault
+			.getAllLoadedFiles()
+			.filter((entry) => entry.path !== '/' && entry.path !== '')
+			.map((entry) => ({
+				path: entry.path,
+				kind: entry instanceof TFolder ? 'directory' : 'file',
+			}));
+		return filterMentionEntries(entries, getMentionScope());
 	};
 
 	const current = sessions.find((entry) => entry.id === sessionId) ?? null;
-	const title = snapshot?.title ?? current?.title ?? '选择会话';
+	// 快照标题也要走一遍占位映射：DSH 对还没有标题的新会话会返回 cwd 目录名（0033）。
+	const title = ((): string => {
+		if (snapshot !== null) {
+			const base: NativeSessionSummary = current ?? {
+				id: snapshot.sessionId,
+				title: snapshot.title,
+				cwd: null,
+				running: false,
+				blank: false,
+				updatedAt: null,
+			};
+			return sessionTitle({ ...base, title: snapshot.title });
+		}
+		return current?.title ?? '选择会话';
+	})();
 	const running = snapshot?.session.running === true;
 	const ready = phase === 'ready' && sessionId !== null;
 	const pending: NativePending | null = snapshot?.pending ?? null;
@@ -361,6 +607,25 @@ export function NativeChatRoot({
 					<span>{title}</span>
 					<Icon name="chevron-down" />
 				</button>
+				{team === null ? null : (
+					<button
+						className={
+							'dsh-native-icon-button dsh-native-team-trigger' +
+							(team.members.some((member) => member.pendingInteraction)
+								? ' has-pending'
+								: '')
+						}
+						title="智能体团队"
+						aria-label="智能体团队"
+						aria-haspopup="dialog"
+						aria-expanded={menu?.kind === 'team'}
+						onClick={(event) =>
+							toggleMenu('team', event.currentTarget.getBoundingClientRect())
+						}
+					>
+						<Icon name="users" />
+					</button>
+				)}
 				{running ? <span className="dsh-native-running-dot" title="运行中" /> : null}
 				<span className="dsh-native-spacer" />
 				<button className="dsh-native-icon-button" title="新建会话" onClick={() => void createSession()}>
@@ -369,7 +634,9 @@ export function NativeChatRoot({
 				<button
 					className="dsh-native-icon-button"
 					title="更多"
-					onClick={() => setMenu((value) => (value === 'more' ? null : 'more'))}
+					onClick={(event) =>
+						toggleMenu('more', event.currentTarget.getBoundingClientRect())
+					}
 				>
 					<Icon name="more-horizontal" />
 				</button>
@@ -410,14 +677,14 @@ export function NativeChatRoot({
 						<button className="mod-cta" onClick={() => void boot()}>
 							重试
 						</button>
-						<button onClick={openDshPanel}>打开 DSH 面板</button>
+						<button onClick={() => void restartThenBoot()}>重启服务</button>
 					</div>
 				</div>
 			) : sessionId === null ? (
 				<div className="dsh-native-empty">
 					<Icon name="message-square" size={28} />
 					<h2>开始一个 DSH 会话</h2>
-					<p>当前笔记会自动作为上下文引用，不会把正文塞进消息。</p>
+					<p>输入 @ 可引用当前笔记或项目文件；引用只带路径，不会把正文塞进消息。</p>
 					<button className="mod-cta" onClick={() => void createSession()}>
 						新建会话
 					</button>
@@ -442,6 +709,8 @@ export function NativeChatRoot({
 						<Timeline
 							app={app}
 							snapshot={snapshot}
+							live={live}
+							liveTick={liveTick}
 							sourcePath={note?.path ?? ''}
 							loadingOlder={loadingOlder}
 							onLoadOlder={() => void loadOlder()}
@@ -450,12 +719,13 @@ export function NativeChatRoot({
 						<div className="dsh-native-status-screen">加载会话…</div>
 					)}
 					<Composer
-						note={note}
-						noteDismissed={noteDismissed}
-						onDismissNote={() => setNoteDismissed(true)}
-						onOpenNote={openNote}
+						currentNote={note}
+						listEntries={listMentionEntries}
 						models={models}
 						permissions={permissions}
+						context={context}
+						contextOpen={menu?.kind === 'context'}
+						onContext={(anchor) => toggleMenu('context', anchor)}
 						running={running}
 						busy={busy}
 						ready={ready}
@@ -463,12 +733,17 @@ export function NativeChatRoot({
 						onDraft={setDraft}
 						onSend={() => void send()}
 						onStop={() => void stop()}
-						onModel={() => setMenu((value) => (value === 'model' ? null : 'model'))}
-						onPermission={() => {
+						onModel={(anchor) => toggleMenu('model', anchor)}
+						onPermission={(anchor) => {
 							if (permissions === null) return;
-							setMenu((value) => (value === 'permission' ? null : 'permission'));
+							toggleMenu('permission', anchor);
 						}}
-						onOpenSettings={openDshPanel}
+						onExplainSettings={onExplainSettings}
+						commandsAvailable={bridge.supportsCommands()}
+						onNewSession={() => void createSession()}
+						onCompact={() => runCommand('/compact')}
+						loadSkills={() => bridge.skills()}
+						getSkillScope={getSkillScope}
 						pending={
 							pending !== null ? (
 								<PendingCard
@@ -482,26 +757,43 @@ export function NativeChatRoot({
 					/>
 				</>
 			)}
-			{menu === 'model' ? (
+			{menu?.kind === 'model' ? (
 				<ModelMenu
 					models={models}
+					anchor={{ rect: menu.anchor, side: 'above' }}
 					onSelect={(selection) => void selectModel(selection)}
 					onRefresh={() => void loadModels()}
-					onOpenSettings={openDshPanel}
+					onExplainSettings={onExplainSettings}
 					onClose={() => setMenu(null)}
 				/>
 			) : null}
-			{menu === 'permission' && permissions !== null ? (
+			{menu?.kind === 'permission' && permissions !== null ? (
 				<PermissionMenu
 					app={app}
+					anchor={{ rect: menu.anchor, side: 'above' }}
 					permissions={permissions}
 					onSelect={(preset) => void setPermission(preset)}
 					onClose={() => setMenu(null)}
 				/>
 			) : null}
-			{menu === 'more' ? (
+			{menu?.kind === 'context' ? (
+				<ContextDetails
+					context={context}
+					anchor={menu.anchor}
+					onClose={() => setMenu(null)}
+				/>
+			) : null}
+			{menu?.kind === 'team' && team !== null ? (
+				<TeamPanel
+					team={team}
+					anchor={menu.anchor}
+					onClose={() => setMenu(null)}
+				/>
+			) : null}
+			{menu?.kind === 'more' ? (
 				<SessionMenu
 					hasSession={sessionId !== null}
+					anchor={{ rect: menu.anchor, side: 'below' }}
 					onNew={() => void createSession()}
 					onRename={rename}
 					onRefresh={() => void refreshSessions()}

@@ -1,44 +1,303 @@
-/* DSH 面板：webview 承载面填满整个视图，无边框无内边距 */
-.dsh-web-view {
-	width: 100%;
-	height: 100%;
-	display: flex;
-	flex-direction: column;
-}
-
-/* Electron webview（与核心 Web viewer 同款）：guest 自己处理滚动与布局 */
-.dsh-web-view webview {
-	display: flex;
-	flex: 1 1 auto;
-	min-height: 0;
-	width: 100%;
-	height: 100%;
-	border: none;
-	background: var(--background-primary);
-}
-
-/* 顶部状态条：显示服务地址与连接状态 */
-.dsh-web-banner {
-	flex: none;
-	padding: 4px 12px;
-	font-size: 12px;
-	line-height: 1.6;
-	color: var(--text-muted);
-	background: var(--background-secondary);
-	border-bottom: 1px solid var(--background-modifier-border);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.dsh-web-banner.dsh-web-ok {
-	color: var(--text-success);
-}
-
 /* 设置页：dsh 桥插件的安装命令允许折行，避免撑破设置面板 */
 .dsh-bridge-hint code {
 	white-space: pre-wrap;
 	word-break: break-all;
+}
+
+/* 设置页：模块 tab 条（0027）。内容区仍用 Obsidian 原生 Setting 行 */
+.dsh-settings-tabs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2px;
+	margin: 4px 0 18px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* 用两段选择器压过 Obsidian 的 button 基础样式（button:not(.clickable-icon)） */
+.dsh-settings-tabs .dsh-settings-tab {
+	appearance: none;
+	margin: 0 0 -1px;
+	padding: 6px 14px;
+	border: none;
+	border-bottom: 2px solid transparent;
+	border-radius: var(--radius-s) var(--radius-s) 0 0;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: var(--line-height-tight);
+	cursor: pointer;
+}
+
+.dsh-settings-tabs .dsh-settings-tab:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.dsh-settings-tabs .dsh-settings-tab.is-active {
+	background: transparent;
+	color: var(--text-accent);
+	border-bottom-color: var(--interactive-accent);
+	font-weight: var(--font-medium);
+}
+
+.dsh-settings-tabs .dsh-settings-tab:focus-visible {
+	box-shadow: 0 0 0 2px var(--interactive-accent);
+}
+
+/* 设置页：范围设置分组卡片（0039）—— 徽标 + 标题 + 模式下拉 + 说明 + 名单详情同卡，颜色全走主题变量 */
+.dsh-settings-scope-card {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin: 0 0 16px;
+	padding: 10px 12px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.dsh-settings-scope-card-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.dsh-settings-scope-badge {
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-hover);
+	color: var(--text-accent);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+	line-height: 1;
+}
+
+.dsh-settings-scope-card-title {
+	flex: 1 1 auto;
+	min-width: 0;
+	color: var(--text-normal);
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-semibold);
+}
+
+.dsh-settings-scope-card-header .dsh-settings-scope-mode {
+	flex: none;
+	width: auto;
+	min-width: 96px;
+}
+
+.dsh-settings-scope-card-desc {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: var(--line-height-tight);
+	padding-left: 30px;
+}
+
+.dsh-settings-scope-card-body {
+	padding-left: 30px;
+}
+
+/* 卡片已经给出边界，内部的名单块不再自带外边距 */
+.dsh-settings-scope-card .dsh-settings-scope {
+	margin: 0;
+}
+
+/* 设置页：「@」引用范围（0030）。白名单 / 黑名单列表 + 添加栏，颜色 / 背景 / 边框全走主题变量 */
+.dsh-settings-scope {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin: 0 0 18px;
+}
+
+.dsh-settings-scope-title {
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-medium);
+}
+
+.dsh-settings-scope-empty {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.dsh-settings-scope-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.dsh-settings-scope-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	max-width: 100%;
+	padding: 4px 6px 4px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+}
+
+.dsh-settings-scope-path {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+
+.dsh-settings-scope-path.is-missing {
+	color: var(--text-muted);
+}
+
+.dsh-settings-scope-missing {
+	flex: none;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+/* 两段选择器：压过 Obsidian 的 button:not(.clickable-icon) 基础样式 */
+.dsh-settings-scope-item .dsh-settings-scope-remove {
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: none;
+	border-radius: var(--radius-s);
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.dsh-settings-scope-item .dsh-settings-scope-remove:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.dsh-settings-scope-item .dsh-settings-scope-remove:focus-visible {
+	box-shadow: 0 0 0 2px var(--interactive-accent);
+}
+
+.dsh-settings-scope-remove svg {
+	width: 14px;
+	height: 14px;
+}
+
+.dsh-settings-scope-add {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.dsh-settings-scope-add .dsh-settings-scope-input {
+	flex: 1 1 auto;
+	min-width: 0;
+	height: auto;
+	padding: 4px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+
+.dsh-settings-scope-add .dsh-settings-scope-input:focus {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+	outline: none;
+}
+
+.dsh-settings-scope-add .dsh-settings-scope-button {
+	flex: none;
+	height: auto;
+	margin: 0;
+	padding: 4px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--interactive-normal);
+	box-shadow: none;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	cursor: pointer;
+}
+
+.dsh-settings-scope-add .dsh-settings-scope-button:hover {
+	background: var(--interactive-hover);
+}
+
+.dsh-settings-scope-add .dsh-settings-scope-button:focus-visible {
+	box-shadow: 0 0 0 2px var(--interactive-accent);
+}
+
+.dsh-settings-scope-hint {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.dsh-settings-scope-hint.is-error {
+	color: var(--text-error);
+}
+
+/* 设置页：行首「选取」按钮（0038）—— 复用添加栏按钮的尺寸 / 主题变量，只补图标对齐 */
+.dsh-settings-scope-add .dsh-settings-scope-pick {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.dsh-settings-scope-add .dsh-settings-scope-pick svg {
+	width: 14px;
+	height: 14px;
+}
+
+/* 设置页：「选取」候选弹窗（0038）—— 图标 + 路径 / 技能名 + 类型标签 */
+.dsh-settings-scope-suggestion {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.dsh-settings-scope-suggestion-icon {
+	display: flex;
+	flex: none;
+	color: var(--text-muted);
+}
+
+.dsh-settings-scope-suggestion-icon svg {
+	width: 16px;
+	height: 16px;
+}
+
+.dsh-settings-scope-suggestion-value {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+
+.dsh-settings-scope-suggestion-kind {
+	flex: none;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
 }
 
 /* 原生聊天：React UI + 离屏官方 core webview */
@@ -48,17 +307,27 @@
 	overflow: hidden;
 }
 
+/* Obsidian 的 .view-content 默认 padding: 12px 12px 32px，会让面板四周露出侧栏背景，像一张贴上去的卡片。
+   这个选择器至少要和 Obsidian 的规则同强度才能覆盖；只写 .dsh-native-view 不生效。 */
+.workspace-leaf-content .view-content.dsh-native-view {
+	/* 底部 32px 给 Obsidian 固定状态栏留位，否则输入区按钮会被状态栏盖住。 */
+	padding: 0 0 32px;
+	overflow: hidden;
+}
+
 .dsh-native-root {
 	height: 100%;
 	min-height: 0;
 }
 
 .dsh-native-app {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	height: 100%;
 	min-height: 0;
-	background: var(--background-primary);
+	/* 透明：让右栏（含半透明主题）的背景直接透上来，避免白色卡片感。 */
+	background: transparent;
 }
 
 .dsh-native-header {
@@ -68,23 +337,28 @@
 	gap: 4px;
 	flex: none;
 	min-height: 40px;
-	padding: 4px 6px;
+	/* 12px 内边距 + 15px 滚动条槽，与时间线文字左右边界对齐。 */
+	padding: 4px 27px;
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.dsh-native-title {
+.dsh-native-app .dsh-native-title {
 	display: flex;
 	align-items: center;
 	gap: 4px;
 	min-width: 0;
 	max-width: 70%;
-	padding: 4px 6px;
+	height: auto;
+	min-height: 0;
+	padding: 2px 4px;
 	border: none;
 	background: transparent;
+	background-color: transparent;
 	box-shadow: none;
 	color: var(--text-normal);
-	font-size: var(--font-ui-medium);
-	font-weight: 600;
+	font-size: var(--font-ui-small);
+	font-weight: 500;
+	line-height: 1.2;
 	cursor: pointer;
 }
 
@@ -95,9 +369,8 @@
 }
 
 .dsh-native-title:hover,
-.dsh-native-icon-button:hover,
-.dsh-native-chip:hover,
-.dsh-native-note-name:hover {
+.dsh-native-app .dsh-native-icon-button:hover,
+.dsh-native-app .dsh-native-chip:hover {
 	background: var(--background-modifier-hover);
 }
 
@@ -113,7 +386,7 @@
 	flex: 1 1 auto;
 }
 
-.dsh-native-icon-button {
+.dsh-native-app .dsh-native-icon-button {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -122,6 +395,7 @@
 	padding: 0;
 	border: none;
 	background: transparent;
+	background-color: transparent;
 	box-shadow: none;
 	color: var(--text-muted);
 	border-radius: var(--radius-s);
@@ -249,15 +523,11 @@
 	box-shadow: var(--shadow-s);
 }
 
-.dsh-native-menu.is-bottom {
-	left: 8px;
-	bottom: 132px;
-}
-
-.dsh-native-menu.is-top {
-	top: 44px;
-	right: 8px;
-	width: 184px;
+.dsh-native-menu.is-submenu {
+	z-index: 101;
+	min-width: 132px;
+	max-width: 220px;
+	max-height: min(56vh, 320px);
 }
 
 .dsh-native-menu-title {
@@ -314,6 +584,39 @@
 	color: var(--text-accent);
 }
 
+.dsh-native-menu-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dsh-native-menu-meta {
+	flex: none;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.dsh-native-menu-item .dsh-native-icon {
+	color: var(--text-faint);
+}
+
+.dsh-native-menu-item.is-expanded {
+	background: var(--background-modifier-hover);
+}
+
+.dsh-native-permission-icon {
+	display: inline-flex;
+	align-items: center;
+	flex: none;
+}
+
+.dsh-native-whale {
+	display: block;
+	flex: none;
+}
+
 .dsh-native-menu-sep {
 	height: 1px;
 	margin: 4px 2px;
@@ -341,7 +644,9 @@
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
-	padding: 10px 10px 14px;
+	padding: 12px 12px 16px;
+	/* 右侧滚动条占 15px；两侧都留同样宽度，左右文字边界才一致。 */
+	scrollbar-gutter: stable both-edges;
 	user-select: text;
 }
 
@@ -379,6 +684,8 @@
 .dsh-native-message.is-assistant {
 	align-self: stretch;
 	align-items: stretch;
+	/* 思考块 / 正文 / 工具卡之间留出呼吸空间（原来只有 2px） */
+	gap: 10px;
 }
 
 .dsh-native-message-label {
@@ -401,7 +708,83 @@
 
 .dsh-native-markdown {
 	overflow-wrap: anywhere;
-	line-height: var(--line-height-normal);
+	/* 面板窄，主题默认 1.5 的行高读起来挤；对齐 DSH Web 的疏朗节奏 */
+	line-height: 1.65;
+}
+
+/* 0021：流式期间走纯文本快通道，保留换行与长词换行，避免每帧重排 Markdown。 */
+.dsh-native-live-text {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	line-height: 1.65;
+}
+
+/* 0029：聊天正文比面板继承来的基准字号（15px）小 1px：窄栏里长回复更耐读。
+   流式纯文本与收尾后的 Markdown 用同一字号，收尾时不会跳一下；
+   用 em 相对继承值，改 Obsidian 字号或换主题时保持同样的「小一档」。 */
+.dsh-native-markdown,
+.dsh-native-live-text {
+	font-size: calc(1em - 1px);
+}
+
+/* 0024：@文件夹 引用渲染成可点击 chip；点击在左侧文件列表展开并选中。 */
+.dsh-native-markdown .dsh-folder-ref {
+	display: inline;
+	padding: 0 2px;
+	border-radius: var(--radius-s);
+	color: var(--text-accent);
+	font-weight: 500;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.dsh-native-markdown .dsh-folder-ref:hover {
+	background: var(--background-modifier-hover);
+}
+
+.dsh-native-markdown .dsh-folder-ref:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 1px;
+}
+
+.dsh-native-markdown .dsh-folder-ref-icon {
+	width: 1em;
+	height: 1em;
+	margin-right: 3px;
+	vertical-align: -0.125em;
+}
+
+.dsh-native-app .dsh-native-markdown :is(h1, h2, h3) {
+	margin-top: 24px;
+	margin-bottom: 12px;
+}
+
+.dsh-native-app .dsh-native-markdown :is(h4, h5, h6) {
+	margin-top: 16px;
+	margin-bottom: 8px;
+}
+
+.dsh-native-markdown :is(ul, ol) {
+	padding-inline-start: 18px;
+}
+
+.dsh-native-markdown li + li {
+	margin-top: 6px;
+}
+
+.dsh-native-markdown li > :is(ul, ol) {
+	margin-top: 4px;
+}
+
+.dsh-native-markdown li::marker {
+	color: var(--text-muted);
+}
+
+.dsh-native-markdown :not(pre) > code {
+	padding: 0 5px;
+	border: 0.5px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background-color: var(--background-primary-alt);
 }
 
 .dsh-native-markdown > :first-child {
@@ -415,6 +798,20 @@
 .dsh-native-markdown pre {
 	max-height: 260px;
 	overflow: auto;
+	/* 代码块与正文同号会喧宾夺主：单独降一档，贴近 DSH Web 的 11/19 */
+	font-size: 12px;
+	line-height: 1.6;
+	padding: 8px 12px;
+	border-radius: var(--radius-s);
+	background-color: var(--background-primary-alt);
+}
+
+.dsh-native-markdown pre code {
+	font-size: inherit;
+	line-height: inherit;
+	padding: 0;
+	border: none;
+	background: none;
 }
 
 .dsh-native-muted {
@@ -422,12 +819,6 @@
 	font-size: var(--font-ui-smaller);
 }
 
-.dsh-native-reasoning {
-	border-left: 2px solid var(--background-modifier-border);
-	padding-left: 8px;
-}
-
-.dsh-native-reasoning summary,
 .dsh-native-context summary {
 	display: flex;
 	align-items: center;
@@ -438,22 +829,156 @@
 	user-select: none;
 }
 
-.dsh-native-reasoning-body {
+/* 一轮的过程行：默认一行，点击展开思考 / 工具调用（对齐 DSH Web 的折叠逻辑）。 */
+.dsh-native-process {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.dsh-native-process-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	min-width: 0;
+	padding: 3px 6px;
+	border: none;
+	border-radius: var(--radius-s);
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	text-align: left;
+	cursor: pointer;
+}
+
+/* 底色用 .dsh-native-app 前缀声明：Obsidian 的按钮基础规则 button:not(.clickable-icon)（0,1,1）
+   比单类选择器（0,1,0）更具体，不提高优先级的话这里写的底色会被按钮默认底色（--interactive-normal）盖掉。
+   默认 / hover 的底色互换（0020）：默认是叠在面板上的浅色，hover 是实心按钮底色。 */
+.dsh-native-app .dsh-native-process-head {
+	background: var(--background-modifier-hover);
+}
+
+.dsh-native-app .dsh-native-process-head:hover {
+	background: var(--interactive-normal);
+	color: var(--text-normal);
+}
+
+.dsh-native-process.is-running .dsh-native-process-head > .dsh-native-icon:first-child {
+	color: var(--text-accent);
+}
+
+.dsh-native-process-label {
+	flex: none;
+	color: var(--text-normal);
+}
+
+.dsh-native-process-detail {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-faint);
+}
+
+.dsh-native-process-meta {
+	flex: none;
+	color: var(--text-faint);
+}
+
+.dsh-native-process-pulse {
+	flex: none;
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: var(--text-accent);
+	animation: dsh-native-blink 1.2s infinite ease-in-out;
+}
+
+.dsh-native-process-head > .dsh-native-icon:last-child {
+	flex: none;
+	opacity: 0.7;
+}
+
+.dsh-native-process-body {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin: 1px 0 4px 7px;
+	padding-left: 12px;
+	border-left: 1px solid var(--background-modifier-border);
+}
+
+.dsh-native-think {
+	display: flex;
+	flex-direction: column;
+}
+
+.dsh-native-think-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	min-width: 0;
+	padding: 2px 6px;
+	border: none;
+	border-radius: var(--radius-s);
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	text-align: left;
+	cursor: pointer;
+}
+
+/* 与过程行一致（0020）：默认浅色叠加、hover 实心按钮底色；
+   底色同样要加 .dsh-native-app 前缀才压得住 Obsidian 的 button 基础样式。 */
+.dsh-native-app .dsh-native-think-head {
+	background: var(--background-modifier-hover);
+}
+
+.dsh-native-app .dsh-native-think-head:hover {
+	background: var(--interactive-normal);
+}
+
+.dsh-native-think-label {
+	flex: none;
+	color: var(--text-muted);
+}
+
+.dsh-native-think-preview {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-faint);
+}
+
+.dsh-native-think-body {
+	padding: 3px 8px 5px 25px;
 	white-space: pre-wrap;
 	color: var(--text-muted);
 	font-size: var(--font-ui-small);
-	padding: 4px 0 2px;
+	line-height: 1.6;
+	max-height: 320px;
+	overflow: auto;
 }
 
 .dsh-native-tool {
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-m);
-	background: var(--background-secondary);
-	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	border-radius: var(--radius-s);
 }
 
-.dsh-native-tool.is-error {
-	border-color: var(--text-error);
+.dsh-native-tool.is-sub {
+	margin-left: 14px;
+	padding-left: 2px;
+	border-left: 1px solid var(--background-modifier-border);
+}
+
+.dsh-native-tool.is-error .dsh-native-tool-head {
+	color: var(--text-error);
 }
 
 .dsh-native-tool-head {
@@ -461,35 +986,57 @@
 	align-items: center;
 	gap: 6px;
 	width: 100%;
-	padding: 5px 8px;
+	min-width: 0;
+	padding: 2px 6px;
 	border: none;
-	background: transparent;
+	border-radius: var(--radius-s);
 	box-shadow: none;
 	color: var(--text-normal);
+	font-size: var(--font-ui-smaller);
 	text-align: left;
 	cursor: pointer;
 }
 
-.dsh-native-tool-head:hover {
+/* 与过程行一致（0020）：默认浅色叠加、hover 实心按钮底色；
+   底色同样要加 .dsh-native-app 前缀才压得住 Obsidian 的 button 基础样式。 */
+.dsh-native-app .dsh-native-tool-head {
 	background: var(--background-modifier-hover);
 }
 
+.dsh-native-app .dsh-native-tool-head:hover {
+	background: var(--interactive-normal);
+}
+
 .dsh-native-tool-name {
-	font-family: var(--font-monospace);
+	flex: none;
+	color: var(--text-normal);
 	font-size: var(--font-ui-small);
+}
+
+.dsh-native-tool-summary {
+	flex: 1 1 auto;
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	color: var(--text-faint);
 }
 
 .dsh-native-tool-status {
-	margin-left: auto;
+	flex: none;
 	color: var(--text-muted);
-	font-size: var(--font-ui-smaller);
+}
+
+.dsh-native-tool-head > .dsh-native-icon:last-child {
+	flex: none;
+	opacity: 0.7;
 }
 
 .dsh-native-tool-body {
-	padding: 0 8px 8px;
+	margin: 2px 0 5px 20px;
+	padding: 4px 8px 6px;
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
 }
 
 .dsh-native-tool-label {
@@ -517,12 +1064,6 @@
 
 .dsh-native-tool-error {
 	color: var(--text-error);
-	font-size: var(--font-ui-smaller);
-	margin-top: 4px;
-}
-
-.dsh-native-tool-meta {
-	color: var(--text-faint);
 	font-size: var(--font-ui-smaller);
 	margin-top: 4px;
 }
@@ -583,40 +1124,9 @@
 	color: var(--text-muted);
 }
 
-.dsh-native-typing {
-	display: flex;
-	gap: 3px;
-	padding: 2px 0;
-}
-
-.dsh-native-typing span {
-	width: 5px;
-	height: 5px;
-	border-radius: 50%;
-	background: var(--text-muted);
-	animation: dsh-native-blink 1.2s infinite ease-in-out;
-}
-
-.dsh-native-typing span:nth-child(2) {
-	animation-delay: 0.15s;
-}
-
-.dsh-native-typing span:nth-child(3) {
-	animation-delay: 0.3s;
-}
-
 @keyframes dsh-native-blink {
 	0%, 80%, 100% { opacity: 0.25; }
 	40% { opacity: 1; }
-}
-
-.dsh-native-streaming-dot {
-	width: 4px;
-	height: 12px;
-	background: var(--text-accent);
-	border-radius: 1px;
-	animation: dsh-native-blink 1s infinite;
-	margin-top: 2px;
 }
 
 .dsh-native-jump-bottom {
@@ -637,10 +1147,11 @@
 }
 
 .dsh-native-composer {
+	position: relative;
 	flex: none;
-	padding: 4px 8px 8px;
-	border-top: 1px solid var(--background-modifier-border);
-	background: var(--background-primary);
+	/* 输入卡片比正文文字列（27px）横向各外扩 11px：卡片更稳，卡内文字仍与正文左边界对齐。 */
+	padding: 6px 16px 10px;
+	background: transparent;
 }
 
 .dsh-native-pending-card {
@@ -749,11 +1260,167 @@
 	font-size: var(--font-ui-smaller);
 }
 
-.dsh-native-note {
+.dsh-native-input-wrap {
+	position: relative;
+}
+
+/* @ 引用菜单：贴在输入卡片上沿（输入框长高时自动跟随），最多 320px，列表内部滚动。 */
+.dsh-native-mention,
+.dsh-native-slash {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: calc(100% + 4px);
+	z-index: 100;
+	display: flex;
+	flex-direction: column;
+	max-height: min(320px, 45vh);
+	overflow: hidden;
+	padding: 4px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary);
+	box-shadow: var(--shadow-s);
+}
+
+.dsh-native-mention-list,
+.dsh-native-slash-list {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	overflow-y: auto;
+}
+
+.dsh-native-mention-section,
+.dsh-native-slash-section {
+	flex: none;
+	padding: 6px 10px 2px;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-weight: 500;
+}
+
+/* 用 .dsh-native-app 前缀压过 Obsidian 全局 button 的底色与固定高度。 */
+.dsh-native-app .dsh-native-mention-item,
+.dsh-native-app .dsh-native-slash-item {
 	display: flex;
 	align-items: center;
-	gap: 4px;
-	padding: 3px 6px;
+	gap: 8px;
+	width: 100%;
+	height: auto;
+	min-height: 30px;
+	padding: 5px 8px;
+	border: none;
+	border-radius: var(--radius-s);
+	background: transparent;
+	background-color: transparent;
+	box-shadow: none;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	line-height: 1.4;
+	text-align: left;
+	cursor: pointer;
+}
+
+.dsh-native-app .dsh-native-mention-item:hover,
+.dsh-native-app .dsh-native-mention-item.is-active,
+.dsh-native-app .dsh-native-slash-item:hover,
+.dsh-native-app .dsh-native-slash-item.is-active {
+	background: var(--background-modifier-hover);
+	box-shadow: none;
+}
+
+.dsh-native-mention-icon,
+.dsh-native-slash-icon {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	color: var(--text-faint);
+}
+
+.dsh-native-mention-name {
+	flex: none;
+	max-width: 45%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dsh-native-mention-path,
+.dsh-native-slash-meta {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+/* 目录行末尾的「进入目录」箭头：等价于 Tab，鼠标用户也能下钻。 */
+.dsh-native-app .dsh-native-mention-drill {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border-radius: var(--radius-s);
+	color: var(--text-faint);
+	cursor: pointer;
+}
+
+.dsh-native-app .dsh-native-mention-drill:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+/* "/" 命令菜单：命令与技能同一个列表，命令名用等宽字，说明文字右对齐（对齐 dsh）。 */
+.dsh-native-slash-name {
+	flex: none;
+	max-width: 45%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-normal);
+}
+
+.dsh-native-slash-label {
+	flex: none;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	white-space: nowrap;
+}
+
+.dsh-native-slash-empty {
+	padding: 10px;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	text-align: center;
+}
+
+.dsh-native-app .dsh-native-slash-item.is-disabled {
+	color: var(--text-faint);
+	cursor: default;
+	opacity: 0.7;
+}
+
+.dsh-native-app .dsh-native-slash-item.is-disabled:hover {
+	background: transparent;
+}
+
+.dsh-native-slash-meta {
+	text-align: right;
+}
+
+/* "/compact" 执行期间在输入框上方显示的过程提示（0025）。 */
+.dsh-native-composer-notice {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
 	margin-bottom: 4px;
 	border-radius: var(--radius-s);
 	background: var(--background-secondary);
@@ -761,38 +1428,29 @@
 	font-size: var(--font-ui-smaller);
 }
 
-.dsh-native-note-label {
-	color: var(--text-faint);
-}
-
-.dsh-native-note-name {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	padding: 1px 4px;
-	border: none;
-	background: transparent;
-	box-shadow: none;
-	color: var(--text-normal);
-	font-size: var(--font-ui-smaller);
-	cursor: pointer;
-}
-
-.dsh-native-note-remove {
-	margin-left: auto;
-	padding: 1px;
-	border: none;
-	background: transparent;
-	box-shadow: none;
-	color: var(--text-faint);
-	cursor: pointer;
-}
-
 .dsh-native-input-shell {
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-m);
 	background: var(--background-primary);
+	box-shadow: var(--shadow-s);
+	transition:
+		background-color var(--anim-duration-fast) ease-in-out,
+		border-color var(--anim-duration-fast) ease-in-out,
+		box-shadow var(--anim-duration-fast) ease-in-out;
+}
+
+/* 只在未选中的悬停态高亮整块输入卡片；聚焦后回到正常底色，仅保留强调色边框。
+   深色主题：卡片比面板暗，叠 --background-modifier-hover（白 6.7%）会“变亮”，直接用主题 hover 色。
+   浅色主题：白卡已是面板上最亮的，任何填色都只会“变暗”（看起来像被按下），
+   所以改成描边加深 + 浮起阴影，保持底色不变（0028 追补）。 */
+.dsh-native-input-shell:hover:not(:focus-within) {
+	background: var(--background-modifier-hover);
+}
+
+.theme-light .dsh-native-input-shell:hover:not(:focus-within) {
+	background: var(--background-primary);
+	border-color: var(--background-modifier-border-hover);
+	box-shadow: var(--shadow-l);
 }
 
 .dsh-native-input-shell:focus-within {
@@ -802,14 +1460,25 @@
 .dsh-native-input {
 	display: block;
 	width: 100%;
-	min-height: 28px;
-	max-height: 180px;
+	min-height: 72px;
+	max-height: 240px;
 	resize: none;
 	border: none;
 	box-shadow: none;
 	background: transparent;
-	padding: 6px 8px 2px;
+	padding: 8px 10px 2px;
 	overflow-y: auto;
+}
+
+/* 去掉 Obsidian 全局 textarea 的独立 hover/焦点态：背景与边框交给外层 shell 整块处理。 */
+.dsh-native-app .dsh-native-input:hover,
+.dsh-native-app .dsh-native-input:active,
+.dsh-native-app .dsh-native-input:focus,
+.dsh-native-app .dsh-native-input:focus-visible {
+	background: transparent;
+	background-color: transparent;
+	box-shadow: none;
+	outline: none;
 }
 
 .dsh-native-composer-bar {
@@ -823,18 +1492,29 @@
 	display: flex;
 	align-items: center;
 	gap: 2px;
+	flex: 1 1 auto;
 	min-width: 0;
+	overflow: hidden;
 }
 
-.dsh-native-chip {
+.dsh-native-composer-right {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: none;
+	margin-left: auto;
+}
+
+.dsh-native-app .dsh-native-chip {
 	display: inline-flex;
 	align-items: center;
 	gap: 3px;
 	min-width: 0;
-	max-width: 46%;
+	max-width: 100%;
 	padding: 3px 6px;
 	border: none;
 	background: transparent;
+	background-color: transparent;
 	box-shadow: none;
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
@@ -842,23 +1522,30 @@
 	border-radius: var(--radius-s);
 }
 
+.dsh-native-chip.is-permission {
+	padding: 3px 5px;
+}
+
 .dsh-native-chip span {
+	flex: 0 1 auto;
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.dsh-native-send {
+.dsh-native-app .dsh-native-send {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	width: 30px;
 	height: 30px;
-	margin-left: auto;
+	margin-left: 0;
 	padding: 0;
 	border: none;
 	border-radius: 50%;
 	background: var(--interactive-accent);
+	background-color: var(--interactive-accent);
 	color: var(--text-on-accent);
 	box-shadow: none;
 	cursor: pointer;
@@ -869,9 +1556,169 @@
 	cursor: default;
 }
 
-.dsh-native-send.is-stop {
+.dsh-native-app .dsh-native-send.is-stop {
 	background: var(--color-red);
+	background-color: var(--color-red);
 	color: var(--text-on-accent);
+}
+
+/* 上下文占用：只显示圆环，点击才出详情。 */
+.dsh-native-app .dsh-native-context {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: 50%;
+	background: transparent;
+	background-color: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.dsh-native-app .dsh-native-context:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.dsh-native-app .dsh-native-context svg {
+	display: block;
+}
+
+.dsh-native-context-track {
+	fill: none;
+	stroke: var(--background-modifier-border);
+	stroke-width: 2;
+}
+
+/* 没有数据时只留灰色空环。 */
+.dsh-native-context.is-empty .dsh-native-context-track {
+	stroke: var(--text-faint);
+}
+
+.dsh-native-context-fill {
+	fill: none;
+	stroke: var(--text-muted);
+	stroke-width: 2;
+	stroke-linecap: round;
+	transition: stroke-dasharray 160ms ease;
+}
+
+.dsh-native-context-panel {
+	width: min(264px, calc(100vw - 48px));
+	min-width: 0;
+	max-width: 300px;
+	padding: 10px 12px;
+	gap: 0;
+}
+
+.dsh-native-context-header {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.dsh-native-context-headline {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.dsh-native-context-percent {
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	font-weight: 600;
+}
+
+.dsh-native-context-figures {
+	margin-left: auto;
+	color: var(--text-normal);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+}
+
+.dsh-native-context-bar {
+	display: flex;
+	gap: 1px;
+	height: 4px;
+	margin: 10px 0 8px;
+	border-radius: 999px;
+	background: var(--background-modifier-hover);
+	overflow: hidden;
+}
+
+.dsh-native-context-segment {
+	flex: none;
+	min-width: 2px;
+	height: 100%;
+	border-radius: 1px;
+	background: var(--text-faint);
+}
+
+.dsh-native-context-segment.is-system,
+.dsh-native-context-swatch.is-system {
+	background: var(--color-blue);
+}
+
+.dsh-native-context-segment.is-tools,
+.dsh-native-context-swatch.is-tools {
+	background: var(--color-purple);
+}
+
+.dsh-native-context-segment.is-messages,
+.dsh-native-context-swatch.is-messages {
+	background: var(--color-green);
+}
+
+.dsh-native-context-rows {
+	margin: 2px 0 0;
+}
+
+.dsh-native-context-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 2px 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.dsh-native-context-row dt {
+	display: flex;
+	align-items: center;
+}
+
+.dsh-native-context-row dd {
+	margin: 0;
+	color: var(--text-normal);
+	font-variant-numeric: tabular-nums;
+}
+
+.dsh-native-context-swatch {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	margin-right: 6px;
+	border-radius: 2px;
+	background: var(--text-faint);
+}
+
+.dsh-native-context-empty {
+	margin-top: 6px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.5;
+}
+
+.dsh-native-context-note {
+	margin-top: 6px;
+	color: var(--text-faint);
+	font-size: calc(var(--font-ui-smaller) * 0.9);
+	line-height: 1.4;
 }
 
 .dsh-native-error-banner {
@@ -880,8 +1727,9 @@
 	gap: 4px;
 	flex: none;
 	padding: 4px 8px;
-	background: var(--background-modifier-error);
+	background: var(--background-secondary);
 	color: var(--text-error);
+	border-inline-start: 2px solid var(--text-error);
 	font-size: var(--font-ui-smaller);
 }
 
@@ -1006,3 +1854,548 @@
 	height: 100%;
 	border: none;
 }
+
+/* 设置页：「插件」tab（0031）。bundle 分组卡 + 组件行 + 开关；颜色 / 背景 / 边框全走主题变量 */
+.dsh-settings-plugins {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.dsh-settings-plugins-head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
+.dsh-settings-plugins-summary {
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	line-height: var(--line-height-tight);
+}
+
+.dsh-settings-plugins-actions {
+	display: flex;
+	gap: 6px;
+	flex-shrink: 0;
+}
+
+/* 压过 Obsidian 的 button 基础样式（与 tab 条同样的思路） */
+.dsh-settings-plugins .dsh-settings-plugins-button {
+	appearance: none;
+	padding: 3px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--interactive-normal);
+	box-shadow: none;
+	color: var(--text-normal);
+	font-size: var(--font-ui-smaller);
+	line-height: var(--line-height-tight);
+	cursor: pointer;
+}
+
+.dsh-settings-plugins .dsh-settings-plugins-button:hover {
+	background: var(--interactive-hover);
+}
+
+.dsh-settings-plugins .dsh-settings-plugins-button:focus-visible {
+	box-shadow: 0 0 0 2px var(--interactive-accent);
+}
+
+.dsh-settings-plugins .dsh-settings-plugins-button:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.dsh-settings-plugins-hint {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: var(--line-height-tight);
+}
+
+.dsh-settings-plugins-notice {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: var(--line-height-tight);
+	min-height: 0;
+}
+
+.dsh-settings-plugins-notice.is-error {
+	color: var(--text-error);
+}
+
+.dsh-settings-plugins-filter {
+	width: 100%;
+}
+
+.dsh-settings-plugins-error {
+	display: none;
+	color: var(--text-error);
+	font-size: var(--font-ui-small);
+	line-height: var(--line-height-tight);
+}
+
+.dsh-settings-plugins-error.is-visible {
+	display: block;
+}
+
+.dsh-settings-plugins-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	max-height: 60vh;
+	overflow-y: auto;
+	padding-right: 2px;
+}
+
+.dsh-settings-plugins-empty {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	padding: 6px 0;
+}
+
+.dsh-settings-plugins-bundle {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+}
+
+.dsh-settings-plugins-bundle-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 10px;
+	border-radius: var(--radius-s);
+	cursor: pointer;
+}
+
+.dsh-settings-plugins-bundle-head:hover {
+	background: var(--background-modifier-hover);
+}
+
+.dsh-settings-plugins-bundle-head:focus-visible {
+	box-shadow: 0 0 0 2px var(--interactive-accent);
+}
+
+.dsh-settings-plugins-bundle-arrow {
+	display: flex;
+	align-items: center;
+	color: var(--text-muted);
+}
+
+.dsh-settings-plugins-bundle-arrow svg {
+	width: 14px;
+	height: 14px;
+}
+
+.dsh-settings-plugins-bundle-title {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 0;
+}
+
+.dsh-settings-plugins-bundle-name {
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-medium);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dsh-settings-plugins-bundle-meta {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dsh-settings-plugins-rows {
+	display: flex;
+	flex-direction: column;
+	padding: 4px 6px 6px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.dsh-settings-plugins-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 5px 4px;
+	border-radius: var(--radius-s);
+}
+
+.dsh-settings-plugins-row:hover {
+	background: var(--background-modifier-hover);
+}
+
+.dsh-settings-plugins-row.is-off .dsh-settings-plugins-row-name {
+	color: var(--text-muted);
+}
+
+.dsh-settings-plugins-row-meta {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+.dsh-settings-plugins-row-name {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-normal);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dsh-settings-plugins-row-id {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dsh-settings-plugins-row-control {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+}
+
+.dsh-settings-plugins-row-static {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+/* 设置页「插件」tab：可选 / 实验性插件（0032；0034 起默认收起） */
+.dsh-settings-plugins-optional {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.dsh-settings-plugins-row-desc {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	line-height: var(--line-height-tight);
+	overflow: hidden;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+}
+
+.dsh-settings-plugins-catalog-hint {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: var(--line-height-tight);
+	padding: 6px 10px 8px;
+}
+
+.dsh-settings-plugins-row.is-conditional .dsh-settings-plugins-row-name {
+	color: var(--text-muted);
+}
+
+
+/* —— 0035：Agent Teams 只读团队浮层 —— */
+
+.dsh-native-app .dsh-native-team-trigger {
+	position: relative;
+}
+
+.dsh-native-team-trigger.has-pending::after {
+	content: '';
+	position: absolute;
+	top: 5px;
+	right: 5px;
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: var(--color-orange);
+}
+
+.dsh-native-team-panel {
+	width: min(324px, calc(100% - 16px));
+	max-width: 360px;
+	max-height: min(64vh, 560px);
+	padding: 10px 12px;
+	gap: 0;
+}
+
+.dsh-native-team {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	min-width: 0;
+}
+
+.dsh-native-team-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.dsh-native-team-headline {
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	font-weight: 600;
+}
+
+.dsh-native-team-counts {
+	margin-left: auto;
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+}
+
+.dsh-native-team-failure {
+	padding: 4px 6px;
+	border: 1px solid var(--background-modifier-error);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	color: var(--text-error);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+}
+
+.dsh-native-team-section {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	min-width: 0;
+}
+
+.dsh-native-team-section-title {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-weight: 500;
+}
+
+.dsh-native-team-members {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.dsh-native-team-member {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+}
+
+.dsh-native-team-member.has-pending {
+	box-shadow: inset 2px 0 0 var(--color-orange);
+}
+
+.dsh-native-team-member-text {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.dsh-native-team-member-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.dsh-native-team-member-name {
+	overflow: hidden;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	font-weight: 500;
+	line-height: 1.35;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dsh-native-team-tag {
+	flex: none;
+	padding: 0 4px;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-hover);
+	color: var(--text-faint);
+	font-size: calc(var(--font-ui-smaller) * 0.92);
+	line-height: 1.5;
+}
+
+.dsh-native-team-badge.is-pending {
+	flex: none;
+	margin-left: auto;
+	padding: 0 5px;
+	border-radius: 999px;
+	background: var(--background-modifier-error);
+	color: var(--text-error);
+	font-size: calc(var(--font-ui-smaller) * 0.92);
+	line-height: 1.5;
+}
+
+.dsh-native-team-member-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0 8px;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+}
+
+.dsh-native-team-member-error {
+	color: var(--text-error);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+}
+
+.dsh-native-team-dot {
+	flex: none;
+	width: 7px;
+	height: 7px;
+	margin-top: 4px;
+	border-radius: 50%;
+	background: var(--text-faint);
+}
+
+.dsh-native-team-dot.is-running,
+.dsh-native-team-dot.is-ongoing {
+	background: var(--color-green);
+	animation: dsh-native-blink 1.2s infinite ease-in-out;
+}
+
+.dsh-native-team-dot.is-provisioning {
+	background: var(--color-blue);
+	animation: dsh-native-blink 1.2s infinite ease-in-out;
+}
+
+.dsh-native-team-dot.is-failed {
+	background: var(--color-red);
+}
+
+.dsh-native-team-dot.is-done {
+	background: var(--color-green);
+}
+
+.dsh-native-team-dot.is-warning {
+	background: var(--color-orange);
+}
+
+.dsh-native-team-tasks {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.dsh-native-team-task {
+	padding: 6px 8px;
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+}
+
+.dsh-native-team-task-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.dsh-native-team-task-subject {
+	flex: 1 1 auto;
+	min-width: 0;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	font-weight: 500;
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+}
+
+.dsh-native-team-task-status {
+	flex: none;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.dsh-native-team-task-desc {
+	margin: 4px 0 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+	white-space: pre-wrap;
+}
+
+.dsh-native-team-task-desc.is-clamped {
+	display: -webkit-box;
+	overflow: hidden;
+	white-space: normal;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+
+.dsh-native-app .dsh-native-team-task-toggle {
+	align-self: flex-start;
+	margin: 3px 0 0;
+	padding: 0;
+	border: none;
+	background: none;
+	background-color: transparent;
+	box-shadow: none;
+	color: var(--text-accent);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.4;
+	cursor: pointer;
+}
+
+.dsh-native-app .dsh-native-team-task-toggle:hover {
+	background: none;
+	color: var(--text-accent-hover);
+}
+
+.dsh-native-team-task-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0 10px;
+	margin-top: 4px;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.45;
+	overflow-wrap: anywhere;
+}
+
+.dsh-native-team-task-id {
+	font-variant-numeric: tabular-nums;
+}
+
+.dsh-native-team-task-warning {
+	color: var(--color-orange);
+}
+
+.dsh-native-team-empty {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.5;
+}
+
+.dsh-native-team-message-label {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	color: var(--text-accent);
+}
+
+.dsh-native-message.is-team {
+	align-self: stretch;
+	align-items: stretch;
+}
+
+

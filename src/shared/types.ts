@@ -56,3 +56,66 @@ export interface DshBridgeStatus {
 	version?: number;
 	message?: string;
 }
+
+/** dsh 侧插件组件行的状态：启用 / 停用 / 由 dsh 按运行环境决定（`!!js` 条件）。 */
+export type DshPluginRowState = 'on' | 'off' | 'conditional';
+
+/** 组合后的一个插件组件行（来自 `dsh --profile <p> --dump-config`）。 */
+export interface DshPluginRow {
+	/** 组合条目的 id（profile patch 里的 `- id:`）。 */
+	id: string;
+	/** Loader 导入的模块名（如 `@deepseek-ai/dsh-session`）。 */
+	name: string;
+	state: DshPluginRowState;
+	/** 该行最后一次声明来自 profile 的用户层 patch（设置页可以在那里启停）。 */
+	fromUserPatch: boolean;
+}
+
+/** 一个 bundle（profile 的 `dsh.profile.bundles` 项）及其组件行。 */
+export interface DshPluginBundle {
+	name: string;
+	/** 包版本；解析不到（例如内置包不在可读的 node_modules 里）为 null。 */
+	version: string | null;
+	rows: DshPluginRow[];
+}
+
+/** 一个「可选 / 实验性」bundle（随 dsh 安装提供、默认未启用，0032）。 */
+export interface DshOptionalBundle {
+	name: string;
+	/** 中文标题（locale/zh.json 的 meta.title，缺失时用短包名）。 */
+	title: string;
+	description: string;
+	version: string | null;
+	/** dsh 官方标记的实验性插件。 */
+	experimental: boolean;
+	/** 已写进 profile 的 `dsh.profile.bundles`。 */
+	enabled: boolean;
+	/** 这份安装里能解析到包（false 时不能直接启用，通常是安装不完整）。 */
+	available: boolean;
+}
+
+/** 「可选 / 实验性插件」目录（设置页「插件」tab，0032）。 */
+export interface DshOptionalCatalog {
+	/** 目录来源包（@deepseek-ai/dsh-official-bundles）的目录；读不到为 null。 */
+	source: string | null;
+	bundles: DshOptionalBundle[];
+	/** 需要先 `dsh plugin add` 才能启用的按需插件。 */
+	onDemand: string[];
+	/** 目录不可用时的说明。 */
+	message?: string;
+}
+
+/** profile 的组合插件清单（设置页「插件」tab 展示，0031）。 */
+export interface DshPluginInventory {
+	profile: string;
+	/** profile 目录：`$DSH_HOME/profiles/<profile>`。 */
+	profileDir: string;
+	/** 用户层 patch 文件（启停写入的目标）。 */
+	patchPath: string;
+	/** 实际使用的 dsh 版本（探测失败为 null）。 */
+	dshVersion: string | null;
+	bundles: DshPluginBundle[];
+	/** 读取时间戳（缓存展示用）。 */
+	readAt: number;
+}
+

@@ -1,7 +1,8 @@
 # 用 CDP 让 dsh 操作 / 调试 Obsidian
 
 > 开发期工作流，不是插件的运行时功能。仅桌面端（Obsidian 是 Electron）。
-> 适用：dsh 0.2.x + 本仓库 0.3.x；面板默认 profile `obsidian` / 端口 3081。
+> 适用：dsh 0.2.x + 本仓库 0.4.x；原生面板默认 profile `obsidian` / 端口 3081。
+> 0008 后没有可见官方面板；下面说的「面板 guest」是原生视图内部的隐藏 core。
 
 ## 为什么是 CDP
 
@@ -19,7 +20,7 @@ dsh 0.2.x 自带 MCP client（`@deepseek-ai/dsh-mcp-client`）。Obsidian 没有
 flowchart LR
   A["dsh（桌面 / 独立实例）"] -- "stdio MCP" --> B["chrome-devtools-mcp"]
   B -- "CDP :9222" --> C["Obsidian 主 renderer<br/>app://obsidian.md"]
-  C -- "webview" --> D["DSH 面板 guest<br/>127.0.0.1:3081"]
+  C -- "隐藏 webview" --> D["原生面板的 core guest<br/>127.0.0.1:3081"]
   A -- "bash" --> E["仓库 / vault / lsof / curl"]
 ```
 
@@ -47,7 +48,7 @@ curl -s http://127.0.0.1:9222/json/list | python3 -m json.tool | head -60
 `/json/list` 里应至少能看到：
 
 - `type: "page"`、`url: "app://obsidian.md/..."`：Obsidian 主窗口，`window.app` 在这里；
-- 打开面板后，另一个 `http://127.0.0.1:3081/...` 的 target：webview guest（DSH GUI 本身）。
+- 打开原生聊天后，另一个 `http://127.0.0.1:3081/...` 的 target：隐藏 core webview（DSH GUI 本身）。
 
 可选：把启动封装成 shell 函数：
 
@@ -148,7 +149,7 @@ mcp__devtools__take_screenshot
 1. `mcp__devtools__list_pages`
 2. 认准：
    - `app://obsidian.md/...` → Obsidian 主窗口；
-   - `http://127.0.0.1:3081/...` → 面板里的 DSH GUI（guest）。
+   - `http://127.0.0.1:3081/...` → 原生视图里的隐藏 core（guest）。
 3. 后续调用把 `pageId` 传进去；`select_page` 只是切换“当前页”，显式传 `pageId` 更稳。
 4. **导航 / 重载 / 重开面板后 pageId 可能变化**，重新 `list_pages`。
 
@@ -157,22 +158,20 @@ mcp__devtools__take_screenshot
 > 以下 `function` 都是传给 `mcp__devtools__evaluate_script` 的 `function` 字段；`pageId` 指向主窗口（除非注明 guest）。
 > `app.*` 是 Obsidian 的内部 API（不是公开插件 API），开发期可用，升级后可能变。
 
-### 4.1 一次看全面板 / 服务状态
+### 4.1 一次看全原生面板 / 服务状态
 
 ```js
 async () => {
   const app = window.app;
   const plugin = app.plugins.plugins['obsidian-dsh'];
-  const leaves = app.workspace.getLeavesOfType('dsh-web');
-  const banner = document.querySelector('.dsh-web-banner');
+  const leaves = app.workspace.getLeavesOfType('dsh-native-chat');
+  const view = leaves[0]?.view;
   return {
     pluginLoaded: !!plugin,
     running: plugin ? await plugin.isRunning() : null,
-    url: plugin?.url ?? null,
+    embedUrl: (plugin?.embedUrl ?? '').replace(/token=[^&]+/, 'token=***'),
     leaves: leaves.length,
-    surfaceKind: leaves[0]?.view?.surfaceKind ?? null,
-    banner: banner?.textContent ?? null,
-    bannerOk: banner?.classList.contains('dsh-web-ok') ?? false,
+    bridge: view?.probeBridge ? await view.probeBridge() : null,
     statusBar: document.querySelector('.dsh-status')?.textContent ?? null,
     nativeRoot: !!document.querySelector('.dsh-native-app'),
     webviewSrc: document.querySelector('.dsh-surface-webview')
@@ -182,7 +181,9 @@ async () => {
 }
 ```
 
-期望（服务就绪 + 面板已开）：`pluginLoaded: true`、`running: true`、`leaves: 1`、`surfaceKind: "webview"`、banner 以 `DeepSeek Harness — 已连接` 开头、`statusBar: "DSH: 运行中"`、`webviewSrc` 含 `token=***`。
+期望（服务就绪 + 原生面板已开）：`pluginLoaded: true`、`running: true`、`leaves: 1`、
+`bridge.state: "connected"`、`statusBar: "DSH: 运行中"`、`webviewSrc` 含 `token=***`。
+0008 后没有可见官方面板，`.dsh-web-banner` 不再存在。
 
 Obsidian 的 Notice 通常在 `.notice-container` 里，需要断言提示时直接读文本。
 
@@ -197,7 +198,7 @@ async () => {
 }
 ```
 
-面板 dsh 会被 `onunload` 杀掉；外部 agent 不受影响。若只能用面板 dsh：
+面板的隐藏 dsh 会被 `onunload` 杀掉；外部 agent 不受影响。若只能用面板 dsh：
 
 ```js
 () => {
@@ -216,12 +217,12 @@ async () => {
 () => window.app.commands.executeCommandById('obsidian-dsh:open-dsh-view')
 ```
 
-可用命令：
+0008 后只有一个聊天入口（`open-dsh-view` 打开原生面板）；0010 后功能区与命令面板各只剩一个打开入口，可用命令：
 
 - `obsidian-dsh:open-dsh-view`
-- `obsidian-dsh:new-dsh-session`
-- `obsidian-dsh:open-native-chat`
 - `obsidian-dsh:restart-dsh-service`（同 4.2 的自杀风险）
+
+新建会话只在面板内（右上 ＋ / 空态按钮 / 会话选择器），没有对应命令。
 
 列一下：
 
@@ -250,9 +251,11 @@ async () => {
 
 ### 4.5 DOM / CSS
 
+检查原生面板（可见层）；隐藏 core 的 DOM 在另一个 guest target 里。
+
 ```js
 () => {
-  const el = document.querySelector('.dsh-web-banner');
+  const el = document.querySelector('.dsh-native-header');
   const cs = getComputedStyle(el);
   return {
     text: el.textContent,

@@ -1,7 +1,7 @@
 {
 	"name": "obsidian-dsh",
-	"version": "0.3.0",
-	"description": "Embed the DeepSeek Harness (dsh web) GUI in Obsidian as a native panel.",
+	"version": "0.5.0",
+	"description": "Chat with DeepSeek Harness in Obsidian via a native panel backed by a managed dsh service.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {

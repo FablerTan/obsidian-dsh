@@ -1,12 +1,21 @@
 /* dsh-obsidian-bridge — client half (browser).
  *
- * Obsidian 嵌入专用（纯客户端）。同一页面全局对象同时承载两代能力：
- *   v1 布局：configure / newSession / enforceSingleColumn / state
- *   v2 原生数据桥：listSessions / subscribe / snapshot / nextEvent /
- *                  send / cancel / loadOlder / approvalAnswer / questionAnswer
+ * Obsidian 嵌入专用（纯客户端）。只暴露 v4 原生数据桥：
+ *   listSessions / subscribe / snapshot / nextEvent / send / cancel / loadOlder /
+ *   approvalAnswer / questionAnswer / models / permissions / renameSession / context
  *
  * Obsidian 通过 <webview>.executeJavaScript() 调用；桥只返回 JSON DTO。
- * 只支持 DSH 0.2.x。
+ * 只支持 DSH 0.2.x。v1 布局能力（configure / newSession / enforceSingleColumn /
+ * state）已随 0008 的 native-only 面板删除（0011）。
+ * v3（0017）：增加 liveStream —— 直接订阅 SessionBinding.eventSource 累积流式
+ * 正文 / 思考 / 工具参数，由 nextEvent 携带 live tail；不再依赖官方 UI 的 rAF 发布。
+ * v4（0022）：增加 context() —— 读取 contextPressure / contextBreakdown 会话投影，
+ * 供原生输入栏的上下文占用圆环与详情面板使用。
+ * v5（0025）：增加 commands() / skills() / executeCommand() —— 输入框 "/" 命令菜单
+ * 的宿主命令目录、技能目录与命令行提交；命令一律经宿主 command.execute 准入，
+ * 插件端不自己解释 /compact 这类宿主命令。
+ * v6（0035）：增加 team() —— 读 Lead 会话的 agentTeam 投影（dsh「智能体团队」bundle），
+ * 并补上各成员的运行状态 / 等待授权 / 模型标签，供原生面板的只读团队浮层使用。
  */
 window.__ModuleLoader__.load({
 	id: "dsh-obsidian-bridge",
@@ -15,27 +24,14 @@ window.__ModuleLoader__.load({
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 
-		const VERSION = 2;
+		const VERSION = 6;
 		const GLOBAL_KEY = "__DSH_OBSIDIAN_BRIDGE__";
-		const STYLE_ID = "dsh-obsidian-single-column";
-		const ENFORCE_INTERVAL_MS = 500;
-		const TOGGLE_GUARD_MS = 1200;
 		const MAX_DEPTH = 8;
 		const MAX_ARRAY = 300;
 		const MAX_KEYS = 60;
 		const MAX_STRING = 20000;
 
-		let workspaceId;
-		let workspacePath;
-		let lastSidebarToggleAt = 0;
-		let lastRightbarToggleAt = 0;
-
 		const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-		function normalizePath(value) {
-			if (typeof value !== "string") return "";
-			return value.trim().replace(/[\\/]+$/, "");
-		}
 
 		function safeGet(ctx, name) {
 			try {
@@ -43,128 +39,6 @@ window.__ModuleLoader__.load({
 			} catch {
 				return undefined;
 			}
-		}
-
-		/** Hash-free selectors: data attributes and structural position only. */
-		function injectCss() {
-			if (typeof document === "undefined" || document.head === null) return;
-			const existing = document.getElementById(STYLE_ID);
-			if (existing !== null) return;
-			const style = document.createElement("style");
-			style.id = STYLE_ID;
-			style.textContent = [
-				"div:has(> [data-rightbar-col]) { grid-template-columns: 0px minmax(0, 1fr) 0px !important; }",
-				"div:has(> [data-rightbar-col]) > :first-child { visibility: hidden !important; }",
-				"div:has(> [data-rightbar-col]) > [data-rightbar-col] { visibility: hidden !important; }",
-				"div:has(> [data-rightbar-col]) [data-side] { display: none !important; }"
-			].join("\n");
-			document.head.appendChild(style);
-		}
-
-		function removeCss() {
-			if (typeof document === "undefined") return;
-			document.getElementById(STYLE_ID)?.remove();
-		}
-
-		async function readyWorkspaces(ctx) {
-			const workspaces = ctx.get("workspaces");
-			if (!workspaces) throw new Error("workspaces 服务不可用");
-			for (let attempt = 0; attempt < 100; attempt++) {
-				const snapshot = workspaces.list.getSnapshot();
-				if (snapshot.phase === "ready") return { workspaces, snapshot };
-				if (snapshot.state === "error") throw new Error("工作区列表加载失败");
-				await sleep(100);
-			}
-			throw new Error("工作区列表未就绪");
-		}
-
-		function state() {
-			return {
-				version: VERSION,
-				workspaceId: workspaceId ?? null,
-				workspacePath: workspacePath ?? null,
-				singleColumn: true
-			};
-		}
-
-		async function configure(ctx, input) {
-			const raw = Array.isArray(input?.paths) ? input.paths : [];
-			const paths = raw.map(normalizePath).filter(Boolean);
-			if (paths.length === 0) throw new Error("缺少库目录路径");
-			const { workspaces, snapshot } = await readyWorkspaces(ctx);
-			for (const wanted of paths) {
-				const hit = snapshot.items.find((item) => normalizePath(item.path) === wanted);
-				if (hit) {
-					workspaceId = hit.workspaceId;
-					workspacePath = hit.path;
-					return state();
-				}
-			}
-			const created = await workspaces.create({ path: raw[0] });
-			workspaceId = created.workspaceId;
-			workspacePath = created.path;
-			for (let attempt = 0; attempt < 20; attempt++) {
-				const row = workspaces.list
-					.getSnapshot()
-					.items.find((item) => item.workspaceId === created.workspaceId);
-				if (row) {
-					workspacePath = row.path;
-					break;
-				}
-				await sleep(100);
-			}
-			return state();
-		}
-
-		function newSession(ctx) {
-			if (workspaceId === undefined) throw new Error("桥尚未配置工作区，请先调用 configure()");
-			const ui = ctx.get("uiWorkspace");
-			if (!ui || typeof ui.startSession !== "function") throw new Error("uiWorkspace 服务不可用");
-			ui.startSession(workspaceId);
-			return { ok: true, workspaceId, workspacePath: workspacePath ?? null };
-		}
-
-		/** Collapse both side columns; safe when services/DOM are not ready yet. */
-		function enforceSingleColumn(ctx) {
-			if (typeof document === "undefined") {
-				return { sidebarCollapsed: null, rightbarExpanded: null, css: false };
-			}
-			injectCss();
-			const result = { sidebarCollapsed: null, rightbarExpanded: null, css: true };
-			const frame = document.querySelector("[data-rightbar-col]")?.parentElement;
-			if (frame) {
-				result.sidebarCollapsed = frame.hasAttribute("data-sidebar-collapsed");
-				if (!result.sidebarCollapsed && Date.now() - lastSidebarToggleAt > TOGGLE_GUARD_MS) {
-					const layout = ctx.get("layout");
-					if (layout && typeof layout.toggleSidebar === "function") {
-						try {
-							layout.toggleSidebar();
-							lastSidebarToggleAt = Date.now();
-							result.sidebarCollapsed = true;
-						} catch (error) {
-							console.warn("[obsidian-bridge] 收起左栏失败", error);
-						}
-					}
-				}
-			}
-			const right = ctx.get("sidebarRight");
-			if (right && typeof right.isExpanded === "function") {
-				try {
-					result.rightbarExpanded = right.isExpanded();
-				} catch {
-					result.rightbarExpanded = null;
-				}
-				if (result.rightbarExpanded && Date.now() - lastRightbarToggleAt > TOGGLE_GUARD_MS) {
-					try {
-						right.toggleExpanded();
-						lastRightbarToggleAt = Date.now();
-						result.rightbarExpanded = false;
-					} catch (error) {
-						console.warn("[obsidian-bridge] 收起右栏失败", error);
-					}
-				}
-			}
-			return result;
 		}
 
 		/** JSON-safe projection with bounded depth and size. */
@@ -299,21 +173,226 @@ window.__ModuleLoader__.load({
 			return { ...base, raw: sanitize(pending) };
 		}
 
-		function nativeApi(ctx) {
+		function nativeApi(ctx, remotes) {
 			let active = null;
 			let revision = 0;
+			let live = null;
+			let liveRevision = 0;
 			let disposed = false;
 			const waiters = new Set();
 
+			function notify() {
+				for (const waiter of [...waiters]) waiter.fire();
+			}
+
 			function bump() {
 				revision += 1;
-				for (const waiter of [...waiters]) waiter.fire();
+				notify();
+			}
+
+			/**
+			 * 立即发布 live（每个 chunk 一次）。
+			 *
+			 * 0021 起合并/节流全部交给原生端：离屏 webview 里的 setTimeout 会被 Chromium
+			 * 拖到 ~75ms 才触发，桥端定时合并反而把刷新率压到 13Hz；宿侧按帧合帧更可靠。
+			 */
+			function bumpLive() {
+				liveRevision += 1;
+				notify();
+			}
+
+			/** 只比较原生 UI 真正消费的字段，避免每个 stream chunk 都触发全量快照。 */
+			function statusDigest(snapshot) {
+				if (!snapshot || typeof snapshot !== "object") return "";
+				const promptError = snapshot.promptError;
+				return [
+					snapshot.running === true,
+					snapshot.hasMore === true,
+					snapshot.lastAgentError ?? "",
+					promptError && typeof promptError === "object" ? promptError.message ?? "" : ""
+				].join("\u0000");
+			}
+
+			function livePacket() {
+				if (live === null) return null;
+				return {
+					turn: live.turn,
+					step: live.step,
+					attemptId: live.attemptId ?? null,
+					blocks: sanitize(live.blocks)
+				};
+			}
+
+			function ensureLive(turn, step, attemptId) {
+				if (
+					live === null ||
+					live.turn !== turn ||
+					live.step !== step ||
+					live.attemptId !== (attemptId ?? null)
+				) {
+					live = { turn, step, attemptId: attemptId ?? null, blocks: [] };
+				}
+				return live;
+			}
+
+			/** 把一个 assistant/live-chunk 折进当前 live blocks；返回是否有可见变化。 */
+			function applyLiveChunk(data) {
+				if (!data || typeof data !== "object") return false;
+				const { turn, step, attemptId, chunk } = data;
+				if (typeof turn !== "number" || typeof step !== "number" || !chunk || typeof chunk !== "object") {
+					return false;
+				}
+				const state = ensureLive(turn, step, typeof attemptId === "string" ? attemptId : null);
+				const blocks = state.blocks;
+				const index = typeof chunk.index === "number" && chunk.index >= 0 ? chunk.index : 0;
+				switch (chunk.type) {
+					case "block-start": {
+						const blockType = chunk.blockType;
+						blocks[index] =
+							blockType === "reasoning"
+								? { kind: "reasoning", text: "" }
+								: blockType === "tool-call"
+									? { kind: "tool-call", callId: "", name: "", argsRaw: "" }
+									: { kind: "text", text: "" };
+						break;
+					}
+					case "text-delta": {
+						const previous = blocks[index];
+						blocks[index] = {
+							kind: "text",
+							text: (previous?.kind === "text" ? previous.text : "") + String(chunk.text ?? "")
+						};
+						break;
+					}
+					case "reasoning-delta": {
+						const previous = blocks[index];
+						blocks[index] = {
+							kind: "reasoning",
+							text: (previous?.kind === "reasoning" ? previous.text : "") + String(chunk.text ?? "")
+						};
+						break;
+					}
+					case "tool-call-delta": {
+						const previous = blocks[index];
+						const callId =
+							chunk.id === undefined || chunk.id === null
+								? previous?.kind === "tool-call" ? previous.callId : ""
+								: String(chunk.id);
+						blocks[index] = {
+							kind: "tool-call",
+							callId,
+							name:
+								typeof chunk.name === "string" && chunk.name !== ""
+									? chunk.name
+									: previous?.kind === "tool-call" ? previous.name : "",
+							argsRaw:
+								(previous?.kind === "tool-call" ? previous.argsRaw : "") +
+								String(chunk.argumentsDelta ?? "")
+						};
+						break;
+					}
+					case "block-end": {
+						const block = chunk.block;
+						if (!block || typeof block !== "object") return false;
+						if (block.type === "text") {
+							blocks[index] = { kind: "text", text: String(block.text ?? "") };
+						} else if (block.type === "reasoning") {
+							blocks[index] = { kind: "reasoning", text: String(block.text ?? "") };
+						} else if (block.type === "tool-call") {
+							blocks[index] = {
+								kind: "tool-call",
+								callId: String(block.id ?? ""),
+								name: String(block.name ?? ""),
+								argsRaw: String(block.arguments ?? "")
+							};
+						} else {
+							return false;
+						}
+						break;
+					}
+					default:
+						return false;
+				}
+				return true;
+			}
+
+			/** 应用一条事件窗口条目；返回 "chunk"（可合并）或 "reset"（立即发布）。 */
+			function applyLiveEntry(entry) {
+				if (!entry || typeof entry !== "object") return false;
+				if (entry.type === "transient") {
+					const event = entry.event;
+					if (!event || event.type !== "assistant/live-chunk") return false;
+					return applyLiveChunk(event.data) ? "chunk" : false;
+				}
+				const event = entry.event;
+				if (!event || typeof event !== "object") return false;
+				switch (event.type) {
+					case "step/start": {
+						const data = event.data ?? {};
+						live = {
+							turn: typeof data.turn === "number" ? data.turn : 0,
+							step: typeof data.step === "number" ? data.step : 0,
+							attemptId: null,
+							blocks: []
+						};
+						return "reset";
+					}
+					case "assistant/message":
+					case "assistant/attempt":
+					case "turn/end": {
+						if (live === null) return false;
+						live = null;
+						return "reset";
+					}
+					case "llm/retry": {
+						if (live === null || live.blocks.length === 0) return false;
+						live = { ...live, blocks: [] };
+						return "reset";
+					}
+					default:
+						return false;
+				}
+			}
+
+			function seedLive(window) {
+				live = null;
+				for (const entry of window?.entries ?? []) applyLiveEntry(entry);
+			}
+
+			function onSessionEvent() {
+				if (active === null) return;
+				const window = active.eventSource.getSnapshot();
+				if (!window || !window.change) return;
+				const change = window.change;
+				if (change.kind === "replace") {
+					seedLive(window);
+					bumpLive();
+					return;
+				}
+				if (change.kind === "prepend") return;
+				if (change.kind === "settle-assistant") {
+					if (live === null) return;
+					live = null;
+					bumpLive();
+					return;
+				}
+				let chunk = false;
+				let reset = false;
+				for (const entry of change.entries ?? []) {
+					const kind = applyLiveEntry(entry);
+					if (kind === "chunk") chunk = true;
+					else if (kind === "reset") reset = true;
+				}
+				if (reset) bumpLive();
+				else if (chunk) bumpLive();
 			}
 
 			function cleanup() {
 				if (active === null) return;
 				const current = active;
+				const hadLive = live !== null;
 				active = null;
+				live = null;
 				for (const unsubscribe of current.unsubs) {
 					try {
 						unsubscribe();
@@ -327,6 +406,7 @@ window.__ModuleLoader__.load({
 					// ignore
 				}
 				if (!disposed) bump();
+				if (hadLive) bumpLive();
 			}
 
 			function sessionsService() {
@@ -471,12 +551,42 @@ window.__ModuleLoader__.load({
 					}
 					throw new Error("会话没有提供 chat/session hooks");
 				}
+				let statusKey = statusDigest(session.getSnapshot());
+				const onSessionChange = () => {
+					const next = statusDigest(session.getSnapshot());
+					if (next === statusKey) return;
+					statusKey = next;
+					bump();
+				};
 				const unsubs = [
 					chat.subscribe(bump),
-					session.subscribe(bump),
+					session.subscribe(onSessionChange),
 					uiSession.sessionStatus.subscribe(bump)
 				];
-				active = { sessionId, ref, chat, session, uiSession, unsubs };
+				let eventSource = null;
+				try {
+					eventSource = ref.binding?.eventSource ?? null;
+				} catch {
+					eventSource = null;
+				}
+				active = { sessionId, ref, chat, session, uiSession, eventSource, unsubs };
+				// 上下文占用与标题来自独立投影：用量 / 构成 / 标题变化时也要唤醒原生端。
+				// 投影是可选的，缺少时 context() 会返回 null（原生端显示灰色空环），标题则退回列表里的 displayTitle。
+				try {
+					const projections = sessionFace().projections;
+					for (const key of ["contextPressure", "contextBreakdown", "title", "agentTeam"]) {
+						const face = projections?.faceOf?.(key);
+						if (face && typeof face.subscribe === "function") {
+							unsubs.push(face.subscribe(bump));
+						}
+					}
+				} catch {
+					// 投影尚未就绪：不阻塞订阅。
+				}
+				if (eventSource) {
+					seedLive(eventSource.getSnapshot());
+					unsubs.push(eventSource.subscribe(onSessionEvent));
+				}
 				try {
 					const uiWorkspace = safeGet(ctx, "uiWorkspace");
 					if (typeof uiWorkspace?.openSession === "function") uiWorkspace.openSession(sessionId);
@@ -520,21 +630,141 @@ window.__ModuleLoader__.load({
 				};
 			}
 
-			function nextEvent(cursor, timeoutMs) {
-				const current = revision;
-				if (cursor !== current) return Promise.resolve({ cursor: current, changed: true });
+			/** 读取一个会话投影的当前快照；投影未注册 / 尚未就绪时返回 undefined。 */
+			function projectionValue(key) {
+				try {
+					const projections = sessionFace().projections;
+					if (!projections || typeof projections.faceOf !== "function") return undefined;
+					const face = projections.faceOf(key);
+					return face && typeof face.getSnapshot === "function" ? face.getSnapshot() : undefined;
+				} catch {
+					return undefined;
+				}
+			}
+
+			function tokenCount(value) {
+				return typeof value === "number" && Number.isFinite(value) && value >= 0
+					? Math.round(value)
+					: undefined;
+			}
+
+			function contextCapacity(value) {
+				return typeof value === "number" && Number.isFinite(value) && value > 0
+					? Math.round(value)
+					: undefined;
+			}
+
+			/** 上下文占用：provider 报的请求压力 + 下一次请求的启发式构成。 */
+			function context() {
+				if (active === null) throw new Error("尚未订阅会话");
+				const pressure = projectionValue("contextPressure");
+				const breakdown = projectionValue("contextBreakdown");
+				const pressureTokens = tokenCount(pressure?.pressureTokens);
+				const projectedTokens = tokenCount(pressure?.projectedTokens);
+				const contextWindow = contextCapacity(pressure?.contextWindow);
+				const systemTokens = tokenCount(breakdown?.systemTokens);
+				const toolsTokens = tokenCount(breakdown?.toolsTokens);
+				const messageTokens = tokenCount(breakdown?.messageTokens);
+				return {
+					pressure:
+						pressureTokens === undefined &&
+						projectedTokens === undefined &&
+						contextWindow === undefined
+							? null
+							: {
+									...(pressureTokens === undefined ? {} : { pressureTokens }),
+									...(projectedTokens === undefined ? {} : { projectedTokens }),
+									...(contextWindow === undefined ? {} : { contextWindow })
+								},
+					breakdown:
+						systemTokens === undefined ||
+						toolsTokens === undefined ||
+						messageTokens === undefined
+							? null
+							: { systemTokens, toolsTokens, messageTokens }
+				};
+			}
+
+			/**
+			 * 团队（v6）：Lead 会话的 agentTeam 投影 + 成员运行状态 / 模型标签。
+			 *
+			 * 投影本身只带持久 roster（phase / error）与任务板；running 来自会话状态
+			 * （与 Web 面板同源：api-session/status 事件），model 来自列表摘要里各成员的
+			 * modelSelection 投影。未启用「智能体团队」bundle 时投影为空 → null，
+			 * 原生端据此隐藏入口并把工具行 / 消息当普通内容处理。
+			 */
+			function team() {
+				if (active === null) throw new Error("尚未订阅会话");
+				const projection = projectionValue("agentTeam");
+				if (!projection || typeof projection !== "object") return null;
+				const members = Array.isArray(projection.members) ? projection.members : [];
+				const tasks = Array.isArray(projection.tasks) ? projection.tasks : [];
+				let statuses = null;
+				try {
+					statuses = active.uiSession?.sessionStatus?.getSnapshot?.() ?? null;
+				} catch {
+					statuses = null;
+				}
+				let list = null;
+				try {
+					list = sessionsService().list.getSnapshot();
+				} catch {
+					list = null;
+				}
+				return sanitize({
+					members: members.map((member) => {
+						const id = typeof member?.id === "string" ? member.id : "";
+						let status = null;
+						try {
+							status = statuses?.get?.(id) ?? null;
+						} catch {
+							status = null;
+						}
+						const row = list?.byId?.[id] ?? null;
+						const running =
+							typeof status?.running === "boolean" ? status.running : row?.running === true;
+						const pendingInteraction =
+							status?.pendingInteraction !== undefined && status?.pendingInteraction !== null;
+						const model = list?.projectionsBySession?.[id]?.values?.modelSelection?.next?.model;
+						return {
+							...member,
+							running,
+							pendingInteraction,
+							model: typeof model === "string" ? model : null
+						};
+					}),
+					tasks,
+					...(projection.failure === undefined ? {} : { failure: projection.failure })
+				});
+			}
+
+			function nextEvent(cursor, timeoutMs, liveCursor) {
+				const trackLive = liveCursor !== undefined && liveCursor !== null;
+				const packet = () => ({
+					cursor: revision,
+					changed: cursor !== revision,
+					liveCursor: liveRevision,
+					live: livePacket()
+				});
+				if (cursor !== revision || (trackLive && liveCursor !== liveRevision)) {
+					return Promise.resolve(packet());
+				}
 				const waitMs = Math.min(Math.max(Number(timeoutMs) || 20000, 1000), 30000);
 				return new Promise((resolve) => {
 					const waiter = { done: false, timer: 0 };
-					const finish = (changed) => {
+					const finish = () => {
 						if (waiter.done) return;
 						waiter.done = true;
 						clearTimeout(waiter.timer);
 						waiters.delete(waiter);
-						resolve({ cursor: revision, changed });
+						resolve(packet());
 					};
-					waiter.fire = () => finish(true);
-					waiter.timer = setTimeout(() => finish(revision !== cursor), waitMs);
+					waiter.fire = () => {
+						// 旧原生端（不传 liveCursor）只关心结构变化；live 唤醒时继续等。
+						if (!trackLive && cursor === revision) return;
+						finish();
+					};
+					waiter.timer = setTimeout(finish, waitMs);
 					waiters.add(waiter);
 				});
 			}
@@ -778,6 +1008,98 @@ window.__ModuleLoader__.load({
 				return { ok: true };
 			}
 
+			/* ---- v5："/" 命令菜单的数据面（都按当前订阅会话寻址） ---- */
+
+			/**
+			 * remote.* 是带作用域的注入项（cordis 会拒绝 "without inject" 的访问）：
+			 * apply() 里用 ctx.inject 子 fiber 把命名空间挂到 remotes 上，这里只负责取用。
+			 * 这样 profile 没装 commands / skills 插件时只是这两个功能报错，整个桥照常加载。
+			 */
+			function remoteService(namespace, method) {
+				const service = remotes[namespace];
+				if (!service || typeof service[method] !== "function") {
+					throw new Error(namespace + " 服务不可用（需要 dsh 0.2.x 的对应插件）");
+				}
+				return service;
+			}
+
+			function subscribedSessionId() {
+				if (active === null) throw new Error("尚未订阅会话");
+				return active.sessionId;
+			}
+
+			/** 宿主命令目录（当前会话的组合）：name + description，供 "/" 菜单显示。 */
+			async function commands() {
+				const sessionId = subscribedSessionId();
+				const value = unwrapRpc(
+					await remoteService("commands", "list").list(sessionId),
+					"command.list"
+				);
+				const list = Array.isArray(value) ? value : [];
+				return {
+					commands: list
+						.map((command) => ({
+							name: typeof command?.name === "string" ? command.name : "",
+							description:
+								typeof command?.description === "string" ? command.description : ""
+						}))
+						.filter((command) => command.name.length > 0)
+				};
+			}
+
+			/** 当前会话可见的人类可调用技能目录（dsh 的 skills/list）。 */
+			async function skills() {
+				const sessionId = subscribedSessionId();
+				const value = unwrapRpc(
+					await remoteService("skills", "list").list(
+						{ sessionId },
+						new AbortController().signal
+					),
+					"skills/list"
+				);
+				const list = Array.isArray(value?.skills) ? value.skills : [];
+				return {
+					skills: list
+						.map((skill) => ({
+							name: typeof skill?.name === "string" ? skill.name : "",
+							description:
+								typeof skill?.description === "string" ? skill.description : "",
+							modelInvocable: skill?.modelInvocable !== false
+						}))
+						.filter((skill) => skill.name.length > 0)
+				};
+			}
+
+			/**
+			 * 提交一条 `/name …` 命令行（宿主 command.execute 准入）。
+			 * 宿主没注册该名字时返回 matched=false，其余把宿主的 CommandResult 原样带回。
+			 */
+			async function executeCommand(line) {
+				const text = typeof line === "string" ? line.trim() : "";
+				if (text === "") throw new Error("命令为空");
+				const sessionId = subscribedSessionId();
+				const value = unwrapRpc(
+					await remoteService("commands", "execute").execute(sessionId, text, []),
+					"command.execute"
+				);
+				if (value === undefined || value === null) {
+					return {
+						ok: true,
+						matched: false,
+						result: { kind: "error", text: "未知命令：" + text }
+					};
+				}
+				const outcome = value.result ?? null;
+				return {
+					ok: true,
+					matched: true,
+					result: {
+						kind: outcome?.kind === "error" ? "error" : "success",
+						text: typeof outcome?.text === "string" ? outcome.text : null
+					}
+				};
+			}
+
 			return {
 				listSessions,
 				createSession,
@@ -797,23 +1119,50 @@ window.__ModuleLoader__.load({
 				renameSession,
 				approvalAnswer,
 				questionAnswer,
+				context,
+				team,
+				commands,
+				skills,
+				executeCommand,
 				dispose: cleanup
 			};
 		}
 
 		function apply(ctx) {
-			const native = nativeApi(ctx);
+			/** v5 的 remote 命名空间（命令目录 / 技能目录），由 ctx.inject 子 fiber 填充。 */
+			const remotes = { commands: null, skills: null };
+			const native = nativeApi(ctx, remotes);
+			ctx.inject(["remote", "remote.commands"], (scope) => {
+				remotes.commands = scope.remote.commands;
+				return () => {
+					remotes.commands = null;
+				};
+			});
+			ctx.inject(["remote", "remote.skills"], (scope) => {
+				remotes.skills = scope.remote.skills;
+				return () => {
+					remotes.skills = null;
+				};
+			});
 			const bridge = {
 				version: VERSION,
 				ping: () => ({
 					version: VERSION,
 					native: true,
-					methods: ["models", "selectModel", "permissions", "setPermission", "renameSession"]
+					methods: [
+						"models",
+						"selectModel",
+						"permissions",
+						"setPermission",
+						"renameSession",
+						"liveStream",
+						"context",
+						"team",
+						"commands",
+						"skills",
+						"executeCommand"
+					]
 				}),
-				configure: (input) => configure(ctx, input),
-				newSession: () => newSession(ctx),
-				enforceSingleColumn: () => enforceSingleColumn(ctx),
-				state: () => state(),
 				listSessions: () => native.listSessions(),
 				createSession: (cwd) => native.createSession(cwd),
 				openSession: (id) => native.openSession(id),
@@ -821,7 +1170,7 @@ window.__ModuleLoader__.load({
 				unsubscribe: () => native.unsubscribe(),
 				snapshot: () => native.snapshot(),
 				diagnose: () => native.diagnose(),
-				nextEvent: (cursor, timeoutMs) => native.nextEvent(cursor, timeoutMs),
+				nextEvent: (cursor, timeoutMs, liveCursor) => native.nextEvent(cursor, timeoutMs, liveCursor),
 				send: (text) => native.send(text),
 				cancel: () => native.cancel(),
 				loadOlder: () => native.loadOlder(),
@@ -831,30 +1180,21 @@ window.__ModuleLoader__.load({
 				setPermission: (preset) => native.setPermission(preset),
 				renameSession: (title) => native.renameSession(title),
 				approvalAnswer: (decision) => native.approvalAnswer(decision),
-				questionAnswer: (answer) => native.questionAnswer(answer)
+				questionAnswer: (answer) => native.questionAnswer(answer),
+				context: () => native.context(),
+				team: () => native.team(),
+				commands: () => native.commands(),
+				skills: () => native.skills(),
+				executeCommand: (line) => native.executeCommand(line)
 			};
 			window[GLOBAL_KEY] = bridge;
 
-			const enforce = () => {
-				try {
-					enforceSingleColumn(ctx);
-				} catch (error) {
-					console.warn("[obsidian-bridge]", error);
-				}
-			};
-
 			ctx.effect(() => {
-				injectCss();
-				const timer = setInterval(enforce, ENFORCE_INTERVAL_MS);
-				const kicks = [0, 300, 1000, 2000, 4000].map((ms) => setTimeout(enforce, ms));
 				return () => {
-					clearInterval(timer);
-					for (const handle of kicks) clearTimeout(handle);
-					removeCss();
 					native.dispose();
 					if (window[GLOBAL_KEY] === bridge) delete window[GLOBAL_KEY];
 				};
-			}, "obsidian-bridge: single column + native data");
+			}, "obsidian-bridge: native data");
 		}
 
 		exports.apply = apply;

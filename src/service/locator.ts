@@ -114,16 +114,6 @@ export function resolveDshInstall(preferredPath: string | null = null): Resolved
 		: { install: preferred, fallback: false };
 }
 
-/**
- * 解析 dsh 可执行文件。优先 node + npm 全局 bin.js（不依赖 PATH 与 shebang），
- * 其次 dsh 可执行文件候选。Obsidian 从 Finder 启动时 PATH 可能不完整。
- *
- * 解析顺序与历史行为保持一致：版本提示只「暴露」实际用的是哪份，不改变选择结果。
- */
-export function resolveDshCommand(preferredPath: string | null = null): DshCommand | null {
-	return resolveDshInstall(preferredPath)?.install.command ?? null;
-}
-
 /** 探测某个启动方式的 dsh 版本；失败（找不到 / 超时 / 输出不含版本号）返回 null，不抛错。 */
 export function probeDshVersion(command: DshCommand): Promise<string | null> {
 	return new Promise<string | null>((resolve) => {

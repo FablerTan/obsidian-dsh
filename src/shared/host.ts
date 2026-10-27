@@ -1,5 +1,7 @@
 import { FileSystemAdapter, requestUrl, type App } from 'obsidian';
+import * as fs from 'fs';
 import * as os from 'os';
+import * as path from 'path';
 import { isDshPage } from './constants';
 import type { Probe, ProbeResult } from './types';
 
@@ -8,6 +10,31 @@ export function vaultPath(app: App): string {
 	const adapter = app.vault.adapter;
 	if (adapter instanceof FileSystemAdapter) return adapter.getBasePath();
 	return os.homedir();
+}
+
+/** 绝对化并解析符号链接（路径不存在时退回原路径）。 */
+function canonicalPath(value: string): string {
+	const absolute = path.resolve(value);
+	try {
+		return fs.realpathSync.native(absolute);
+	} catch {
+		return absolute;
+	}
+}
+
+/**
+ * 会话 cwd 是否落在 vault 内（vault 根目录或其子目录）。
+ * 原生聊天只用它展示「当前 Obsidian 仓库」的项目会话；null / 空串不匹配。
+ * 比较前做 normalize + realpath，避免尾斜杠 / 符号链接 / Windows 大小写造成误判。
+ */
+export function projectPathWithin(cwd: string | null, vault: string): boolean {
+	if (cwd === null || cwd.trim() === '' || vault.trim() === '') return false;
+	const fold = (value: string): string =>
+		process.platform === 'win32' ? value.toLowerCase() : value;
+	const root = fold(path.normalize(canonicalPath(vault)));
+	const target = fold(path.normalize(canonicalPath(cwd)));
+	if (target === root) return true;
+	return target.startsWith(root.endsWith(path.sep) ? root : root + path.sep);
 }
 
 /**

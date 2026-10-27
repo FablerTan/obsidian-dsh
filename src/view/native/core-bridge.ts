@@ -1,7 +1,11 @@
 import { sleep } from '../../shared/async';
+import { errorText } from '../../shared/errors';
 import {
 	NativeBridgeError,
 	type NativeChatSnapshot,
+	type NativeCommand,
+	type NativeCommandResult,
+	type NativeContextUsage,
 	type NativeEvent,
 	type NativeModels,
 	type NativeModelSelection,
@@ -10,6 +14,8 @@ import {
 	type NativeQuestionAnswer,
 	type NativeSessionList,
 	type NativeSessionSummary,
+	type NativeSkill,
+	type NativeTeamProjection,
 } from '../../shared/native-types';
 
 /**
@@ -68,22 +74,63 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 export class NativeCoreBridge {
+	/** 桥 v3 能力：liveStream（会话事件流 → 流式正文）。 */
+	private liveStream = false;
+	/** 桥 v4 能力：context（contextPressure / contextBreakdown 投影）。 */
+	private contextCapability = false;
+	/** 桥 v5 能力：commands / skills / executeCommand（输入框 "/" 菜单）。 */
+	private commandCapability = false;
+	/** 桥 v6 能力：team（Agent Teams 投影，只读团队面板）。 */
+	private teamCapability = false;
+
 	constructor(private readonly run: <T>(code: string) => Promise<T>) {}
 
-	/** 等页面加载出 bridge v2；页面未加载完时 executeJavaScript 会失败，直接重试。 */
+	/** 探测页面里的 bridge 版本与能力；页面未加载完时会抛 missing/timeout。 */
+	async probe(): Promise<{ version: number; methods: string[] }> {
+		const pong = await this.invoke<{ version: number; methods?: string[] }>('ping', [], 4000);
+		const methods = Array.isArray(pong.value?.methods) ? pong.value.methods : [];
+		this.liveStream = methods.includes('liveStream');
+		this.contextCapability = methods.includes('context');
+		this.commandCapability =
+			methods.includes('commands') &&
+			methods.includes('skills') &&
+			methods.includes('executeCommand');
+		this.teamCapability = methods.includes('team');
+		return {
+			version: pong.version,
+			methods,
+		};
+	}
+
+	/** 桥是否支持 v3 的流式通道；不支持时面板退回整段出现。 */
+	supportsLiveStream(): boolean {
+		return this.liveStream;
+	}
+
+	/** 桥是否支持 v4 的上下文占用；不支持时显示灰色空环。 */
+	supportsContext(): boolean {
+		return this.contextCapability;
+	}
+
+	/** 桥是否支持 v5 的命令 / 技能目录；不支持时 "/" 菜单里的 compact、skills 置灰。 */
+	supportsCommands(): boolean {
+		return this.commandCapability;
+	}
+
+	/** 桥是否支持 v6 的团队投影；不支持时不显示团队入口。 */
+	supportsTeam(): boolean {
+		return this.teamCapability;
+	}
+
+	/** 等页面加载出 bridge v2+；页面未加载完时 executeJavaScript 会失败，直接重试。 */
 	async waitReady(timeoutMs = 20000): Promise<number> {
 		const deadline = Date.now() + timeoutMs;
 		let last: unknown;
 		while (Date.now() < deadline) {
 			try {
-				const pong = await this.invoke<{ version: number; methods?: string[] }>(
-					'ping',
-					[],
-					3000,
-				);
+				const pong = await this.probe();
 				if (pong.version >= 2) {
-					const methods = pong.value?.methods;
-					if (!Array.isArray(methods) || !methods.includes('models')) {
+					if (!pong.methods.includes('models')) {
 						throw new NativeBridgeError(
 							'version',
 							'桥版本过旧（缺少模型/权限方法），请更新 dsh-obsidian-bridge 并重启 DSH 服务',
@@ -93,7 +140,7 @@ export class NativeCoreBridge {
 				}
 				throw new NativeBridgeError(
 					'version',
-					'桥版本过旧（' + String(pong.version) + '，需要 v2）',
+					'桥版本过旧（' + String(pong.version) + '，需要 v2+）',
 				);
 			} catch (error) {
 				if (error instanceof NativeBridgeError && error.reason === 'version') throw error;
@@ -125,13 +172,14 @@ export class NativeCoreBridge {
 		return this.call<NativeChatSnapshot>('snapshot');
 	}
 
-	async diagnose(): Promise<unknown> {
-		return this.call('diagnose');
-	}
-
-	/** 长轮询：有 revision 变化立即返回；超时返回 changed=false。 */
-	async nextEvent(cursor: number, timeoutMs = POLL_TIMEOUT_MS): Promise<NativeEvent> {
-		return this.call<NativeEvent>('nextEvent', [cursor, timeoutMs], timeoutMs + 5000);
+	/** 长轮询：结构或 live 变化立即返回；超时返回 changed=false。 */
+	async nextEvent(
+		cursor: number,
+		timeoutMs = POLL_TIMEOUT_MS,
+		liveCursor?: number,
+	): Promise<NativeEvent> {
+		const args = liveCursor === undefined ? [cursor, timeoutMs] : [cursor, timeoutMs, liveCursor];
+		return this.call<NativeEvent>('nextEvent', args, timeoutMs + 5000);
 	}
 
 	async send(text: string): Promise<{ ok: boolean }> {
@@ -160,6 +208,36 @@ export class NativeCoreBridge {
 		return this.call<NativePermissions | null>('permissions');
 	}
 
+	async context(): Promise<NativeContextUsage> {
+		return this.call<NativeContextUsage>('context');
+	}
+
+	/** Lead 会话的 Agent Teams 投影；未启用团队时返回 null。 */
+	async team(): Promise<NativeTeamProjection | null> {
+		return this.call<NativeTeamProjection | null>('team');
+	}
+
+	/** 宿主命令目录（"/" 菜单从这里判断 new / compact / skills 是否真的存在）。 */
+	async commands(): Promise<NativeCommand[]> {
+		const value = await this.call<{ commands: NativeCommand[] }>('commands');
+		return Array.isArray(value?.commands) ? value.commands : [];
+	}
+
+	/** 当前会话的人类可调用技能目录（"/skills" 二级列表）。 */
+	async skills(): Promise<NativeSkill[]> {
+		const value = await this.call<{ skills: NativeSkill[] }>('skills');
+		return Array.isArray(value?.skills) ? value.skills : [];
+	}
+
+	/** 提交一条命令行（例如 "/compact"）；宿主未注册该命令时 matched=false。 */
+	async executeCommand(
+		line: string,
+	): Promise<{ matched: boolean; result: NativeCommandResult }> {
+		return this.call<{ matched: boolean; result: NativeCommandResult }>('executeCommand', [
+			line,
+		]);
+	}
+
 	async setPermission(preset: string): Promise<{ ok: boolean }> {
 		return this.call('setPermission', [preset]);
 	}
@@ -179,7 +257,7 @@ export class NativeCoreBridge {
 	private async call<T>(method: string, args: unknown[] = [], timeoutMs = CALL_TIMEOUT_MS): Promise<T> {
 		const reply = await this.invoke<T>(method, args, timeoutMs);
 		if (reply.version < 2) {
-			throw new NativeBridgeError('version', 'dsh-obsidian-bridge 版本过旧（需要 v2）');
+			throw new NativeBridgeError('version', 'dsh-obsidian-bridge 版本过旧（需要 v2+）');
 		}
 		return reply.value;
 	}
@@ -198,17 +276,18 @@ export class NativeCoreBridge {
 			);
 		} catch (error) {
 			if (error instanceof NativeBridgeError) throw error;
-			throw new NativeBridgeError(
-				'call-failed',
-				error instanceof Error ? error.message : String(error),
-			);
+			throw new NativeBridgeError('call-failed', errorText(error));
 		}
 		if (reply?.__dshNative !== true) {
 			throw new NativeBridgeError('missing', '页面里没有 dsh-obsidian-bridge');
 		}
 		const version = typeof reply.version === 'number' ? reply.version : 0;
 		if (version < 1) throw new NativeBridgeError('version', 'obsidian-bridge 版本信息缺失');
-		if (reply.error !== undefined) throw new NativeBridgeError('call-failed', reply.error);
+		if (reply.error !== undefined) {
+			// 桥在 cleanup 与下一次 subscribe 之间会短暂处于未订阅态；归为可静默重试的过渡错误。
+			const reason = reply.error.includes('尚未订阅会话') ? 'not-subscribed' : 'call-failed';
+			throw new NativeBridgeError(reason, reply.error);
+		}
 		return { version, value: reply.value as T };
 	}
 }
@@ -216,7 +295,7 @@ export class NativeCoreBridge {
 /** 把桥错误翻译成可执行提示。 */
 export function describeNativeBridgeError(error: unknown): string {
 	if (!(error instanceof NativeBridgeError)) {
-		return error instanceof Error ? error.message : String(error);
+		return errorText(error);
 	}
 	switch (error.reason) {
 		case 'missing':

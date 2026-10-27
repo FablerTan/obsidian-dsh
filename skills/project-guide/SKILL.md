@@ -19,20 +19,20 @@ whenToUse: 每次开始在本仓库工作之前（尤其是新会话接手时）
 
 | 顺序 | 读什么 | 拿到什么 |
 |---|---|---|
-| 1 | `docs/roadmap.md`（前 40 行 + M 列表） | 当前版本、里程碑状态、下一步、已知设计债 |
+| 1 | `docs/roadmap.md`（前 60 行 + 「需求待办」+ M 列表） | 当前版本、主线待办、里程碑状态、已知设计债 |
 | 2 | `docs/changes/README.md` 的状态表 | 有没有 approved（已批准未做完）/done（最近改了什么）的提案 |
 | 3 | 本文件第 1 节的查询地图 | 具体问题该去哪份文档 |
 | 4 | 只在需要动手时：`docs/development.md` 的「代码结构与改动地图」 | 目标功能在哪个文件 |
 
 ```bash
-sed -n '1,45p' docs/roadmap.md
-grep -n '^| \[' docs/changes/README.md
+sed -n '1,70p' docs/roadmap.md          # 主线 / 需求待办 / 候选池 / 版本
+grep -n '^| \[' docs/changes/README.md  # 提案状态表
 ```
 
 **读完能回答这 5 个问题，就算进入状态了**：
 
-1. 当前版本号、M 几做到哪了？
-2. 下一步该做什么？有没有等批准 / 执行中的提案？
+1. 当前版本号、主线在哪？「需求待办」里有没有 `待调研` / `等你选路` 的行？
+2. 下一个该做的需求是什么？路径选了吗？有没有已批准 / 执行中的提案？
 3. 某个功能（服务托管、面板、设置、探测…）在哪个文件？
 4. 现在有哪些已知坑（起不来、端口占用、孤儿进程…）？
 5. 要新增一个文件，该放哪个目录？
@@ -44,14 +44,15 @@ grep -n '^| \[' docs/changes/README.md
 - `docs/roadmap.md` 顶部「最后更新」日期 < 最近一次源码改动时间（`ls -lt src/*/*.ts | head -3`）；
 - `docs/changes/` 里有 `status: approved` 但没写「实施记录」的提案 → 说明有改动已批准、进度未知；
 - 文档描述与代码不一致 → **以代码为准**，然后修正文档并在 roadmap 的「最后更新」上打时间戳；
-- `docs/roadmap.md` 与 `docs/changes/` 的时间线冲突时，以最近一个 `status: done` 提案的「实施记录」为准（它记录的是实际落地内容）。
+- `docs/roadmap.md` 与 `docs/changes/` 的时间线冲突时，以最近一个 `status: done` 提案的「实施记录」为准（它记录的是实际落地内容）；
+- 「需求待办」有 `R-<n>` 却找不到对应提案，或提案没写「实现路径调研」 → 先把账本和路径补齐，再问用户选路，不要先改代码。
 
 ### 什么时候才读源码
 
 文档不足时再读，且按这个顺序，不要通读全仓：
 
 1. `src/main.ts`（组合根，能看出有哪些模块被接起来）；
-2. 目标域的入口文件（`service/manager.ts` / `view/dsh-view.ts` / `settings/tab.ts`）；
+2. 目标域的入口文件（`service/manager.ts` / `view/native/native-chat-view.tsx` / `settings/tab.ts`）；
 3. 具体实现文件。
 
 Obsidian 自身 API（Plugin / ItemView / Vault / requestUrl…）**不要读类型定义**，用 `skills/obsidian-docs` 查官方文档。
@@ -60,9 +61,9 @@ Obsidian 自身 API（Plugin / ItemView / Vault / requestUrl…）**不要读类
 
 | 我想知道 | 去看 |
 |---|---|
-| 现在做到哪了 / 下一步 / 已知设计债 | `docs/roadmap.md` |
+| 现在做到哪了 / 需求待办 / 下一步 / 已知设计债 | `docs/roadmap.md` |
 | 最近改了什么 / 有哪些提案在等批准 | `docs/changes/README.md` + 对应提案 |
-| 某条链路怎么跑（服务生命周期、webview 承载、探测） | `docs/architecture.md` |
+| 某条链路怎么跑（服务生命周期、原生面板与隐藏 core、探测） | `docs/architecture.md` |
 | 某个功能在哪个文件 / 怎么改 | `docs/development.md` 的「改动地图」 |
 | 报错、起不来、面板空白、端口占用 | `docs/troubleshooting.md` |
 | 目录约定、默认值、版本、验证要求 | `AGENTS.md` |
@@ -89,14 +90,14 @@ Obsidian 自身 API（Plugin / ItemView / Vault / requestUrl…）**不要读类
 |---|---|---|
 | `src/main.ts` | 组合根：注册视图/命令/ribbon/状态栏/设置页，注入依赖，结果映射成 Notice | 业务分支、spawn、探测细节 |
 | `src/service/` | `manager.ts`（进程托管）、`locator.ts`（可执行文件 + PATH） | import obsidian、弹 Notice、碰 DOM |
-| `src/view/` | `dsh-view.ts`（ItemView）、`surface.ts`（webview 与 reload）、`bridge.ts`（页面桥）、`open.ts`（打开面板） | import main.ts、自己读 settings |
-| `src/settings/` | `schema.ts`（类型 / 默认值 / `serviceUrl` / 校验）、`tab.ts`（设置页） | 进程逻辑、视图细节 |
+| `src/view/` | `native/`（原生聊天 React UI + 数据桥）、`surface.ts`（隐藏 core webview）、`panel-host.ts`（宿主接口）、`open.ts`（打开面板） | import main.ts、自己读 settings |
+| `src/settings/` | `schema.ts`（类型 / 默认值 / 端口校验）、`tab.ts`（设置页） | 进程逻辑、视图细节 |
 | `src/shared/` | `constants.ts`（视图类型 + `isDshPage`）、`types.ts`（Probe 契约）、`async.ts`、`log.ts`、`host.ts`（vault 路径 + requestUrl 探测） | 业务逻辑（出现分支说明该去具体域） |
 | `docs/` | 人读文档：roadmap / architecture / development / troubleshooting / skills | 实现日志、草稿、临时脚本 |
 | `docs/changes/` | 改代码前的提案（draft → approved → done） | 未批准前直接改代码 |
 | `skills/<name>/` | 给 agent 的技能：`SKILL.md` + 可选 `scripts/` / `references/` / `data/` | 项目文档、不可复现的产物 |
 | `.dsh/skills/<name>` | 指向 `../../skills/<name>` 的符号链接 | 放真实文件 |
-| `packages/dsh-obsidian-bridge/` | dsh 侧客户端插件：`lib/client.js`（单栏 / workspace / v2 数据桥）、`cordis.patch.yml`、独立 `package.json` | import `src/`、被打进 `main.js` |
+| `packages/dsh-obsidian-bridge/` | dsh 侧客户端插件：`lib/client.js`（v6 数据桥：快照 / liveStream / context / commands / team；v1 已删）、`cordis.patch.yml`、独立 `package.json` | import `src/`、被打进 `main.js` |
 | 根目录 | 插件运行必需文件 + 构建配置 + `README.md` / `AGENTS.md` + `docs/`、`skills/`、`packages/`、`.dsh/` | 任何临时代码、脚本、备份 |
 
 ## 4. src 分层（单向依赖）
@@ -156,6 +157,7 @@ shared/ ──► 无内部依赖
 | 根目录冒出脚本 / 临时文件 | 进 `docs/` 或 `skills/`，或删掉 |
 | 文档与代码不一致 | 以代码为准改文档，并更新 roadmap 时间戳 |
 | 新功能没有提案就改了代码 | 补提案（`docs/changes/template.md`），标 `approved` 并写实施记录 |
+| 新需求没登记 roadmap / 没比路径就开工 | 在 roadmap「需求待办」补 `R-<n>`，提案补 ≥ 2 条实现路径，把选项给用户选 |
 | 为新功能新建 `src/utils/` | 按第 2 节重新归位；确实跨域的才进 `shared/` |
 
 ## 8. 相关文档

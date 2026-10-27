@@ -1,3 +1,89 @@
+/** 流式刷新节奏（0021）：逐字 / 每帧 / 平衡 / 省电。 */
+export type StreamRefreshMode = 'chunk' | 'frame' | 'balanced' | 'relaxed';
+
+/** 各档对应的合并间隔（ms）；0 = 每个 chunk 立即唤醒原生端。 */
+export const STREAM_REFRESH_MS: Record<StreamRefreshMode, number> = {
+	chunk: 0,
+	frame: 16,
+	balanced: 50,
+	relaxed: 100,
+};
+
+export function streamRefreshMs(mode: StreamRefreshMode): number {
+	return STREAM_REFRESH_MS[mode] ?? STREAM_REFRESH_MS.frame;
+}
+
+/** 输入框候选范围模式（0030 @ 路径、0037 / 技能名）：不启用 / 白名单 / 黑名单。 */
+export type ScopeMode = 'off' | 'whitelist' | 'blacklist';
+
+/** @ 菜单检索范围：白名单只检索列出的路径，黑名单排除列出的路径（文件 / 文件夹同一套前缀规则）。 */
+export interface MentionScope {
+	mode: ScopeMode;
+	/** 白名单：文件夹（含子目录）或单个文件，vault 相对路径。 */
+	allow: readonly string[];
+	/** 黑名单：文件夹（含子目录）或单个文件，vault 相对路径。 */
+	deny: readonly string[];
+}
+
+/**
+ * 「/」菜单技能行范围（0037）：按技能名过滤，只影响菜单里出现哪些技能行，
+ * 不改变技能加载、技能目录读取与 `/name` 插入 / 执行。
+ */
+export interface SkillScope {
+	mode: ScopeMode;
+	/** 白名单：技能名或其前缀（office 覆盖 office 本身与 office-* 子项）。 */
+	allow: readonly string[];
+	/** 黑名单：技能名或其前缀（同上）。 */
+	deny: readonly string[];
+}
+
+/**
+ * 范围路径归一化：去首尾空白与斜杠、反斜杠转正斜杠。
+ * 拒绝空串、`.` / `..` 段与空段（`a//b`），避免匹配到 vault 之外或歧义路径。
+ */
+export function normalizeScopePath(value: string): string | null {
+	const normalized = value.trim().replaceAll('\\', '/').replace(/^\/+|\/+$/gu, '');
+	if (normalized === '') return null;
+	const segments = normalized.split('/');
+	if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) return null;
+	return normalized;
+}
+
+/** 合并保存的路径列表：归一化、去重、丢掉非法项（旧设置 / 手改 data.json 也能吃下）。 */
+export function normalizeScopePaths(value: unknown): string[] {
+	if (!Array.isArray(value)) return [];
+	const result: string[] = [];
+	for (const item of value) {
+		if (typeof item !== 'string') continue;
+		const path = normalizeScopePath(item);
+		if (path !== null && !result.includes(path)) result.push(path);
+	}
+	return result;
+}
+
+/**
+ * 技能名归一化（0037）：去首尾空白并转小写。
+ * 只接受小写字母、数字、点、下划线、连字符（技能名约定）；
+ * 空串、含 `/` / 空白等非法字符（如误填 vault 路径）返回 null。
+ */
+export function normalizeScopeName(value: string): string | null {
+	const normalized = value.trim().toLowerCase();
+	if (normalized === '' || !/^[a-z0-9._-]+$/u.test(normalized)) return null;
+	return normalized;
+}
+
+/** 合并保存的技能名列表：归一化、去重、丢掉非法项（0037）。 */
+export function normalizeScopeNames(value: unknown): string[] {
+	if (!Array.isArray(value)) return [];
+	const result: string[] = [];
+	for (const item of value) {
+		if (typeof item !== 'string') continue;
+		const name = normalizeScopeName(item);
+		if (name !== null && !result.includes(name)) result.push(name);
+	}
+	return result;
+}
+
 /** 插件设置：独立 dsh 服务的端口、profile 与自动启动。 */
 export interface DshPluginSettings {
 	/** 独立服务端口（默认 3081，避开 web profile 的 3080）。 */
@@ -8,6 +94,20 @@ export interface DshPluginSettings {
 	autoStart: boolean;
 	/** 指定使用的 dsh 安装路径；null = 自动按 locator 优先级（M2-5 的顺序）。 */
 	dshPath: string | null;
+	/** 流式正文的刷新节奏（0021，默认每帧）。 */
+	streamRefresh: StreamRefreshMode;
+	/** 「@」引用范围模式（0030，默认不启用）。 */
+	mentionScope: ScopeMode;
+	/** 白名单路径（vault 相对路径：文件夹含子目录 / 单个文件）。 */
+	mentionWhitelist: string[];
+	/** 黑名单路径（vault 相对路径：文件夹含子目录 / 单个文件）。 */
+	mentionBlacklist: string[];
+	/** 「/」技能范围模式（0037，默认不启用）：只影响 / 菜单里的技能行。 */
+	skillScope: ScopeMode;
+	/** 白名单技能名（0037；条目是名字前缀，office 覆盖 office-*）。 */
+	skillWhitelist: string[];
+	/** 黑名单技能名（0037；条目是名字前缀，office 覆盖 office-*）。 */
+	skillBlacklist: string[];
 }
 
 export const DEFAULT_SETTINGS: DshPluginSettings = {
@@ -15,16 +115,35 @@ export const DEFAULT_SETTINGS: DshPluginSettings = {
 	profile: 'obsidian',
 	autoStart: true,
 	dshPath: null,
+	streamRefresh: 'frame',
+	mentionScope: 'off',
+	mentionWhitelist: [],
+	mentionBlacklist: [],
+	skillScope: 'off',
+	skillWhitelist: [],
+	skillBlacklist: [],
 };
-
-/** 端口 → 面板地址。改端口时只改这一处推导规则。 */
-export function serviceUrl(port: number): string {
-	return 'http://127.0.0.1:' + String(port);
-}
 
 /** 合并已保存的设置与默认值（缺失 / 旧版本字段自动回落到默认）。 */
 export function mergeSettings(saved: unknown): DshPluginSettings {
-	return Object.assign({}, DEFAULT_SETTINGS, (saved ?? {}) as Partial<DshPluginSettings>);
+	const merged = Object.assign({}, DEFAULT_SETTINGS, (saved ?? {}) as Partial<DshPluginSettings>);
+	if (!Object.prototype.hasOwnProperty.call(STREAM_REFRESH_MS, merged.streamRefresh)) {
+		merged.streamRefresh = DEFAULT_SETTINGS.streamRefresh;
+	}
+	// 未知模式一律回落默认值（手改 data.json / 旧版本值也能吃下）。
+	merged.mentionScope = scopeModeOf(merged.mentionScope, DEFAULT_SETTINGS.mentionScope);
+	merged.skillScope = scopeModeOf(merged.skillScope, DEFAULT_SETTINGS.skillScope);
+	// 归一化同时复制数组：避免合并结果与 DEFAULT_SETTINGS 共享同一个可变数组。
+	merged.mentionWhitelist = normalizeScopePaths(merged.mentionWhitelist);
+	merged.mentionBlacklist = normalizeScopePaths(merged.mentionBlacklist);
+	merged.skillWhitelist = normalizeScopeNames(merged.skillWhitelist);
+	merged.skillBlacklist = normalizeScopeNames(merged.skillBlacklist);
+	return merged;
+}
+
+/** 三档范围模式校验：非法值回落 fallback（0030 / 0037 共用）。 */
+function scopeModeOf(value: unknown, fallback: ScopeMode): ScopeMode {
+	return value === 'off' || value === 'whitelist' || value === 'blacklist' ? value : fallback;
 }
 
 /** 端口是否落在合法区间（设置页输入校验）。 */

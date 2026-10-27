@@ -1,32 +1,61 @@
-import { realpathSync } from 'fs';
-import { Notice, Plugin } from 'obsidian';
+import { Notice, Plugin, addIcon, type WorkspaceLeaf } from 'obsidian';
 import { DshServiceManager, type DshServiceOutcome } from './service/manager';
-import { listDshCandidates, PATH_DSH_PLACEHOLDER, probeDshVersion } from './service/locator';
-import { mergeSettings, serviceUrl, type DshPluginSettings } from './settings/schema';
-import { DshSettingTab, type SettingsHost } from './settings/tab';
-import { VIEW_TYPE_DSH, VIEW_TYPE_NATIVE_CHAT } from './shared/constants';
+import { listDshCandidates, PATH_DSH_PLACEHOLDER, probeDshVersion, resolveDshInstall } from './service/locator';
+import { clearOptionalCatalogCache, readOptionalCatalog } from './service/plugin-catalog';
+import { listLocalSkillNames } from './service/skill-catalog';
+import { setBundleEnabled as applyBundleEnabled } from './service/plugin-bundles';
+import {
+	clearPluginInventoryCache,
+	profileDirOf,
+	profilePatchPath,
+	readPluginInventory,
+} from './service/plugin-inventory';
+import { togglePluginEnabled } from './service/plugin-patch';
+import {
+	mergeSettings,
+	type DshPluginSettings,
+	type MentionScope,
+	type SkillScope,
+	type StreamRefreshMode,
+} from './settings/schema';
+import type { SettingsHost } from './settings/context';
+import { DshSettingTab } from './settings/tab';
+import { dshWhaleIconSvg } from './shared/brand';
+import { errorText } from './shared/errors';
+import { LEGACY_VIEW_TYPE_DSH, VIEW_TYPE_NATIVE_CHAT } from './shared/constants';
 import { createDshProbe, vaultPath } from './shared/host';
 import { logPlugin, logPluginWarn } from './shared/log';
-import type { DshBridgeStatus, DshInstall, DshRuntimeInfo } from './shared/types';
-import { callDshBridge, describeDshBridgeError, probeDshBridge, waitForDshBridge } from './view/bridge';
-import { DshWebView, type DshPanelHost } from './view/dsh-view';
+import type {
+	DshBridgeStatus,
+	DshCommand,
+	DshInstall,
+	DshOptionalCatalog,
+	DshPluginInventory,
+	DshPluginRow,
+	DshPluginRowState,
+	DshRuntimeInfo,
+} from './shared/types';
 import { DshNativeChatView } from './view/native/native-chat-view';
-import { openDshPanel, openNativeChat } from './view/open';
+import { findNativeChat, openNativeChat } from './view/open';
+import type { DshPanelHost } from './view/panel-host';
 
 /**
- * DSH in Obsidian — 方案 B：自动拉起独立的 dsh 服务 + Electron webview 嵌入（无 iframe 回退）。
+ * DSH in Obsidian — 方案 B：自动拉起独立的 dsh 服务 + Obsidian 原生聊天面板。
  *
  * 服务：dsh --profile obsidian --port <port>，工作目录 = 当前 vault。
  *  - 独立 profile：与日常用的 web profile（:3080）互不干扰；
  *  - 独立端口（默认 3081）：两个 GUI 可同时运行；
  *  - 工作目录 = vault：dsh 的 workspace / 会话 / AGENTS.md 都落在笔记库上。
  *
+ * 0008 起不再有可见的官方 webview 面板：原生聊天视图是唯一入口，
+ * 内部保留一个离屏的官方 core webview（dsh-obsidian-bridge v3 的数据源）。
+ *
  * 进程生命周期由插件托管：检测到端口未监听 → spawn；插件卸载 → 杀掉自启进程
  * （用户自己启动的实例不会被杀）。
  *
  * 本文件是**组合根**：只做注册与装配，业务逻辑分层在
  *   service/  dsh 进程托管（locator / probe / manager）
- *   view/     面板与承载面（dsh-view / surface / bridge / native / open）
+ *   view/     原生聊天、承载面、页面桥（surface / native / open）
  *   settings/ 配置与设置页（schema / tab）
  *   shared/   跨域基础件（constants / async / log / host）
  */
@@ -58,36 +87,30 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 			onRuntime: (info) => this.handleRuntime(info),
 		});
 
-		// 视图：读取设置中的端口
-		this.registerView(VIEW_TYPE_DSH, (leaf) => new DshWebView(this, leaf));
+		// 标签页 / ribbon 用 DSH 鲸鱼图标（单色，跟随主题）。
+		addIcon('dsh-whale', dshWhaleIconSvg());
+
+		// 唯一的聊天视图：原生 UI + 离屏官方 core。
 		this.registerView(VIEW_TYPE_NATIVE_CHAT, (leaf) => new DshNativeChatView(this, leaf));
 
-		// ribbon 图标
-		this.addRibbonIcon('bot', '打开 DSH 面板', () => {
-			void this.openPanel();
+		// 升级迁移：旧的 dsh-web leaf 改为原生面板；恢复布局时去重原生视图。
+		this.app.workspace.onLayoutReady(() => {
+			this.migrateLegacyPanel();
+			this.dedupeNativeLeaves();
 		});
-		this.addRibbonIcon('message-square', '新建 DSH 会话', () => {
-			void this.newDshSession();
+		// 布局恢复可能在 onLayoutReady 之后才完成；延迟再兜一次，避免恢复出两个原生 leaf。
+		const dedupeTimer = window.setTimeout(() => this.dedupeNativeLeaves(), 1500);
+		this.register(() => window.clearTimeout(dedupeTimer));
+
+		// ribbon 图标（只保留一个入口；新建会话在面板内）
+		this.addRibbonIcon('dsh-whale', '打开 DeepSeek Harness', () => {
+			void this.openNativeChatView();
 		});
 
-		// 命令面板
+		// 命令面板（open-dsh-view 的 id 保持不变，避免破坏用户快捷键）
 		this.addCommand({
 			id: 'open-dsh-view',
-			name: '打开 DSH 面板',
-			callback: () => {
-				void this.openPanel();
-			},
-		});
-		this.addCommand({
-			id: 'new-dsh-session',
-			name: '新建 DSH 会话',
-			callback: () => {
-				void this.newDshSession();
-			},
-		});
-		this.addCommand({
-			id: 'open-native-chat',
-			name: '打开原生 DSH 聊天（实验）',
+			name: '打开 DeepSeek Harness',
 			callback: () => {
 				void this.openNativeChatView();
 			},
@@ -100,11 +123,11 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 			},
 		});
 
-		// 状态栏：点击也可打开面板
+		// 状态栏：点击也可打开聊天
 		this.statusBarItem = this.addStatusBarItem();
 		this.statusBarItem.setText('DSH: …');
 		this.statusBarItem.addClass('dsh-status');
-		this.statusBarItem.onclick = () => void this.openPanel();
+		this.statusBarItem.onclick = () => void this.openNativeChatView();
 
 		// 设置页
 		this.addSettingTab(new DshSettingTab(this.app, this));
@@ -120,38 +143,20 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 		this.service?.stop();
 	}
 
-	/** 面板展示地址（不带 token，随设置动态变化）。 */
-	get url(): string {
-		return serviceUrl(this.settings.port);
-	}
-
 	/** DshPanelHost：承载面用地址（0.2.x 为带 token 的启动 URL）。 */
 	get embedUrl(): string {
 		return this.service.embedUrl;
 	}
 
 	/**
-	 * DshPanelHost：Obsidian 的 webview 分区，与核心 Web viewer / Canvas 网页卡片共用
-	 * （实现为 persist:vault-<appId>）。这是 Obsidian 内部方法，取不到时返回 null，
-	 * webview 会退回默认会话（仍能登录，只是不与核心查看器共享 cookie）。
+	 * DshPanelHost：插件专用 webview 分区。
+	 *
+	 * 0008 起不再与 Obsidian 核心 Web viewer / Canvas 共用 persist:vault-*：
+	 * 否则任何核心 webview 打开同一地址都能复用 dsh 的登录 cookie。
+	 * 用持久化分区是为了重开面板时不必重新 token 登录；它仍与其它插件隔离。
 	 */
 	get webviewPartition(): string | null {
-		const app = this.app as unknown as { getWebviewPartition?: () => string };
-		try {
-			const partition = app.getWebviewPartition?.();
-			return typeof partition === 'string' && partition.length > 0 ? partition : null;
-		} catch (error) {
-			logPluginWarn('读取 webview 分区失败，面板将使用默认会话: ' + String(error));
-			return null;
-		}
-	}
-
-	get port(): number {
-		return this.settings.port;
-	}
-
-	get profile(): string {
-		return this.settings.profile;
+		return 'persist:dsh-obsidian';
 	}
 
 	/** DshPanelHost：端口上是否有服务在响应。 */
@@ -189,56 +194,136 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 		await this.saveData(this.settings);
 	}
 
-	/** 重启服务：杀自启进程 → 重新拉起。 */
+	/** 重启服务：杀自启进程 → 重新拉起；原生面板打开时重载隐藏 core。 */
 	async restartService(): Promise<void> {
 		const outcome = await this.service.restart();
 		this.reportOutcome(outcome, true);
-	}
-
-	/** SettingsHost：页面桥状态（设置页「Obsidian 集成」）。 */
-	getBridgeStatus(): Promise<DshBridgeStatus> {
-		return probeDshBridge(this.app);
-	}
-
-	/**
-	 * 新建会话：确保服务 → 打开面板 → 等页面桥 → 绑定库目录工作区 → 新建。
-	 * 桥只存在于 webview；未安装 dsh 插件时给明确提示。
-	 */
-	private async newDshSession(): Promise<void> {
-		if (!(await this.ensureDsh())) return;
-		await openDshPanel(this.app);
+		if (!outcome.ok) return;
+		const view = findNativeChat(this.app);
+		if (view === null) return;
 		try {
-			await waitForDshBridge(this.app);
-			const info = await callDshBridge<{ workspacePath?: string }>(
-				this.app,
-				'configure',
-				[{ paths: this.workspacePaths() }],
-				20000,
-			);
-			await callDshBridge(this.app, 'newSession');
-			logPlugin('新建会话: ' + (info?.workspacePath ?? '库目录'));
-			new Notice('DSH：已在库目录新建会话');
+			await view.reloadAfterRestart();
 		} catch (error) {
-			logPluginWarn('新建会话失败: ' + (error instanceof Error ? error.message : String(error)));
-			new Notice('DSH：新建会话失败 — ' + describeDshBridgeError(error), 12000);
+			logPluginWarn('重启后重载原生面板失败: ' + errorText(error));
 		}
 	}
 
-	/** 库目录的两种写法（原路径 + realpath），避免符号链接导致工作区匹配失败。 */
-	private workspacePaths(): string[] {
-		const base = vaultPath(this.app);
-		const paths = [base];
-		try {
-			const real = realpathSync(base);
-			if (real !== base) paths.push(real);
-		} catch {
-			// realpath 失败时只用原路径；桥会按精确匹配/创建处理。
-		}
-		return paths;
+	/** DshPanelHost：设置页的流式刷新节奏（0021），面板打开时每次轮询读取。 */
+	getStreamRefresh(): StreamRefreshMode {
+		return this.settings.streamRefresh;
 	}
 
-	private async openPanel(): Promise<void> {
-		await openDshPanel(this.app);
+	/** DshPanelHost：「@」引用范围（0030），每次打开 @ 菜单时读取。 */
+	getMentionScope(): MentionScope {
+		return {
+			mode: this.settings.mentionScope,
+			allow: this.settings.mentionWhitelist,
+			deny: this.settings.mentionBlacklist,
+		};
+	}
+
+	/** DshPanelHost：「/」技能范围（0037），每次打开 / 菜单时读取；只影响菜单显示。 */
+	getSkillScope(): SkillScope {
+		return {
+			mode: this.settings.skillScope,
+			allow: this.settings.skillWhitelist,
+			deny: this.settings.skillBlacklist,
+		};
+	}
+
+	/** SettingsHost：本地技能目录里的技能名（0038，设置页「/」技能范围的「选取」按钮）。 */
+	getSkillCandidates(): Promise<string[]> {
+		return listLocalSkillNames(vaultPath(this.app));
+	}
+
+	/** SettingsHost：原生聊天隐藏 core 的页面桥状态。 */
+	getBridgeStatus(): Promise<DshBridgeStatus> {
+		const view = findNativeChat(this.app);
+		if (view === null) return Promise.resolve({ state: 'panel-closed' });
+		return view.probeBridge();
+	}
+
+	/** SettingsHost：profile 的组合插件清单（0031，设置页「插件」tab）。 */
+	getPluginInventory(refresh = false): Promise<DshPluginInventory> {
+		return this.inventoryOptions().then((options) => readPluginInventory({ ...options, refresh }));
+	}
+
+	/** SettingsHost：启停一个组件行（写 profile 用户层 patch，重启服务后生效）。 */
+	async setPluginEnabled(row: Pick<DshPluginRow, 'id' | 'name'>, enabled: boolean): Promise<void> {
+		const options = await this.inventoryOptions();
+		const expected: DshPluginRowState = enabled ? 'on' : 'off';
+		const result = await togglePluginEnabled({
+			patchPath: profilePatchPath(options.profile),
+			id: row.id,
+			enabled,
+			// 写后复验：重新组合一次，确认这一行真的按预期变了（不一致就回滚）。
+			verify: async (): Promise<boolean> => {
+				const inventory = await readPluginInventory({ ...options, refresh: true });
+				const current = inventory.bundles
+					.flatMap((bundle) => bundle.rows)
+					.find((item) => item.id === row.id);
+				return current !== undefined && current.state === expected;
+			},
+		});
+		clearPluginInventoryCache();
+		if (!result.changed) throw new Error(result.message ?? '没有可写入的改动');
+		if (result.rolledBack) throw new Error(result.message ?? '写入后复验失败，已回滚');
+		logPlugin(
+			'插件启停：' +
+				row.id +
+				' → ' +
+				(enabled ? '启用' : '停用') +
+				(result.backupPath === null ? '' : '（备份 ' + result.backupPath + '）'),
+		);
+	}
+
+	/** SettingsHost：「可选 / 实验性插件」目录（0032）。 */
+	getOptionalCatalog(refresh = false): Promise<DshOptionalCatalog> {
+		return this.inventoryOptions().then((options) =>
+			readOptionalCatalog({ command: options.command, profile: options.profile, refresh }),
+		);
+	}
+
+	/** SettingsHost：启用 / 停用可选 bundle（写 profile 的 dsh.profile.bundles，重启后生效）。 */
+	async setBundleEnabled(name: string, enabled: boolean): Promise<void> {
+		const options = await this.inventoryOptions();
+		const catalog = await readOptionalCatalog({
+			command: options.command,
+			profile: options.profile,
+			refresh: true,
+		});
+		// 只允许动目录里的可选 bundle：dsh-base / dsh-web-app / 桥等基础层不能被这里误删。
+		if (!catalog.bundles.some((bundle) => bundle.name === name)) {
+			throw new Error('不在可选插件目录里，不能在这里改：' + name);
+		}
+		const result = await applyBundleEnabled({
+			profileDir: profileDirOf(options.profile),
+			name,
+			enabled,
+			// 写后复验：重新组合一次，确认 bundle 层真的被带进 / 移出了组合结果。
+			verify: async (): Promise<boolean> => {
+				const inventory = await readPluginInventory({ ...options, refresh: true });
+				return inventory.bundles.some((bundle) => bundle.name === name) === enabled;
+			},
+		});
+		clearOptionalCatalogCache();
+		clearPluginInventoryCache();
+		if (!result.changed) throw new Error(result.message ?? '没有可写入的改动');
+		if (result.rolledBack) throw new Error(result.message ?? '写入后复验失败，已回滚');
+		logPlugin(
+			'插件包启停：' + name + ' → ' + (enabled ? '启用' : '停用') + '（备份 ' + (result.backupPath ?? '无') + '）',
+		);
+	}
+
+	/** 插件清单 / 启停共用的解析结果（与服务启动用同一份 dsh 与 profile）。 */
+	private async inventoryOptions(): Promise<{ command: DshCommand; profile: string; cwd: string }> {
+		const resolved = resolveDshInstall(this.settings.dshPath);
+		if (resolved === null) throw new Error('找不到可用的 dsh 可执行文件');
+		return {
+			command: resolved.install.command,
+			profile: this.settings.profile,
+			cwd: vaultPath(this.app),
+		};
 	}
 
 	private async openNativeChatView(): Promise<void> {
@@ -287,7 +372,7 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 	/**
 	 * 记录运行信息。
 	 * - 明确指定了 dsh 版本时不弹冲突提示（选择权在用户，设置页/日志仍可查）；
-	 * - 自动模式下发现版本不同的其他安装时提示一次（避免每次打开面板重复打扰）；
+	 * - 自动模式下发现版本不同的其他安装时提示一次（避免每次打开聊天重复打扰）；
 	 * - 指定的安装未检测到时提示一次「已回退自动」。
 	 */
 	private handleRuntime(info: DshRuntimeInfo): void {
@@ -304,6 +389,37 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 			'DSH：' + prefix + (info.used.version ?? '未知') + '，另发现版本 ' + others + '。可在设置页「dsh 版本」切换',
 			10000,
 		);
+	}
+
+	/** 把旧版可见 webview 面板的 leaf 迁移为原生视图（0008）。 */
+	private migrateLegacyPanel(): void {
+		const legacy: WorkspaceLeaf[] = [];
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			let type: string;
+			try {
+				type = leaf.getViewState().type;
+			} catch {
+				return;
+			}
+			if (type === LEGACY_VIEW_TYPE_DSH) legacy.push(leaf);
+		});
+		if (legacy.length === 0) return;
+		logPlugin('迁移旧 DSH 面板为原生聊天: ' + String(legacy.length) + ' 个');
+		for (const leaf of legacy) leaf.detach();
+		if (this.app.workspace.getLeavesOfType(VIEW_TYPE_NATIVE_CHAT).length === 0) {
+			void openNativeChat(this.app);
+		}
+	}
+
+	/** 恢复布局时可能留下多个原生 leaf；只保留当前激活的那个（正常运行时 openNativeChat 已防重）。 */
+	private dedupeNativeLeaves(): void {
+		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_NATIVE_CHAT);
+		if (leaves.length <= 1) return;
+		const active = this.app.workspace.activeLeaf;
+		const keep = leaves.find((leaf) => leaf === active) ?? leaves[0];
+		for (const leaf of leaves) {
+			if (leaf !== keep) leaf.detach();
+		}
 	}
 
 	private setStatus(text: string): void {

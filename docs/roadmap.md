@@ -1,12 +1,62 @@
 # 路线图
 
-> 当前版本 **0.3.0**（以 [manifest.json](../manifest.json) 为准）· 方案 B 已可用 · 最后更新 2026-10-26
+> 当前版本 **0.5.0**（以 [manifest.json](../manifest.json) 为准）· 方案 B 已可用 · 最后更新 2026-10-27
 
 ## 现状一句话
 
-插件能在 Obsidian 右侧面板用 Electron `<webview>` 嵌入 DSH Web GUI，并自动拉起一个带**独立 profile（obsidian）+ 独立端口**的 dsh 服务，工作目录是当前 vault。
-0.3.0 起**只支持 dsh 0.2.x**：0.1.1 探测与 iframe 回退已移除（[提案 0007](changes/0007-drop-legacy-and-migrate-bridge.md)）；dsh 版本选择（[0003](changes/0003-dsh-version-selection-and-token-auth.md)）与 webview 承载（[0004](changes/0004-webview-embedding.md)）已完成；
-M7 把「新建会话 / 单栏 / 只用库目录」收敛到 ribbon/命令（[0005](changes/0005-obsidian-native-surfaces.md)，待人工确认），bridge 插件已迁入本仓库 `packages/`；数据互通（M3）还没做；工程化（M5）已有 git 基线与提交前检查，CI / 发布未做。
+插件在 Obsidian 右侧面板提供**原生 React 聊天界面**，并自动拉起一个带**独立 profile（obsidian）+ 独立端口**的 dsh 服务，工作目录是当前 vault。
+0.4.0 起删除可见的官方 Web GUI 面板（[0008](changes/0008-native-only-surface.md)）：原生面板内部保留一个离屏的官方 core webview 作为数据源；**只支持 dsh 0.2.x**（[0007](changes/0007-drop-legacy-and-migrate-bridge.md)）。
+dsh 版本选择（[0003](changes/0003-dsh-version-selection-and-token-auth.md)）、webview 承载（[0004](changes/0004-webview-embedding.md)）与原生聊天 Phase 1（[0006](changes/0006-native-chat-panel.md)）已完成；bridge 插件已迁入本仓库 `packages/`，流式输出（[0017](changes/0017-native-streaming.md)）与 Agent Teams 只读团队面板（[0035](changes/0035-agent-team-support.md)）已落地。
+**2026-10-27 起主线切换为「边用边改」**：插件进入真实使用阶段，后续起点是使用中提出的需求，不再按预设里程碑排期；未完成的 M3 / M5 余项转入候选池（见下一节）。
+
+## 主线：边用边改（2026-10-27 起）
+
+> 后续主线不是预先排好的里程碑，而是**你在真实使用中提出的需求**：用起来缺什么、哪里别扭、想加什么能力，随时提。M0–M7 作为已完成的历史阶段保留在下方；M3 / M5 余项进入候选池，等使用中触发再启动。
+
+每个需求的固定流程（硬规则见 [AGENTS.md](../AGENTS.md) 规则 12、13）：
+
+1. **登记**：你提出需求（一句话即可）→ 我在下面「需求待办」加一行（编号 `R-<n>`，状态 `待调研`），并在 `docs/changes/` 建一份 `draft` 提案；两边互相引用。
+2. **调研路径**：我把实现路径写进提案的「实现路径调研」小节（≥ 2 条可行路径，含推荐与改动面 / 代价 / 风险对比），再把选项直接问你。
+3. **你选路**：你确认走哪条路径 → 提案改 `approved` → 我按提案执行。
+4. **收尾**：补「实施记录」，提案改 `done`，本表该行改成 `✅ 已完成` 并附日期。
+
+### 需求待办
+
+| 编号 | 需求 | 状态 | 提案 |
+|---|---|---|---|
+| R-1 | 主线改为「边用边改」：需求先登记 + 先比路径再执行 | ✅ 已完成（2026-10-27） | [0018](changes/0018-usage-driven-workflow.md) |
+| R-2 | 原生聊天面板融入右栏：去掉白底卡片与外圈间隙 | ✅ 已完成（2026-10-27） | [0019](changes/0019-native-panel-fullbleed.md) |
+| R-3 | 过程行（含折叠层内思考 / 工具行）默认 / hover 底色互换：默认浅色叠加、hover 实心 | ✅ 已完成（2026-10-27） | [0020](changes/0020-process-row-background-swap.md) |
+| R-4 | 流式输出刷新节奏可调：设置里在「逐字 / 每帧 / 平衡 / 省电」间自由切换，解决出字一跳一跳 | ✅ 已完成（2026-10-27） | [0021](changes/0021-stream-refresh-mode.md) |
+| R-5 | 发送按钮左侧加当前上下文占用圆环：只显示圆环，点击查看详情 | ✅ 已完成（2026-10-27） | [0022](changes/0022-context-usage-meter.md) |
+| R-6 | 输入框 @ 触发项目文件下拉菜单（参考 dsh）；当前笔记改为默认不引用、作为 @ 列表第一项「当前笔记」 | ✅ 已完成（2026-10-27） | [0023](changes/0023-at-file-mentions.md) |
+| R-7 | 文件夹引用：Enter 采纳（@文件夹）、Tab / 箭头下钻；消息里的 @文件夹 渲染成可点击 chip，点击在左侧文件列表展开并选中 | ✅ 已完成（2026-10-27） | [0024](changes/0024-folder-references.md) |
+| R-8 | 输入框 `/` 命令菜单：new 新建对话 / compact 压缩 / skills 列表（参考 dsh 的斜杠菜单） | ✅ 已完成（2026-10-27） | [0025](changes/0025-slash-commands.md) |
+| R-9 | 输入框横向稍微加宽：卡片比正文文字列各外扩 11px，卡内文字仍与正文左边界对齐 | ✅ 已完成（2026-10-27） | [0026](changes/0026-composer-wider.md) |
+| R-10 | 设置面板按模块拆分：参考截图改成顶部 tab（服务 / dsh 版本 / 聊天 / 集成），不再单页平铺 | ✅ 已完成（2026-10-27） | [0027](changes/0027-settings-panel-modules.md) |
+| R-11 | 输入框整卡的鼠标悬停高亮在浅色主题下不可见：hover 底色 token 与卡片底色同值（深色主题才看得见）；追补：浅色填色「变暗」，改为描边 + 浮起阴影 | ✅ 已完成（2026-10-27） | [0028](changes/0028-composer-hover-highlight.md) |
+| R-12 | 聊天正文（用户气泡 + 助手输出）字号稍微调小：比面板基准小 1px（15 → 14px），流式与收尾同字号 | ✅ 已完成（2026-10-27） | [0029](changes/0029-chat-content-smaller-font.md) |
+| R-13 | @ 文件引用的检索范围：设置页「聊天」tab 三档（不启用 / 白名单 / 黑名单）+ 选中后展开黑白名单添加栏 | ✅ 已完成（2026-10-27） | [0030](changes/0030-mention-scope.md) |
+| R-14 | 插件管理：设置页新增单独 tab，参考 dsh 的「插件」管理面板，在 Obsidian 里查看 / 启停 dsh 侧插件（路径 B） | ✅ 已完成（2026-10-27） | [0031](changes/0031-plugin-management-tab.md) |
+| R-15 | 「插件」tab 补上官方「实验性 / 可选插件」：列出 optional bundle 并可在面板里启用 / 停用（写 profile 的 dsh.profile.bundles） | ✅ 已完成（2026-10-27） | [0032](changes/0032-optional-bundles.md) |
+| R-16 | 新会话标题不再被 rename 钉成「新会话」：发消息后由 DSH 生成、启用「随对话更新的标题」后随之更新，面板列表跟随 | ✅ 已完成（2026-10-27） | [0033](changes/0033-session-title-auto-update.md) |
+| R-17 | 「插件」tab 的「可选 / 实验性插件」默认收起，点标题才展开（复用 bundle 折叠头交互） | ✅ 已完成（2026-10-27） | [0034](changes/0034-collapse-experimental-plugins.md) |
+| R-18 | 原生面板支持 dsh「智能体团队」（Agent Teams）插件：只读团队面板（roster + 任务板）、团队工具行、队友消息卡片 | ✅ 已完成（2026-10-27） | [0035](changes/0035-agent-team-support.md) |
+| R-19 | 过程行按正文分界拆分：一轮里正文前后的思考 / 工具调用各自成栏，不再全部塞进第一条、正文也不再全排到后面 | ✅ 已完成（2026-10-27；build/check + 19 项合成冒烟 + CDP 实测） | [0036](changes/0036-process-segments.md) |
+| R-20 | skills 的 / 命令也加 @ 同款白名单 / 黑名单：设置页「聊天」tab 三档 + 按技能名过滤菜单里的技能行，不影响技能加载 | ✅ 已完成（2026-10-27；build/check + 28 项纯函数冒烟 + CDP 实测） | [0037](changes/0037-skill-slash-scope.md) |
+| R-21 | 设置页白 / 黑名单添加栏：在「添加」按钮左侧加「选取」按钮，自动获取符合条件的候选（vault 路径 / 技能名）并点选填入 | ✅ 已完成（2026-10-27；build/check + 纯函数/服务冒烟 + CDP 实测） | [0038](changes/0038-scope-picker.md) |
+| R-22 | 设置页「聊天」tab：@ 与 / 的范围设置与其白 / 黑名单详情各收进一张带徽标的卡片，一眼看出名单归属 | ✅ 已完成（2026-10-27；build/check + CDP 实测 + 截图） | [0039](changes/0039-scope-settings-cards.md) |
+| R-23 | 范围卡片标题去掉与徽标重复的「@」「/」：只留「引用范围」「技能范围」 | ✅ 已完成（2026-10-27；build/check + CDP 实测 + 截图） | [0040](changes/0040-scope-card-title.md) |
+
+> 新需求往下追加，编号连续（R-2、R-3…），不要删旧行。状态取值：`待调研` → `等你选路` → `执行中` → `✅ 已完成` / `⏸ 暂缓`。
+
+### 候选池（等需求触发）
+
+| 项 | 说明 | 原属 |
+|---|---|---|
+| 会话 / 回复写入 vault 笔记 | 面板里把当前会话或某条回复导出成 Markdown（含会话 id / 模型 / 时间 frontmatter） | M3 |
+| 最小 CI + 发布 | GitHub Actions 跑 build + check；发布三件套并提交社区插件目录 | M5 |
+| 人工确认遗留项 | 真 IME 组合输入、视觉细节、popout 窗口下的浮层定位 | M4 |
 
 ## 里程碑
 
@@ -15,11 +65,13 @@ M7 把「新建会话 / 单栏 / 只用库目录」收敛到 ribbon/命令（[00
 | M0 方案 A | iframe 嵌入完整 GUI（历史；已被 webview 取代） | ✅ 完成 |
 | M1 方案 B | 自动拉起独立服务（profile / 端口 / vault cwd）+ 设置页 + 状态栏 + 重启命令 | ✅ 完成 |
 | M2 稳定性 | 服务自愈、重启无竞态、就绪探测可信、版本与文档一致、locator 版本可见 | ✅ 完成 |
-| M3 数据互通 | postMessage 导出桥：会话/回复写入 vault 笔记 | ⬜ 未开始 |
-| M4 方案 C | Obsidian 原生聊天视图，不再 webview 套壳 | ✅ Phase 1 完成（CDP 回归；视觉/IME 待人工确认） |
-| M5 工程化 | git 基线、CI、发布到社区插件目录 | 🚧 进行中（git + pre-commit 已就绪） |
+| M3 数据互通 | postMessage 导出桥：会话/回复写入 vault 笔记 | ⏸ 候选池（等需求触发） |
+| M4 方案 C | Obsidian 原生聊天视图；删除可见官方面板，保留隐藏 core | ✅ 完成（0006 + 0008；视觉/IME 待人工确认） |
+| M5 工程化 | git 基线、CI、发布到社区插件目录 | 🚧 部分完成（git + pre-commit 就绪；CI / 发布转候选池） |
 | M6 结构重构 | src 按职责域分层（service / view / settings / shared），纯搬运不改行为 | ✅ 完成 |
-| M7 Obsidian 入口 | ribbon/命令新建会话 + 单栏常开 + 只用 vault 项目（dsh 侧桥，已迁入本仓库） | ✅ 完成（待人工确认） |
+| M7 Obsidian 入口 | ribbon/命令新建会话 + 单栏常开 + 只用 vault 项目（dsh 侧桥，已迁入本仓库；单栏随 0008 不再调用） | ✅ 完成（待人工确认） |
+
+> M0–M7 是历史阶段，不再是后续主线；M3 / M5 未完成项见上一节「候选池」，等真实使用中的需求触发再启动。
 
 ## M2 稳定性（优先）
 
@@ -28,7 +80,7 @@ M7 把「新建会话 / 单栏 / 只用库目录」收敛到 ribbon/命令（[00
 1. **服务起来后承载面自动加载** ✅ 已完成（2026-10-26）
    原问题：`onOpen` 先设承载面地址再拉起服务；服务就绪后只更新状态条文案，承载面停在 Chromium 错误页，必须关掉面板重开。
    处理：`DshSurface.reload()`（webview 用 `loadURL` 重新导航；iframe 分支已由 0007 移除）+ view 记录 `surfaceReady`，服务就绪且尚未成功加载时自动重载一次。
-   验收：从「服务未运行」到「面板显示 GUI」全自动（需在 Obsidian 里手动确认一次）。
+   验收：从「服务未运行」到「原生面板显示会话」全自动（需在 Obsidian 里手动确认一次）。
 2. **重启无竞态** ✅ 已完成（2026-10-26）
    原问题：发 `SIGTERM` 后固定 sleep 1s 就重新拉起，老进程没退干净会 `EADDRINUSE`，或被就绪探测误判为已启动。
    处理：新增 `stopAndWait(3000)`（等 `exit` 事件，超时 `SIGKILL` 再等 1s），`restart()` 改为「等退出 → 再 start」。
@@ -68,17 +120,20 @@ M7 把「新建会话 / 单栏 / 只用库目录」收敛到 ribbon/命令（[00
 
 - 问题：0.2.1 的会话 cookie 是 `SameSite=Strict`，面板 iframe 在 `app://obsidian.md` 顶层下属于跨站，
   token 登录 303 后不带 cookie → 401；0003 的 token 已就绪，但 iframe 承载不了。
-- 处理：面板改用 Electron `<webview>`（与核心 Web viewer 共用 `persist:vault-<appId>` 分区）；
-  当时能力探测失败会回退 iframe —— 0.2.x 的 token 在跨站 iframe 里不可用，**0007 已移除回退**。
+- 处理：面板改用 Electron `<webview>`（0004 当时与核心 Web viewer 共用 `persist:vault-<appId>` 分区；
+  **0008 后仅隐藏 core 使用专用 `persist:dsh-obsidian`**）；当时能力探测失败会回退 iframe ——
+  0.2.x 的 token 在跨站 iframe 里不可用，**0007 已移除回退**。
 - 验收：`npm run build` 可复现；Obsidian 内 0.2.x 面板加载待人工确认。
 - **剩余人工确认**：面板加载、重启后 token 更新；0.1.1 与 iframe 已由 0007 移除。
 
-## M3 数据互通（postMessage 导出桥）
+## M3 数据互通（候选池；postMessage 导出桥）
+
+> 已转入候选池：等使用中真的需要「把会话 / 回复写进笔记」时，按「需求待办 + 路径调研」重新启动，不预先排期。
 
 - 目标：在面板里把当前会话/某条回复写进 vault 笔记（可指定目标笔记或 daily note）。
 - 思路：dsh 侧客户端插件在 GUI 里暴露导出事件（`window.postMessage`），Obsidian 侧插件监听后调用 Vault API 落盘。
 - 验收：面板点「导出」→ vault 出现对应 Markdown，含 frontmatter（会话 id、模型、时间）。
-- 依赖与风险：需要 dsh 客户端侧配合；`dsh-obsidian-bridge` 已在本仓库 `packages/`，其余客户端插件仍在外部仓库 `/Users/fabler/dsh-plugin` 维护。
+- 依赖与风险：需要 dsh 客户端侧配合；`dsh-obsidian-bridge` 已在本仓库 `packages/`，其余客户端插件仍在外部仓库（如 `~/dsh-plugin`）维护。
 
 ## M4 方案 C：Obsidian 原生聊天界面
 
@@ -87,18 +142,26 @@ M7 把「新建会话 / 单栏 / 只用库目录」收敛到 ribbon/命令（[00
 - ✅ Phase 0（2026-10-26）：bridge v2（listSessions / subscribe / snapshot / nextEvent / send / cancel / loadOlder / approvalAnswer / questionAnswer）+ 隐藏 webview 自检视图；真实 Obsidian 内已确认订阅、快照与发送（新建会话绕开单写者）。
 - ✅ Phase 1（2026-10-26）：React 原生聊天 UI（消息、工具卡、输入、模型/权限、当前笔记、审批/提问、会话浮层、重命名）；桥增补 models / selectModel / permissions / setPermission / renameSession。
   实测修正：模型目录走 `modelDirectories`（`connection.api.sessions` 在 0.2.1-rc.3 不可用）；权限投影只带 currentValue 时用内置预设；原生 `Menu` 在右栏不挂载，改成自绘浮层。
+- ✅ 原生-only（2026-10-26，[0008](changes/0008-native-only-surface.md)）：删除可见 `dsh-web` 面板与相关入口，原生面板成为唯一入口；隐藏 core 改用插件专用 `persist:dsh-obsidian` 分区；旧 leaf 自动迁移；命令重启会重载隐藏 core。
 - ✅ CDP 回归（2026-10-26）：发送/流式、模型与 effort 切换、权限切换与二次确认、审批「允许一次」、停止、当前笔记 `@路径`、重命名、关闭重开，见 [0006 实施记录](changes/0006-native-chat-panel.md#phase-1-cdp-回归2026-10-26obsidian-1144--dsh-021-rc3)。
-- ⬜ 人工确认：真 IME 组合输入、视觉细节、popout 窗口下的浮层定位；见 [development.md](development.md#现状与手动回归) 17–27。
+- ✅ 0008 CDP 回归（2026-10-26）：native-only 入口、专用分区、桥 v2、关闭重开、命令重启恢复、旧 leaf 迁移/去重、新建会话与发送，见 [0008 实施记录](changes/0008-native-only-surface.md#9-实施记录)。
+- ✅ 聊天栏打磨（2026-10-26，[0009](changes/0009-native-chat-ui-polish.md)）：会话按 vault（含子目录）过滤；模型 / 权限浮层锚定触发按钮并在边缘内收 / 翻转；权限 chip 改图标；模型菜单两级（悬停出思考层级）；DeepSeek chip 用官方鲸鱼 logo + 层级；标签页 / ribbon 换成 DSH 鲸鱼图标，显示名改为 DeepSeek Harness；0.4.1。
+- ✅ 消息引用（2026-10-27，[0015](changes/0015-note-references.md)）：发送前缀改成 `[[文件名]]`；历史 `@路径` 渲染成短链接；`[[…]]` 点击在**主区新标签**打开，聊天面板保留。
+- ✅ 过程行折叠（2026-10-27，[0016](changes/0016-process-fold-rendering.md)）：思考 / 工具调用默认一行，点击展开；修收尾后工具内容消失（hidden 节点兜底）。
+- ✅ 流式输出（2026-10-27，[0017](changes/0017-native-streaming.md)）：根因是隐藏 core 的 rAF 被节流导致官方 UI 要等 3 帧；桥 v3 改为直接订阅 `SessionBinding.eventSource`，`nextEvent` 携带 live tail（正文 / 思考 / 工具参数），不再依赖 rAF；旧桥软降级。
+- ⬜ 人工确认：真 IME 组合输入、视觉细节、popout 窗口下的浮层定位；见 [development.md](development.md#现状与手动回归) 1–43。
 
-- 目标：用 ItemView + Obsidian 原生组件实现聊天 UI，不再 webview 套壳（可参考 `dsh-remote-web-ui` 的 `/m` 前端）。
-- 前置：M3 的通信层可复用；需要抽象出与 dsh 的传输层（HTTP / SSE / WebSocket）。
-- 风险：与 dsh 前端的交互协议属内部实现，升级可能破坏；投入远大于 M2/M3。
+- 目标：用 ItemView + Obsidian 原生组件实现聊天 UI；可见层不再有官方 Web GUI（0008 已完成），但内部仍保留隐藏 core。
+- 零 webview（彻底不加载官方页面）需要重写 DSH 客户端核心：会话装配、投影、审批、模型目录都依赖未公开 API；投入远大于 M2/M3，暂不做。
+- 模型/凭据配置入口随官方面板删除后，只剩 obsidian profile 的 `cordis.patch.yml`；原生面板内没有 provider/API key 表单。
 
 ## M5 工程化与发布
 
 - ✅ `git init` 建立基线（2026-10-26；`main` 分支 + 首次提交）。
 - ✅ 提交前检查（2026-10-26）：`npm run check` + `scripts/githooks/pre-commit`（版本三处一致、无运行时依赖、`tsc`、`main.js` 与源码构建一致、暂存集禁入 `.DS_Store` / `data.json` / 缓存）。
 - ✅ 0.3.0（2026-10-26）：只支持 dsh 0.2.x，移除 0.1.1 / iframe 兼容，bridge 插件迁入 `packages/dsh-obsidian-bridge/`（[0007](changes/0007-drop-legacy-and-migrate-bridge.md)）。
+- ✅ 0.4.0（2026-10-26）：删除可见官方面板，只保留原生聊天；隐藏 core 改用专用分区（[0008](changes/0008-native-only-surface.md)）。
+- ✅ 0.4.1（2026-10-26）：原生聊天栏打磨（[0009](changes/0009-native-chat-ui-polish.md)）。
 - ⬜ 最小 CI：GitHub Actions 跑 `npm run build` + `npm run check`。
 - ⬜ 发布：版本号三处对齐（manifest / package / versions.json）、GitHub release 附件（`main.js` / `manifest.json` / `styles.css`）、提交社区插件目录。
 - ⬜ 可选：给 `skills/obsidian-docs/scripts/obsdocs.mjs` 加 smoke test（用 `sync --from` 离线重建索引）。
@@ -119,16 +182,21 @@ M7 把「新建会话 / 单栏 / 只用库目录」收敛到 ribbon/命令（[00
 - 目标：把「新建会话 / 只留中栏 / 只用库目录」收敛成 Obsidian 的 ribbon、命令与设置状态，
   不再依赖 DSH 左栏；不做原生会话列表，也不迁移 DSH 设置。
 - 处理：新增 dsh 客户端插件 `dsh-obsidian-bridge`（现已迁入本仓库 `packages/dsh-obsidian-bridge/`）：
-  解析 vault 工作区、`newSession()`、CSS 零化左右轨道 + 收起 store；插件侧新增 `view/bridge.ts`、ribbon/命令
+  解析 vault 工作区、`newSession()`、CSS 零化左右轨道 + 收起 store；插件侧新增 `view/bridge.ts`（已由 0008 删除）、ribbon/命令
   「新建 DSH 会话」、设置页「Obsidian 集成」状态。
-- 验收：见提案第 7 节；**待人工确认**：单栏常开、跨栏收回、新建会话落在 vault、未装桥时降级。
+- 验收：见提案第 7 节；**待人工确认**：新建会话落在 vault、未装桥时降级。单栏常开 / 跨栏收回已随 0008 删除官方面板而不再适用。
+
+## 0010 入口收敛与 0011 清理（2026-10-26）
+
+- ✅ 0010：功能区 / 命令面板各只留一个「打开 DeepSeek Harness」；删除 `new-dsh-session` 命令、`newDshSession()` 与随之为空的 actions 通道（[0010](changes/0010-command-entry-consolidation.md)）。
+- ✅ 0011：删 `serviceUrl` / `resolveDshCommand` / `diagnose()` 三个无调用方导出、收敛 7 处错误文案、拆 `menus.tsx` 与 `timeline.tsx`、删桥插件 v1 段（[0011](changes/0011-redundancy-cleanup.md)）。
 
 ## 非目标（当前阶段明确不做）
 
 - **移动端支持**：插件依赖 `child_process` / Node API，保持 `isDesktopOnly: true`。
 - **一个 Obsidian 实例托管多个 dsh 服务**：只支持单实例、单端口。
 - **自建代理或改写 dsh 前端**：优先走 dsh 官方插件机制（bundle / cordis patch）。
-- **替代 dsh GUI**：面板只负责承载，不做文件浏览器/编辑器的替代实现。
+- **替代 dsh GUI**：原生面板只负责聊天，不做文件浏览器/编辑器或 DSH 设置页的替代实现。
 
 ## 风险与依赖
 
@@ -140,11 +208,14 @@ M7 把「新建会话 / 单栏 / 只用库目录」收敛到 ribbon/命令（[00
 | 通过隧道/公网访问 | dsh 拒绝非 loopback Host | dsh 侧配 `--trusted-host` |
 | profile 的 `cordis.patch.yml` 只有注释、没有 `[]` | dsh 启动直接报错（必须顶层 YAML 数组），面板永远起不来 | 文件末尾补一行 `[]`；见 [troubleshooting](troubleshooting.md) |
 | 全局安装的 dsh 版本落后于 checkout | 行为/API 与文档不一致，报错来自旧代码 | 启动日志打印实际路径/版本，冲突时有警告日志 + 一次 Notice；设置页「dsh 版本」可直接切换（0003） |
-| dsh 0.2.x 的 token 鉴权 | 裸 URL 401、遗留实例无法接管 | 插件从 stdout 读就绪 URL 并用于 webview 承载面；遗留实例提示手动结束；重启后 token 变化需重开面板 |
-| Obsidian 收紧 webviewTag | 面板无法承载 | 只支持 webview；不可用时明确报错，需升级 Obsidian |
+| dsh 0.2.x 的 token 鉴权 | 裸 URL 401、遗留实例无法接管 | 插件从 stdout 读就绪 URL 交给隐藏 core；遗留实例提示手动结束；重启命令会自动重载隐藏 core |
+| Obsidian 收紧 webviewTag | 原生面板无法取数 | 隐藏 core 仍依赖 webview；不可用时明确报错，需升级 Obsidian |
+| 官方面板删除后没有设置页 | 模型 / 凭据只能改 profile 文件 | 原生面板「配置说明」给 Notice；文档给出 `cordis.patch.yml` 片段 |
 
 ## 维护规则
 
 - 状态变化只改本文件（必要时同步 [docs/README.md](README.md) 索引），**不要**在根 README 复制路线图清单。
-- 新增里程碑按 M6/M7 续编号，必须写「验收标准」，否则不算可交付项。
+- **用户提出需求**：先在「需求待办」加一行（`R-<n>`）并建 `docs/changes/` 提案，两边互链；调研完路径先问用户选哪条，选路前不改代码。
+- 新需求按 R 编号连续追加；不删旧行，完成 / 暂缓只改状态。提案编号另按 `docs/changes/` 的 `NNNN` 递增。
+- 新增里程碑按 M6/M7 续编号，必须写「验收标准」，否则不算可交付项；当前阶段不再主动新增里程碑，需求走「需求待办」。
 - 已完成项保留在表里（历史可查），不要删除。

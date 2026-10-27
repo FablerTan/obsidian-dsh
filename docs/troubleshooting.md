@@ -101,19 +101,19 @@ pkill -f "dsh --profile obsidian"   # 结束遗留实例
 
 然后在设置页选择一份 0.2.x 安装，点「重启服务」。旧的 0.1.1 全局安装可以删除或改名备份。
 
-## 面板提示「不支持 webview」/ 仍 401
+## 原生聊天提示「不支持 webview」/ 仍 401
 
 dsh 0.2.x 的会话 cookie 是 `SameSite=Strict`，只有 webview 的独立顶层能携带；跨站 iframe 在 303 后不会带 cookie，
-所以面板必须走 webview，**没有 iframe 回退**（0007）。先看控制台：
+所以原生面板的**隐藏 core** 必须走 webview，**没有 iframe 回退**（0007 / 0008）。先看控制台：
 
-- 正常：`[obsidian-dsh] 面板承载方式: webview（persist:vault-…）`；
-- 异常：`[obsidian-dsh] 当前环境不支持 webview，DSH 面板无法承载`，面板显示错误并弹一次 Notice。
+- 正常：`[obsidian-dsh] 面板承载方式: webview（persist:dsh-obsidian）`；
+- 异常：`[obsidian-dsh] 当前环境不支持 webview，DSH 面板无法承载`，原生视图显示错误并弹一次 Notice。
 
 处理：升级 Obsidian（当前 1.14.4 主窗口已开启 webviewTag，核心 Web viewer / Canvas 自用）；
 没有 webviewTag 的旧版本无法使用本插件。
 
-若控制台显示 webview 正常但页面仍 401：确认地址是插件自己拉起的实例（遗留实例拿不到 token，
-见上一节「需手动结束」），并重开面板让新 token 生效。
+若控制台显示 webview 正常但页面仍 401：确认是插件自己拉起的实例（遗留实例拿不到 token，
+见上一节「需手动结束」），并关闭/重开原生面板让新 token 生效。
 
 ## 状态栏「启动超时」
 
@@ -123,13 +123,16 @@ dsh 0.2.x 的会话 cookie 是 `SameSite=Strict`，只有 webview 的独立顶�
 2. 若手动能起、插件不行，多半是环境差异（PATH、node 版本、cwd）—— 对比 `env`；
 3. 先看日志确认是慢还是卡死，再决定是调大等待还是修依赖。
 
-## 面板空白 / 显示 Chromium 错误页
+## 原生面板空白 / 一直「正在连接 DSH…」
 
-服务刚被拉起时承载面（webview）可能已停在错误页。自 M2-1 起，只要**尚未成功加载过**，服务就绪后会自动重载一次；若仍空白，通常是已经连上过、随后端口或服务变了（0.2.x 下还包括 token 随重启失效），需要重开面板（或改端口/版本后点「重启服务」再重开）。
+服务刚被拉起时隐藏 core 可能停在错误页。`ensureReady()` 会在服务就绪后自动重载一次；
+命令「重启 DSH 服务」成功后，主进程还会调用 `reloadAfterRestart()` 用新 token 重载隐藏 core。
+若仍空白：
 
-1. **关掉面板再打开**（最简单有效）；
-2. 确认 banner 里的 URL 端口与 `data.json` 一致；
-3. `curl -I http://127.0.0.1:<port>` 看服务是否真的响应。
+1. **关掉原生面板再打开**（最简单有效）；
+2. 确认设置里的端口与 `data.json` 一致（界面不再展示服务 URL）；
+3. `curl -I http://127.0.0.1:<port>` 看服务是否真的响应；
+4. 设置页点「重启服务」后再打开面板。
 
 ## 状态条「端口被占用」/ Notice「端口已被其他程序占用」
 
@@ -149,36 +152,35 @@ dsh 0.2.x 的会话 cookie 是 `SameSite=Strict`，只有 webview 的独立顶�
 
 ## 改了设置但行为没变
 
-- 端口 / profile 只在**拉起进程**时读取，改完必须点「重启服务」。
-- 面板里已加载的承载面不会自己换 URL，需要重开面板。
+- 端口 / profile 只在**拉起进程**时读取，改完必须点「重启服务」；重启成功后已打开的原生面板会自动重载。
+- 原生面板不会自己换端口；若没有自动重载，关闭再打开。
 - 若 `data.json` 被外部工具覆盖/删除，设置会回到默认值（开发期它在仓库根目录）。
 
 ## 新建 DSH 会话提示「未检测到 dsh-obsidian-bridge」
 
-功能区/命令的新建会话依赖 dsh 侧客户端桥，不是插件内置逻辑。
+面板内的新建会话（右上 ＋ / 空态按钮 / 会话选择器）依赖 dsh 侧客户端桥，不是插件内置逻辑。
 
 1. 确认 profile 已安装：`cat ~/.dsh/profiles/obsidian/package.json` 的 `dsh.profile.bundles` 里应有 `dsh-obsidian-bridge`；
 2. 没有就装：`dsh plugin --profile obsidian add link:<repo>/packages/dsh-obsidian-bridge`（旧外部路径先 remove）；
 3. **重启 DSH 服务**（插件设置 → 重启服务），再重开面板（旧页面不会自己换 bundle）；
-4. 设置页「桥接状态」点「重新检测」应显示「已连接（v2）」。
+4. 设置页「桥接状态」点「重新检测」应显示「已连接（v6）」。
 
-## 单栏模式没生效（左栏仍有 56px / 右栏还在）
+## 回复不是流式（运行中不出现正文 / 思考）
 
-单栏由 `dsh-obsidian-bridge` 强制：
+0017 起桥 v3 直接订阅会话事件流（`liveStream`），流式不再依赖隐藏 core 的 rAF。若仍看不到增量：
 
-- 它用 CSS 把 frame 的左右 grid 轨道归零并隐藏两列——**Web 构建里收起左栏只会留 56px 轨道**，
-  只调 `toggleSidebar()` 不够；
-- 右栏由 `ctx.sidebarRight.toggleExpanded()` 关，每 500ms 复查一次，手动展开会被收回；
-- 检查顺序：桥是否已连接 → 页面是否 0.2.x（0.1.x 已不支持）→ 重开面板。
-- 想临时恢复侧栏：从 profile 移除桥并重启服务（Obsidian 侧没有开关，按需求常开）。
+1. 设置页「桥接状态」应显示「已连接（v6）」；仍是 v2 / 「版本过旧」→ profile 里 link 的还是旧 bridge：
+   `dsh plugin --profile obsidian add link:<repo>/packages/dsh-obsidian-bridge`，然后**重启 DSH 服务**；
+2. 面板顶部若出现“dsh-obsidian-bridge 需要更新……”的 Notice，同第 1 条处理（旧桥会软降级，不流式但不报错）；
+3. 隐藏 core 被 Chromium 节流只影响官方节点（正文 / 思考的 live 已由事件流提供），
+   但如果连用户消息 / 工具卡也不更新，先看「事件通道中断」与端口占用；
+4. 停止 / 切换会话后仍残留半截文本 → 记录 bridge 版本与复现步骤，按 0017 的回滚方式退回整段出现。
 
-## GUI 显示正常但布局错乱 / 侧边栏行为异常
+## 单栏 / 官方 GUI 设置已移除
 
-这类表现来自外部客户端插件（`dsh-ui-obsidian-layout`）：
-
-- 它靠 CSS Modules 哈希类名（`pI_x6G_*`）定位元素，**dsh 升级后哈希变化会失效**；
-- client 半身改完走 HMR；host 半身（`lib/index.js`）改完要「重启服务」；
-- 详情与实现要点见根 [README](../README.md) 的「dsh 侧依赖」一节。
+0008 删除了可见官方面板；`dsh-obsidian-bridge` v1 的单栏 / 工作区代码已随 0011 从包里删除，插件只走原生数据桥（当前 v6：快照 / liveStream / context / 命令技能目录 / team）；
+Obsidian 里不再需要恢复侧栏或调整官方 GUI 布局。`dsh-ui-obsidian-layout` 等外部客户端插件
+只会影响隐藏 core，正常使用时看不到。
 
 ## 隧道 / 公网访问被拒
 
@@ -188,36 +190,37 @@ dsh 默认只信任 loopback Host。通过樱花等隧道暴露时，在 dsh 侧
 
 插件是 `isDesktopOnly: true`（依赖 `child_process`），移动端不可安装，属预期行为。
 
-## 原生聊天（实验）打不开 / 桥未连接
+## 原生聊天打不开 / 桥未连接
 
-原生聊天需要一个**隐藏的官方 DSH webview** 和 bridge **v2**：
+原生聊天是唯一入口，内部需要一个**隐藏的官方 DSH webview** 和 bridge **v2+（流式需要 v3）**：
 
 1. 确认 profile 已 link 到本仓库新路径，并重启 DSH 服务；
-2. 设置页「桥接状态」应显示「已连接（v2）」；显示 v1 说明还在用旧 bridge；
+2. 设置页「桥接状态」应显示「已连接（v6）」；显示「版本过旧」说明 profile 里 link 的还是旧 bridge；
 3. 状态「桥版本过旧」→ 更新 `packages/dsh-obsidian-bridge` 后重启服务；
-4. 状态一直停在「正在连接 DSH…」→ 看控制台 webview 是否加载、端口是否被另一个 0.2.x 实例占用；
+4. 状态一直停在「正在连接 DSH…」→ 看控制台隐藏 core 是否加载、端口是否被另一个 0.2.x 实例占用；
+   命令「重启 DSH 服务」后会自动重载；
 5. 模型菜单显示「没有可用模型」→ 这是 DSH profile 侧没有可用 provider，不是桥的问题；
-   见下面「模型菜单是空的 / 模型和桌面端不一致」。
+   点「配置说明」按提示编辑 `cordis.patch.yml`，见下面「模型菜单是空的 / 模型和桌面端不一致」。
 6. 「模型 / 权限 / 更多」三个按钮点了没反应 → 现在用插件自绘浮层（不再用 Obsidian 原生 `Menu`）。
    先确认插件已重新加载（`main.js` 与 `styles.css` 同时更新）；仍不出现就看控制台有没有
    `[obsidian-dsh]` 报错，必要时「重新加载插件」。
-7. 原生视图和官方 webview 面板**同时开**会各连一个 DSH 客户端；尽量只开一个。
 
 ### 发送提示 `session/writer-held`
 
-DSH 的会话是单写者：同一会话不能同时被两个客户端（例如桌面端、官方面板、另一个 Obsidian 窗口）持有。
+DSH 的会话是单写者：同一会话不能同时被两个客户端（例如桌面端、另一个 Obsidian 窗口）持有。
 Phase 0 的隐藏客户端如果订阅了正在别处使用的会话，`session.prompt` 会返回
 `session/writer-held: session "..." is already owned by an active write handle`。
 
 处理：点「＋」新建会话让这个客户端自己创建并持有会话；或先关闭占用该会话的客户端/回合再重试。
-这不是桥的 bug，原生 UI 会替代官方面板，正常只有一个写者。
+这不是桥的 bug；官方面板已删除，正常只有原生面板的隐藏客户端这一个写者。
 
 审批 / 提问固定在输入框上方；审批卡片「允许一次 / 拒绝」直接提交，提问卡片选选项或填自定义答案后
-「提交答案」。plan-review 暂未在原生面板完整支持，可切到官方 DSH 面板处理。
+「提交答案」。plan-review 暂未在原生面板完整支持；需要时请用桌面 DSH。
 
 ### 模型报 `Authentication Fails` / 模型和桌面端不一致
 
-原生面板与官方面板共用同一个 dsh 进程，模型走的是 **obsidian profile 自己的配置**。
+原生面板的隐藏 core 连接的是插件拉起的 dsh 进程，模型走的是 **obsidian profile 自己的配置**，与桌面端不是同一个进程。
+官方面板删除后，provider / API key 只能在 profile 文件里配置，插件内没有设置表单。
 如果桌面端能用、Obsidian 这边报 `Authentication Fails, Your api key: ****xxxx is invalid`，
 说明 obsidian profile 还在用 base 默认的 `deepseek-official`（那条线路的 key 已失效或没配）。
 
@@ -258,6 +261,45 @@ Phase 0 的隐藏客户端如果订阅了正在别处使用的会话，`session.
 - 权限菜单只有 Read Only / Workspace Write / Full access：0.2.x 的 `permissions` 会话投影只推
   `currentValue`，桥用内置预设兜底；切换仍由宿主 `/permission` 命令校验，返回 unknown preset
   会在错误条里显示。
+
+## 「插件」tab 读不出清单 / 启停没生效
+
+- **读不出清单**：tab 显示「读取失败：…」。插件是在宿侧跑 `dsh --profile <profile> --dump-config` 取**组合结果**再解析，
+  常见原因：设置里选中的 dsh 不可执行（先在「dsh 版本」里确认）、profile 目录不存在、
+  `$DSH_HOME/profiles/<profile>` 不可写。注意 dump 会重写该目录的 `cordis.yml`（内容恒为 `[]`，
+  dsh 每次启动也这么写，**不要手改它**）。
+- **启停没生效**：启停只写用户层 `cordis.patch.yml`（追加 / 修改 `disabled`），必须点「重启服务」才生效；
+  行状态显示「由 dsh 决定」的 `!!js` 条件行不能在这里切换。
+- **改错了想恢复**：每次写入前都会在同目录生成 `cordis.patch.yml.bak-<时间戳>`，把备份内容覆盖回
+  `cordis.patch.yml` 再重启服务即可；写入后如果组合结果没按预期变化，插件会**自动回滚**并在设置页报错。
+- **看不到官方面板里的「实验性插件」/ 点了没反应**：这批插件是 **optional bundle**（默认未写进 profile 的
+  `dsh.profile.bundles`），所以不在组合结果里。0032 起在「插件」tab 顶部的「可选 / 实验性插件」卡片里列出并可启用：
+  写入 profile 的 `package.json`（同目录生成 `package.json.bak-<时间戳>`），**必须重启服务**才真正加载。
+  卡片**默认收起**（只显示「共 N 个 · 已启用 M 个」），点标题展开列表、再点收起（0034）；
+  卡片显示「读取可选插件目录失败」时：确认设置里选中的 dsh 是 0.2.x 且安装里有
+  `@deepseek-ai/dsh-official-bundles`；组件行清单与启停不受影响。
+- **实验性插件启用后服务起不来**：把「插件」tab 里对应开关关掉再重启；或把 `package.json.bak-<时间戳>`
+  覆盖回 `package.json` 后重启。实验性插件自身可能首次使用时才下载运行时（如语音输入的 SenseVoice）。
+
+## 新会话标题一直是「新会话」/ 实验「随对话更新的标题」不生效
+
+- 0033 起新建会话**不再** rename「新会话」：未发消息的空白会话只是 UI 占位；发消息后标题由 DSH 的标题服务接管。
+- 发消息后仍不变：看会话日志（`~/.dsh/sessions/<cwd>/<id>/session.v*.jsonl.zstd`）里有没有 `session/title` 与
+  `title-llm-request`。出现 `source.kind === "user"` 说明标题被显式重命名钉住（手动改名 / 旧版 0013 行为），
+  DSH 对 user 标题不再自动修订，只有显式 refresh 能解钉；旧会话可手动改名，或按 0033 的非目标暂不处理。
+- 「随对话更新的标题」需要：在「插件」tab 启用 → 点「重启服务」。它只替换 provider，**不会覆盖用户固定标题**。
+- 面板列表不跟随：确认桥已重启（桥额外订阅了 `title` 投影）；设置页「桥接状态」应显示 v6+。
+
+## 启用「智能体团队」后没有团队入口 / 面板是空的
+
+0035 起原生面板支持 dsh 的 Agent Teams 插件（实验性 bundle `@deepseek-ai/dsh-experimental-agent-team-profile`，「插件」tab 里的「智能体团队」）：
+
+1. 确认已启用：设置 → 插件 → 可选 / 实验性插件 → 打开「智能体团队」开关 → 点「重启服务」；只勾开关不重启不会生效。
+2. 重启后重载插件（或重新打开面板）：团队入口只在**当前会话有 `agentTeam` 投影**时出现（标题右侧 users 图标）；空白新会话也会有一行 lead，属正常。
+3. 设置页「桥接状态」应显示 **v6+**。桥版本低于 v6 时不显示团队入口，工具行与消息仍可用；更新 `packages/dsh-obsidian-bridge` 后重启服务。
+4. 面板为空 / 一直「加载中」：看控制台 `[obsidian-dsh]` 与隐藏 core 的报错；确认 profile 里「智能体团队」patch 已生效（`dsh --profile obsidian --dump-config` 应出现 `agent-team` / `tool-agent-team` / `ui-agent-team`）。
+5. **只读面板不能导航**：点成员不会打开其会话；队友等待授权时只能看到「等待授权」标记，处理请到 dsh 桌面端 / Web（需要面板内导航见提案 0035 的路径 C，尚未实现）。
+6. 团队工具在过程行里显示中文标题（创建队友 / 发送消息 / 等待子智能体 / 团队任务 …）；如果只看到「运行代码」，说明当前会话预设走 PTC 模式，团队工具是在 `run_code` 里调用的，不是桥或渲染的问题。
 
 ## 仍然不行
 
