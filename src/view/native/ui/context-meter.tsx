@@ -11,14 +11,14 @@ import { MenuShell } from './menu-shell';
  * 没有分子或窗口时画灰色空环，而不是用 0% 冒充数据。
  */
 
-export interface ContextOccupancy {
+interface ContextOccupancy {
 	percent: number;
 	usedTokens: number;
 	contextWindow: number;
 }
 
 /** 官方口径：优先下一次请求的估算压力，没有时退回最近一次请求压力。 */
-export function contextOccupancy(context: NativeContextUsage | null): ContextOccupancy | null {
+function contextOccupancy(context: NativeContextUsage | null): ContextOccupancy | null {
 	const pressure = context?.pressure;
 	if (pressure === null || pressure === undefined) return null;
 	const used = pressure.projectedTokens ?? pressure.pressureTokens;
@@ -33,7 +33,7 @@ export function contextOccupancy(context: NativeContextUsage | null): ContextOcc
 }
 
 /** 紧凑 token 数：1234 → 1.2K，1_234_567 → 1.2M。 */
-export function formatTokenCount(value: number): string {
+function formatTokenCount(value: number): string {
 	const scaled = (candidate: number): string =>
 		candidate >= 100 ? String(Math.round(candidate)) : String(Math.round(candidate * 10) / 10);
 	if (value < 1_000) return String(Math.round(value));

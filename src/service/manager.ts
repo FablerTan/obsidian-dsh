@@ -12,7 +12,7 @@ import {
 } from './port-dsh';
 
 /** dsh 服务配置（端口、profile、指定安装由设置页决定，运行期可能变化）。 */
-export interface DshServiceConfig {
+interface DshServiceConfig {
 	port: number;
 	profile: string;
 	/** 指定使用的 dsh 安装路径；null = 自动按 locator 优先级。 */
@@ -43,7 +43,7 @@ export type DshStopOutcome =
 			stuck?: number[];
 	  };
 
-export interface DshServiceOptions {
+interface DshServiceOptions {
 	/** 每次拉起时读取最新配置（设置页可能刚改过端口 / profile / dsh 版本）。 */
 	getConfig: () => DshServiceConfig;
 	/** 子进程工作目录：当前 vault 的绝对路径。 */

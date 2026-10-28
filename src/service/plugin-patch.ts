@@ -1,5 +1,6 @@
-import { copyFileSync, existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'fs';
-import * as path from 'path';
+import { copyFileSync, existsSync, readFileSync, unlinkSync } from 'fs';
+import { createBackup, writeAtomic } from './file-atomic';
+import { unquoteYaml } from './yaml-scalar';
 
 /**
  * 组件行启停（0031）：只改 profile 用户层 `cordis.patch.yml` 里的 `disabled` 覆盖。
@@ -11,7 +12,7 @@ import * as path from 'path';
  * - 写前备份、原子写（临时文件 + rename，mode 0600）、写后由调用方复验，失败自动回滚。
  */
 
-export interface TogglePluginOptions {
+interface TogglePluginOptions {
 	/** profile 的用户层 patch 文件。 */
 	patchPath: string;
 	/** 组合条目的 id。 */
@@ -22,7 +23,7 @@ export interface TogglePluginOptions {
 	verify: () => Promise<boolean>;
 }
 
-export interface TogglePluginResult {
+interface TogglePluginResult {
 	/** 文件是否真的被改（已启用且本来没有覆盖条目时为 false）。 */
 	changed: boolean;
 	/** 写前备份的路径（patch 文件原本不存在时为 null）。 */
@@ -33,7 +34,7 @@ export interface TogglePluginResult {
 	message?: string;
 }
 
-export interface PatchEdit {
+interface PatchEdit {
 	text: string;
 	changed: boolean;
 	message?: string;
@@ -51,7 +52,7 @@ const FIELD_LINE = /^ {2}([A-Za-z]+):(.*)$/;
  * @param id 组合条目 id。
  * @param enabled true = 启用，false = 停用。
  */
-export function editPatchText(text: string, id: string, enabled: boolean): PatchEdit {
+function editPatchText(text: string, id: string, enabled: boolean): PatchEdit {
 	const source = text === '' ? '[]\n' : text;
 	const lines = source.split('\n');
 	const items = topLevelItems(lines);
@@ -179,54 +180,6 @@ function appendBlock(lines: string[], block: string): string {
 /** 需要时给 YAML 标量加单引号。 */
 function yamlScalar(value: string): string {
 	return /^[A-Za-z0-9._-]+$/.test(value) ? value : "'" + value.replaceAll("'", "''") + "'";
-}
-
-/** 去掉 YAML 标量的引号。 */
-function unquoteYaml(value: string): string {
-	if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
-		return value.slice(1, -1).replaceAll("''", "'");
-	}
-	if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) return value.slice(1, -1);
-	return value;
-}
-
-/** 写前备份（同秒内重复写会加序号，绝不覆盖旧备份）。 */
-function createBackup(patchPath: string, content: string): string {
-	const now = new Date();
-	const pad = (value: number): string => String(value).padStart(2, '0');
-	// 本地时间，形如 20261027-153322（用户看文件名就能对上「刚才那次改动」）。
-	const stamp =
-		String(now.getFullYear()) +
-		pad(now.getMonth() + 1) +
-		pad(now.getDate()) +
-		'-' +
-		pad(now.getHours()) +
-		pad(now.getMinutes()) +
-		pad(now.getSeconds());
-	let backupPath = patchPath + '.bak-' + stamp;
-	let suffix = 1;
-	while (existsSync(backupPath)) {
-		backupPath = patchPath + '.bak-' + stamp + '-' + String(suffix);
-		suffix += 1;
-	}
-	writeFileSync(backupPath, content, { mode: 0o600 });
-	return backupPath;
-}
-
-/** 原子写：临时文件 + rename（与 dsh 的 writeFileAtomic 同一思路）。 */
-function writeAtomic(file: string, content: string): void {
-	const tmp = path.join(path.dirname(file), '.' + path.basename(file) + '.tmp-' + String(process.pid));
-	try {
-		writeFileSync(tmp, content, { mode: 0o600 });
-		renameSync(tmp, file);
-	} catch (error) {
-		try {
-			unlinkSync(tmp);
-		} catch {
-			// 临时文件可能根本没写出来
-		}
-		throw error;
-	}
 }
 
 /** 改一个组件行的启停；写后复验失败会自动回滚。 */

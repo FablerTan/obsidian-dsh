@@ -9,6 +9,7 @@ import type {
 	DshPluginRowState,
 } from '../../shared/types';
 import type { SettingsRenderContext } from '../context';
+import { DEFAULT_SETTINGS } from '../schema';
 
 /** 行状态的中文文案（与 dsh 官方插件面板口径一致）。 */
 const STATE_TEXT: Record<DshPluginRowState, string> = {
@@ -150,7 +151,9 @@ export async function renderPluginsSection(
 			hintEl2.appendText('另有需要先安装的插件：');
 			hintEl2.createEl('code', { text: catalog.onDemand.join('、') });
 			hintEl2.appendText('（用 ');
-			hintEl2.createEl('code', { text: 'dsh plugin --profile ' + (inventory?.profile ?? 'obsidian') + ' add <包名>' });
+			hintEl2.createEl('code', {
+				text: 'dsh plugin --profile ' + (inventory?.profile ?? DEFAULT_SETTINGS.profile) + ' add <包名>',
+			});
 			hintEl2.appendText(' 安装后重启服务）。');
 		}
 	};

@@ -274,15 +274,6 @@ export async function readProcessCommand(pid: number): Promise<string | null> {
 	}
 }
 
-/** 端口上每个监听进程的命令行（读不到的 command 为 null）。 */
-export async function listPortListeners(port: number): Promise<PortListener[]> {
-	const pids = await listPortListenerPids(port);
-	const listeners: PortListener[] = [];
-	for (const pid of pids) {
-		listeners.push({ pid, command: await readProcessCommand(pid) });
-	}
-	return listeners;
-}
 
 /**
  * 命令行是否是 dsh 的启动形态（判定「能不能安全结束」的唯一依据）。
@@ -303,7 +294,7 @@ export function looksLikeDshCommand(command: string | null): boolean {
 }
 
 /** 进程是否还活着（EPERM = 存在但没权限发信号，仍算存活）。 */
-export function isProcessAlive(pid: number): boolean {
+function isProcessAlive(pid: number): boolean {
 	if (!isValidPid(pid)) return false;
 	try {
 		process.kill(pid, 0);

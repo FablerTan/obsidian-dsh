@@ -33,7 +33,7 @@ const DESKTOP_CLI_ENTRY = [
 ];
 
 /** 桌面 App 的安装位置：只读探测，不要求 App 正在运行。 */
-export interface DesktopAppInstall {
+interface DesktopAppInstall {
 	/** 展示给用户看的根目录（设置页下拉与 data.json 的 dshPath 存这个）。 */
 	root: string;
 	/** Resources 目录（macOS: Contents/Resources；Windows: resources）。 */
@@ -49,7 +49,7 @@ export interface DesktopAppInstall {
  *
  * 桌面 App 只在 macOS / Windows 分发，其它平台返回空数组。
  */
-export function desktopAppRoots(
+function desktopAppRoots(
 	platform: NodeJS.Platform = process.platform,
 	env: NodeJS.ProcessEnv = process.env,
 	home: string = os.homedir(),
@@ -86,7 +86,7 @@ export function desktopAppRoots(
  * 以「Electron 可执行文件 + resources/app.asar 都存在」为命中条件：
  * app.asar 是归档文件，里面的 cli.js 普通 Node 读不到，不能单独 existsSync。
  */
-export function listDesktopAppInstalls(
+function listDesktopAppInstalls(
 	platform: NodeJS.Platform = process.platform,
 	env: NodeJS.ProcessEnv = process.env,
 	home: string = os.homedir(),
@@ -182,7 +182,7 @@ export function listDshCandidates(): DshInstall[] {
 }
 
 /** 解析结果：选中的安装 + 是否因为指定路径未命中而回退到自动解析。 */
-export interface ResolvedDshInstall {
+interface ResolvedDshInstall {
 	install: DshInstall;
 	fallback: boolean;
 }

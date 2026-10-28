@@ -26,7 +26,7 @@ export interface SlashToken {
 }
 
 /** 插件本地的命令（dsh 命令目录里没有的宿主动作）。 */
-export interface SlashCommandSpec {
+interface SlashCommandSpec {
 	name: 'new';
 	/** 中文标签（与命令名并排显示）。 */
 	label: string;
@@ -34,7 +34,7 @@ export interface SlashCommandSpec {
 	icon: string;
 }
 
-export const SLASH_COMMANDS: readonly SlashCommandSpec[] = [
+const SLASH_COMMANDS: readonly SlashCommandSpec[] = [
 	{
 		name: 'new',
 		label: '新建对话',

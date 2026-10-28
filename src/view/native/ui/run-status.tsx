@@ -28,7 +28,7 @@ const RUN_WHALE_PATH =
  * 与 dsh `formatRunDuration` 同口径的时长文案：不足 1 秒按 1 秒算；
  * 秒恒定出现，分 / 小时只在进位时出现，且不加前导零（`1秒` / `1分5秒` / `1小时2分3秒`）。
  */
-export function formatRunDuration(elapsedMs: number): string {
+function formatRunDuration(elapsedMs: number): string {
 	const total = Math.max(1, Math.floor(elapsedMs / RUN_CLOCK_INTERVAL_MS));
 	const hours = Math.floor(total / 3600);
 	const minutes = Math.floor(total / 60) % 60;

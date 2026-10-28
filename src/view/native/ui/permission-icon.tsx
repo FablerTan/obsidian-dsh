@@ -1,7 +1,7 @@
 import { Icon } from './icon';
 
 /** 权限 chip / 菜单行的图标与色调：不读文字也能分辨当前权限。 */
-export interface PermissionVisual {
+interface PermissionVisual {
 	icon: string;
 	tone: string;
 }
@@ -15,7 +15,7 @@ const VISUALS: Record<string, PermissionVisual> = {
 
 const FALLBACK: PermissionVisual = { icon: 'shield', tone: 'var(--text-muted)' };
 
-export function permissionVisual(value: string): PermissionVisual {
+function permissionVisual(value: string): PermissionVisual {
 	return VISUALS[value] ?? FALLBACK;
 }
 

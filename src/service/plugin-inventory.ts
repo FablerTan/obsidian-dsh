@@ -1,5 +1,5 @@
 import { execFile } from 'child_process';
-import { existsSync, readFileSync, realpathSync, statSync } from 'fs';
+import { existsSync, readFileSync, realpathSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type {
@@ -9,7 +9,9 @@ import type {
 	DshPluginRow,
 	DshPluginRowState,
 } from '../shared/types';
+import { safeMtime } from './file-atomic';
 import { buildSpawnEnv, probeDshVersion } from './locator';
+import { unquoteYaml } from './yaml-scalar';
 
 /**
  * dsh 插件清单（0031）。
@@ -30,7 +32,7 @@ const DUMP_MAX_BUFFER = 16 * 1024 * 1024;
 /** 清单缓存：切 tab / 重绘时复用，避免每次都 spawn；写操作后会主动失效。 */
 const CACHE_TTL_MS = 15000;
 
-export interface PluginInventoryOptions {
+interface PluginInventoryOptions {
 	/** 实际使用的 dsh 启动方式（与 service/locator 解析结果一致）。 */
 	command: DshCommand;
 	profile: string;
@@ -103,15 +105,6 @@ export async function readPluginInventory(options: PluginInventoryOptions): Prom
 	return value;
 }
 
-/** patch 文件的 mtime（不存在为 0）；用于让缓存感知外部改动。 */
-function safeMtime(file: string): number {
-	try {
-		return existsSync(file) ? Math.trunc(statSync(file).mtimeMs) : 0;
-	} catch {
-		return 0;
-	}
-}
-
 /** 跑 `dsh --profile <profile> --dump-config`，返回组合后的 YAML 文本。 */
 function runDumpConfig(options: PluginInventoryOptions): Promise<string> {
 	return new Promise<string>((resolve, reject) => {
@@ -142,7 +135,7 @@ function runDumpConfig(options: PluginInventoryOptions): Promise<string> {
 }
 
 /** 解析结果里的一个 bundle 段。 */
-export interface ParsedPluginBundle {
+interface ParsedPluginBundle {
 	name: string;
 	rows: DshPluginRow[];
 }
@@ -154,7 +147,7 @@ export interface ParsedPluginBundle {
  * - 只取顶层条目（行首 `- id:`），config 里的嵌套 preset 行、`group: true` 的分组行都不是插件；
  * - 同一 id 在后续层再次出现时按「原地覆盖」处理：沿用原 bundle 与顺序，只更新状态与来源标记。
  */
-export function parsePluginDump(text: string, userPatchPath: string): ParsedPluginBundle[] {
+function parsePluginDump(text: string, userPatchPath: string): ParsedPluginBundle[] {
 	const bundles = new Map<string, DshPluginRow[]>();
 	const rowsById = new Map<string, DshPluginRow>();
 	let bundleName: string | null = null;
@@ -224,15 +217,6 @@ function parseDisabled(value: string): DshPluginRowState {
 	return value === 'true' ? 'off' : 'on';
 }
 
-/** 去掉 YAML 标量的引号（单引号会转义成两个单引号）。 */
-function unquoteYaml(value: string): string {
-	if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
-		return value.slice(1, -1).replaceAll("''", "'");
-	}
-	if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) return value.slice(1, -1);
-	return value;
-}
-
 /** 这一段是否来自 profile 的用户层 patch（启停的写入目标）。 */
 function isUserPatch(patchedBy: string | null, userPatchPath: string): boolean {
 	if (patchedBy === null) return false;
@@ -287,24 +271,6 @@ export function resolveExecutable(value: string): string {
 		}
 	}
 	return canonicalPath(value);
-}
-
-/**
- * dsh 安装（app 包）的 package.json 候选，用于解析 `node_modules` 里的包：
- * 与 dsh 自己的 `resolveBundleDir` 一致，优先安装锚点，其次 profile 目录。
- */
-export function installAnchors(command: DshCommand, profileDir: string): string[] {
-	const anchors: string[] = [];
-	const executable = resolveExecutable(command.prefix[0] ?? command.cmd);
-	let dir = path.dirname(executable);
-	for (let index = 0; index < 4; index += 1) {
-		anchors.push(path.join(dir, 'package.json'));
-		const parent = path.dirname(dir);
-		if (parent === dir) break;
-		dir = parent;
-	}
-	anchors.push(path.join(profileDir, 'package.json'));
-	return anchors;
 }
 
 /** realpath 失败时退回原路径（文件可能不存在）。 */

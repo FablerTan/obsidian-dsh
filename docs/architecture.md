@@ -36,11 +36,11 @@ flowchart LR
 | 流式输出（live tail） | 插件 + dsh 客户端插件 | 桥同步订阅 `SessionBinding.eventSource`，`nextEvent` 同时返回结构游标与 `liveCursor/live`；原生端在 `timeline-model.ts` 合成运行中的 assistant-step |
 | 编辑器选区引用（0058 / 0059） | 插件 | `src/view/native/quote.ts`（引用块编解码纯函数）+ `editor-selection.ts`（`getMostRecentLeaf` 选区快照、`observeEditorSelection` 实时监听 / 跳转并选中）+ `ui/quote-card.tsx` / `ui/quote-preview.tsx` + `composer.tsx` / `native-chat-root.tsx`（实时预览、预览条点击跳转、发送前置、空白点击不抢焦点）+ `settings/schema.ts`（`quoteExcerptLimit`）+ `settings/sections/chat.ts` + `styles.css` |
 | 宿主接口（地址 / 分区 / 服务生命周期 / 设置读取） | 插件 | `src/view/panel-host.ts` |
-| 「@」引用范围（白名单 / 黑名单，0030） | 插件设置 | `src/settings/schema.ts` + `src/settings/sections/chat.ts` + `src/view/native/mention-scope.ts`（纯函数过滤）+ `src/view/panel-host.ts` / `src/main.ts`（`getMentionScope`）+ `src/view/native/ui/native-chat-root.tsx` |
-| 「/」菜单技能范围（白名单 / 黑名单，0037） | 插件设置 | `src/settings/schema.ts`（`ScopeMode` + `skillScope` / `skillWhitelist` / `skillBlacklist`）+ `src/settings/sections/chat.ts` + `src/view/native/skill-scope.ts`（纯函数过滤）+ `src/view/panel-host.ts` / `src/main.ts`（`getSkillScope`）+ `src/view/native/ui/native-chat-root.tsx` / `composer.tsx` |
-| 「/」菜单命令透传 + 命令范围（0050） | 插件设置 | `src/settings/schema.ts`（`commandScope` / `commandWhitelist` / `commandBlacklist` + 命令名归一化）+ `src/settings/sections/chat.ts`（命令范围卡片）+ `src/view/native/command-scope.ts`（纯函数：范围过滤 / 隐藏 /export / 同名技能隐藏 / leading 命令识别）+ `src/view/native/slash.ts`（`commands()` → 菜单行 + 中文标签）+ `composer.tsx`（命令目录 / Enter 路由）+ `native-chat-root.tsx`（`runCommand`）+ `panel-host.ts` / `main.ts`（`getCommandScope`） |
-| 白 / 黑名单添加栏的「选取」（0038） | 插件设置 | `src/settings/sections/chat.ts`（分组卡片 + 行首按钮 + `SuggestModal`）+ `src/settings/scope-candidates.ts`（候选构造：排除已有 / 被覆盖 / 隐藏）+ `src/service/skill-catalog.ts`（扫描本地技能目录取技能名）+ `src/settings/context.ts` / `src/main.ts`（`getSkillCandidates`） |
-| 命令范围的「选取」（0051） | 插件设置 + 面板桥 | `src/settings/context.ts` / `src/main.ts`（`getCommandCandidates` → `findNativeChat`）+ `src/view/native/native-chat-view.tsx`（`listCommandNames()` → 桥 `commands()`，过滤 `/export`）+ `src/settings/scope-candidates.ts`（`listCommandCandidates`）+ `src/settings/sections/chat.ts`（命令卡片 `pickKind: 'command'`）；面板未打开时返回空数组，手动输入兜底 |
+| 「@」引用范围（白名单 / 黑名单，0030） | 插件设置 | `src/settings/schema.ts` + `src/settings/sections/chat-scope.ts` + `src/view/native/mention-scope.ts`（纯函数过滤）+ `src/view/panel-host.ts` / `src/main.ts`（`getMentionScope`）+ `src/view/native/ui/native-chat-root.tsx` |
+| 「/」菜单技能范围（白名单 / 黑名单，0037） | 插件设置 | `src/settings/schema.ts`（`ScopeMode` + `skillScope` / `skillWhitelist` / `skillBlacklist`）+ `src/settings/sections/chat-scope.ts` + `src/view/native/skill-scope.ts`（纯函数过滤）+ `src/view/panel-host.ts` / `src/main.ts`（`getSkillScope`）+ `src/view/native/ui/native-chat-root.tsx` / `composer.tsx` |
+| 「/」菜单命令透传 + 命令范围（0050） | 插件设置 | `src/settings/schema.ts`（`commandScope` / `commandWhitelist` / `commandBlacklist` + 命令名归一化）+ `src/settings/sections/chat-scope.ts`（命令范围卡片）+ `src/view/native/command-scope.ts`（纯函数：范围过滤 / 隐藏 /export / 同名技能隐藏 / leading 命令识别）+ `src/view/native/slash.ts`（`commands()` → 菜单行 + 中文标签）+ `composer.tsx`（命令目录 / Enter 路由）+ `native-chat-root.tsx`（`runCommand`）+ `panel-host.ts` / `main.ts`（`getCommandScope`） |
+| 白 / 黑名单添加栏的「选取」（0038） | 插件设置 | `src/settings/sections/chat-scope.ts`（分组卡片 + 行首按钮 + 添加栏）+ `src/settings/sections/scope-picker.ts`（`SuggestModal` 候选弹窗）+ `src/settings/scope-candidates.ts`（候选构造：排除已有 / 被覆盖 / 隐藏）+ `src/service/skill-catalog.ts`（扫描本地技能目录取技能名）+ `src/settings/context.ts` / `src/main.ts`（`getSkillCandidates`） |
+| 命令范围的「选取」（0051） | 插件设置 + 面板桥 | `src/settings/context.ts` / `src/main.ts`（`getCommandCandidates` → `findNativeChat`）+ `src/view/native/native-chat-view.tsx`（`listCommandNames()` → 桥 `commands()`，过滤 `/export`）+ `src/settings/scope-candidates.ts`（`listCommandCandidates`）+ `src/settings/sections/chat-scope.ts`（命令卡片 `pickKind: 'command'`）；面板未打开时返回空数组，手动输入兜底 |
 | dsh 插件清单与组件行启停（设置页「插件」tab，0031） | 插件设置 + 插件 | `src/service/plugin-inventory.ts`（`dsh --dump-config` 解析 + 版本 + 缓存）+ `src/service/plugin-patch.ts`（写 profile 用户层 `cordis.patch.yml`：备份 / 原子写 / 复验回滚）+ `src/settings/sections/plugins.ts` + `src/settings/context.ts` / `src/main.ts` |
 | 可选 / 实验性插件（启用 / 停用 bundle，0032） | 插件设置 + 插件 | `src/service/plugin-catalog.ts`（读 `@deepseek-ai/dsh-official-bundles` 目录 + 版本 / 中文标题）+ `src/service/plugin-bundles.ts`（写 profile `package.json` 的 `dsh.profile.bundles`：备份 / 原子写 / 复验回滚）+ `src/settings/sections/plugins.ts` + `src/main.ts`（白名单校验） |
 | Agent Teams 只读团队面板（0035） | 插件 + dsh 客户端插件 | `src/view/native/ui/team-panel.tsx` + `src/view/native/ui/native-chat-root.tsx`（标题右侧入口）+ `src/shared/native-types.ts`；桥 `team()` 读 Lead 的 `agentTeam` 投影并拼运行状态 / 模型 |
@@ -67,7 +67,9 @@ src/
 │  ├─ plugin-inventory.ts # 插件清单：--dump-config 组合结果解析 + 版本（0031）
 │  ├─ plugin-patch.ts #   组件行启停：cordis.patch.yml 最小覆盖（备份 / 原子写 / 回滚，0031）
 │  ├─ plugin-catalog.ts # 可选 / 实验性插件目录：official-bundles 名单 + 元信息（0032）
-│  └─ plugin-bundles.ts # bundle 启停：profile package.json 的 dsh.profile.bundles（0032）
+│  ├─ plugin-bundles.ts # bundle 启停：profile package.json 的 dsh.profile.bundles（0032）
+│  ├─ file-atomic.ts  #   写前备份 / 原子写 / mtime：插件启停共用（0031 / 0032 / 0065）
+│  └─ yaml-scalar.ts  #   YAML 标量去引号 unquoteYaml（0065）
 ├─ view/              # 面板域（可 import obsidian）
 │  ├─ panel-host.ts   #   原生视图需要的最小宿主接口（DshPanelHost）
 │  ├─ surface.ts      #   隐藏 core 的 Electron webview 承载
@@ -75,13 +77,13 @@ src/
 │  │  ├─ native-chat-view.tsx # ItemView：装配 React、隐藏 core、probe
 │  │  ├─ core-bridge.ts       # executeJavaScript 调用 / 等待就绪 / 错误归因
 │  │  ├─ note-tracker.ts      # 最后一次激活的 Markdown 笔记
-│  │  └─ ui/                  # 浮层骨架（menu-shell）+ 模型/权限/会话菜单 + 时间线与节点渲染
+│  │  └─ ui/                  # 浮层骨架 + 菜单 / 时间线 / 节点 / 输入框（composer 壳 + mentions / accessories 拆分）+ 浮层
 │  └─ open.ts         #   打开 / 聚焦原生面板
 ├─ settings/          # 配置域
 │  ├─ schema.ts       #   DshPluginSettings + DEFAULT_SETTINGS + 端口校验
 │  ├─ context.ts      #   SettingsHost + SettingsRenderContext（模块渲染上下文）
 │  ├─ tab.ts          #   DshSettingTab：模块 tab 条 + 内容区调度
-│  └─ sections/       #   各设置模块：service / runtime / chat / integration / plugins
+│  └─ sections/       #   各设置模块：service / runtime / chat（+ chat-scope / scope-picker）/ integration / plugins
 └─ shared/            # 跨域基础件
    ├─ constants.ts    #   视图类型常量 + isDshPage()
    ├─ types.ts        #   Probe / ProbeResult 四态契约
@@ -191,8 +193,8 @@ shared/ ──► 无内部依赖
 - `ui/` 是 React 18 UI：标题/会话浮层、消息与工具卡、输入框（@ 引用下拉：当前笔记 + 项目文件；目录行箭头下钻）、模型/权限浮层、只读团队浮层（`team-panel.tsx`）、只读子智能体目录（`subagent-panel.tsx`，入口 / 面包屑在 `native-chat-root.tsx`）；
   `note-tracker.ts` 记住最后一次激活的 Markdown 笔记，`mention.ts` 负责 @ token、候选排序与插入文本（对齐 dsh 的 `@` 补全：Enter 采纳 / Tab 下钻），`folder-reveal.ts` 把消息里的文件夹 chip 点击落到左侧文件列表。原生视图只允许右栏一个实例。
   「@」菜单的检索范围来自设置项 `mentionScope` / `mentionWhitelist` / `mentionBlacklist`：`native-chat-root.tsx` 在打开菜单取 vault 快照时读 `getMentionScope()`（`main.ts` 从 settings 组装）并交给 `mention-scope.ts` 的 `filterMentionEntries()` 裁剪——白名单只留条目内（含子目录）候选并保留祖先文件夹以便下钻，黑名单排除条目内候选；「当前笔记」首行不受范围影响。因为每次打开菜单才读设置，改完设置**下一次打开 @ 菜单**即生效，无需重启。
-- 「/」菜单的技能行范围来自设置项 `skillScope` / `skillWhitelist` / `skillBlacklist`（0037）：`composer.tsx` 每次打开 `/` 菜单时读一次 `getSkillScope()`（`main.ts` 从 settings 组装，`panel-host.ts` 暴露），技能目录返回后在渲染前交给 `skill-scope.ts` 的 `filterSlashSkills()` 裁剪——白名单只留命中技能名、空白名单隐藏全部技能行，黑名单排除命中技能名；条目按技能名前缀语义匹配（`office` 覆盖 `office` 与 `office-*`）。过滤只作用于菜单里「技能」分组要显示的行：`bridge.skills()` 的目录、`/name` 插入、技能加载与执行都不受影响；技能行全被挡掉时菜单显示一行说明（本地 `/new` 不受影响）。改完设置**下一次打开 / 菜单**即生效，无需重启。
-- 「/」菜单的命令行从 0050 起不再写死：`composer.tsx` 打开菜单 / 会话就绪时调用桥 `commands()` 取当前会话的 dsh 命令目录（按会话 / 预设变化），`slash.ts` 转成菜单行（六个 first-party 命令按 name 映射中文标签，第三方命令回退 dsh 英文描述），预置的 `/export` 因桥直连执行不触发 Web 下载而隐藏；选中命令只把 `/name ` 插入草稿，Enter 时若草稿**开头**是命令目录里的名字，`native-chat-root.tsx` 的 `runCommand` 走 `bridge.executeCommand()`（不是 `send()`），结果由时间线 command / manual-compaction 节点呈现。技能仍走 `send()`（宿主 pre-step 注入正文）；同名技能行隐藏（命令优先）；subagent 子会话按官方行为不显示命令组。
+- 「/」菜单的技能行范围来自设置项 `skillScope` / `skillWhitelist` / `skillBlacklist`（0037）：`composer.tsx` 每次打开 `/` 菜单时读一次 `getSkillScope()`（`main.ts` 从 settings 组装，`panel-host.ts` 暴露），技能目录返回后在渲染前交给 `composer-mentions.tsx` 的 `buildSlashView()`（内部用 `skill-scope.ts` 的 `filterSlashSkills()`）裁剪——白名单只留命中技能名、空白名单隐藏全部技能行，黑名单排除命中技能名；条目按技能名前缀语义匹配（`office` 覆盖 `office` 与 `office-*`）。过滤只作用于菜单里「技能」分组要显示的行：`bridge.skills()` 的目录、`/name` 插入、技能加载与执行都不受影响；技能行全被挡掉时菜单显示一行说明（本地 `/new` 不受影响）。改完设置**下一次打开 / 菜单**即生效，无需重启。
+- 「/」菜单的命令行从 0050 起不再写死：`composer.tsx` 打开菜单 / 会话就绪时调用桥 `commands()`（菜单行与说明行由 `composer-mentions.tsx` 的 `buildSlashView()` 组装） 取当前会话的 dsh 命令目录（按会话 / 预设变化），`slash.ts` 转成菜单行（六个 first-party 命令按 name 映射中文标签，第三方命令回退 dsh 英文描述），预置的 `/export` 因桥直连执行不触发 Web 下载而隐藏；选中命令只把 `/name ` 插入草稿，Enter 时若草稿**开头**是命令目录里的名字，`native-chat-root.tsx` 的 `runCommand` 走 `bridge.executeCommand()`（不是 `send()`），结果由时间线 command / manual-compaction 节点呈现。技能仍走 `send()`（宿主 pre-step 注入正文）；同名技能行隐藏（命令优先）；subagent 子会话按官方行为不显示命令组。
 - 命令范围来自设置项 `commandScope` / `commandWhitelist` / `commandBlacklist`（0050）：打开菜单时快照一次，交给 `command-scope.ts` 的 `filterSlashCommands()` 精确匹配裁剪（命令是扁平命名空间，不走 `-` 前缀）；只影响菜单显示，命令目录与执行不变；白名单为空时命令行全部隐藏并显示说明行。命令范围的「选取」（0051）经 `SettingsHost.getCommandCandidates()` → `findNativeChat(app)` → `DshNativeChatView.listCommandNames()` → 桥 `commands()` 取当前会话命令名（过滤 `/export`）；面板未打开 / 未订阅会话时返回空数组，设置页提示手动输入。
 - 原生聊天不重写 DSH core：ChatSnapshot / 会话动作 / 待处理交互都来自官方页面；模型选择只选已配置
   provider/model，不提供 provider / API key 表单。

@@ -2,7 +2,7 @@ import { Setting, type ButtonComponent } from 'obsidian';
 import { errorText } from '../../shared/errors';
 import type { DshActionResult, DshStopResult } from '../../shared/types';
 import type { SettingsRenderContext } from '../context';
-import { isValidPort } from '../schema';
+import { DEFAULT_SETTINGS, isValidPort } from '../schema';
 
 /** 正在执行的服务动作（两个按钮互斥，避免并发停止 / 重启）。 */
 type ServiceAction = 'restart' | 'stop';
@@ -22,7 +22,7 @@ export function renderServiceSection(containerEl: HTMLElement, context: Settings
 		.setDesc('独立服务监听端口（默认 3081，与 web profile 的 3080 互不干扰）')
 		.addText((text) =>
 			text
-				.setPlaceholder('3081')
+				.setPlaceholder(String(DEFAULT_SETTINGS.port))
 				.setValue(String(host.settings.port))
 				.onChange(async (value) => {
 					const port = Number.parseInt(value, 10);
@@ -38,10 +38,10 @@ export function renderServiceSection(containerEl: HTMLElement, context: Settings
 		.setDesc('dsh profile 名（须已存在于 $DSH_HOME/profiles/）')
 		.addText((text) =>
 			text
-				.setPlaceholder('obsidian')
+				.setPlaceholder(DEFAULT_SETTINGS.profile)
 				.setValue(host.settings.profile)
 				.onChange(async (value) => {
-					host.settings.profile = value.trim() || 'obsidian';
+					host.settings.profile = value.trim() || DEFAULT_SETTINGS.profile;
 					await host.saveSettings();
 				}),
 		);

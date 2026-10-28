@@ -79,7 +79,7 @@ const TOOL_CATEGORIES: Record<string, ProcessCategory> = {
 	team_task_update: 'team',
 };
 
-export function categoryOfTool(name: string): ProcessCategory {
+function categoryOfTool(name: string): ProcessCategory {
 	return TOOL_CATEGORIES[name] ?? 'tools';
 }
 

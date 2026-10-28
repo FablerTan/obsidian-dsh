@@ -16,9 +16,9 @@ import type {
  * （`match` 命中、`mark` 指定图标、`render` 决定文字）即可，composer 不需要改。
  */
 
-export type ModelMark = 'whale' | null;
+type ModelMark = 'whale' | null;
 
-export interface ModelBrand {
+interface ModelBrand {
 	/** 命中后显示的品牌标记；null 表示用通用模型图标。 */
 	mark: ModelMark;
 	match: (context: { provider: string; providerName: string; model: NativeModel }) => boolean;
@@ -59,7 +59,7 @@ const DEFAULT_BRAND: ModelBrand = {
 	render: (model, effort) => (effort === null ? model.name : model.name + ' · ' + effort.name),
 };
 
-export function resolveModelBrand(context: {
+function resolveModelBrand(context: {
 	provider: string;
 	providerName: string;
 	model: NativeModel;
@@ -67,7 +67,7 @@ export function resolveModelBrand(context: {
 	return BRANDS.find((brand) => brand.match(context)) ?? DEFAULT_BRAND;
 }
 
-export interface ModelChip {
+interface ModelChip {
 	mark: ModelMark;
 	text: string;
 	title: string;

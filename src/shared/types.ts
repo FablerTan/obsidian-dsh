@@ -54,7 +54,7 @@ export interface DshRuntimeInfo {
 }
 
 /** DSH 页面里 obsidian-bridge 的探测结果（设置页展示）。 */
-export type DshBridgeState = 'connected' | 'panel-closed' | 'missing' | 'error';
+type DshBridgeState = 'connected' | 'panel-closed' | 'missing' | 'error';
 
 export interface DshBridgeStatus {
 	state: DshBridgeState;

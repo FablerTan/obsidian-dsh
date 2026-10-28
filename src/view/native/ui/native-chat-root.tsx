@@ -103,7 +103,7 @@ function sessionTitle(session: NativeSessionSummary): string {
 	return placeholder ? NEW_SESSION_TITLE : session.title;
 }
 
-export interface NativeChatRootProps {
+interface NativeChatRootProps {
 	app: App;
 	bridge: NativeCoreBridge;
 	noteTracker: NoteTracker;

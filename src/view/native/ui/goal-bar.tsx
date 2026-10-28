@@ -13,7 +13,7 @@ import type { NativeGoal } from '../../../shared/native-types';
  * Shift+Enter 换行、Escape 取消、IME 组合输入不触发保存。
  */
 
-export interface GoalBarProps {
+interface GoalBarProps {
 	goal: NativeGoal;
 	pending: boolean;
 	error: string | null;

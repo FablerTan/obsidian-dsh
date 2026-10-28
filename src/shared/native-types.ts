@@ -93,7 +93,7 @@ export interface NativeModelEffort {
 	description?: string;
 }
 
-export interface NativeModelReasoning {
+interface NativeModelReasoning {
 	efforts: NativeModelEffort[];
 	defaultEffort?: string;
 }
@@ -111,7 +111,7 @@ export interface NativeModelGroup {
 	models: NativeModel[];
 }
 
-export interface NativeModelFailure {
+interface NativeModelFailure {
 	id: string;
 	name: string;
 	message: string;
@@ -124,7 +124,7 @@ export interface NativeModels {
 	failures: NativeModelFailure[];
 }
 
-export interface NativePermissionOption {
+interface NativePermissionOption {
 	value: string;
 	name: string;
 	description?: string;
@@ -163,7 +163,7 @@ export interface NativeCommandResult {
 }
 
 /** 桥 v3 的流式快照：与 AssistantChatData.blocks 同形，由原生端渲染成一条运行中的 assistant-step。 */
-export interface NativeChatLiveBlock {
+interface NativeChatLiveBlock {
 	kind: string;
 	text?: string;
 	callId?: string;
@@ -179,7 +179,7 @@ export interface NativeChatLive {
 }
 
 /** 上下文占用：provider 报的最近一次请求压力 + 下一次请求的构成估算（桥 v4）。 */
-export interface NativeContextPressure {
+interface NativeContextPressure {
 	pressureTokens?: number;
 	projectedTokens?: number;
 	contextWindow?: number;
@@ -248,7 +248,7 @@ export interface NativeSubagentAddress {
 }
 
 /** 桥 v7：子会话在快照里的元数据；普通会话为 null。 */
-export interface NativeSubagentInfo {
+interface NativeSubagentInfo {
 	address: NativeSubagentAddress;
 	/** continuable 子会话的父会话是否仍可用（缺省 = 未确认）。 */
 	parentAvailable?: boolean;
@@ -285,10 +285,10 @@ export interface NativeSubagentList {
 }
 
 /** 桥 v8：目标的持久阶段（dsh GoalPhase）。 */
-export type NativeGoalPhase = 'active' | 'paused' | 'blocked' | 'complete';
+type NativeGoalPhase = 'active' | 'paused' | 'blocked' | 'complete';
 
 /** 桥 v8：目标受阻的原因（dsh GoalBlockReason）。 */
-export interface NativeGoalBlockedReason {
+interface NativeGoalBlockedReason {
 	code: string;
 	message: string;
 }
@@ -314,7 +314,7 @@ export interface NativeGoal {
 }
 
 /** 桥 v8：目标操作的失败原因（与 dsh RemoteResult 的错误同形）。 */
-export interface NativeGoalError {
+interface NativeGoalError {
 	code: string;
 	message: string;
 }
@@ -325,7 +325,7 @@ export interface NativeGoalActionResult {
 	error?: NativeGoalError;
 }
 
-export type NativeBridgeErrorReason =
+type NativeBridgeErrorReason =
 	| 'panel-closed'
 	| 'missing'
 	| 'version'

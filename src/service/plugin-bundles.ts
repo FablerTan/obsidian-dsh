@@ -1,5 +1,6 @@
-import { copyFileSync, existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'fs';
+import { copyFileSync, existsSync, readFileSync } from 'fs';
 import * as path from 'path';
+import { createBackup, writeAtomic } from './file-atomic';
 
 /**
  * bundle 级启用 / 停用（0032）：改 profile `package.json` 的 `dsh.profile.bundles` 数组。
@@ -9,7 +10,7 @@ import * as path from 'path';
  * 写前备份、原子写、写后由调用方复验，失败自动回滚（与 0031 的 patch 写入同一套约定）。
  */
 
-export interface SetBundleOptions {
+interface SetBundleOptions {
 	/** profile 目录（$DSH_HOME/profiles/<profile>）。 */
 	profileDir: string;
 	/** bundle 的包名（如 @deepseek-ai/dsh-experimental-voice-input-bundle）。 */
@@ -19,21 +20,21 @@ export interface SetBundleOptions {
 	verify: () => Promise<boolean>;
 }
 
-export interface SetBundleResult {
+interface SetBundleResult {
 	changed: boolean;
 	backupPath: string | null;
 	rolledBack: boolean;
 	message?: string;
 }
 
-export interface BundleEdit {
+interface BundleEdit {
 	text: string;
 	changed: boolean;
 	message?: string;
 }
 
 /** 计算启用 / 停用后的 package.json 文本（纯函数，可单独冒烟）。 */
-export function editBundlesJson(text: string, name: string, enabled: boolean): BundleEdit {
+function editBundlesJson(text: string, name: string, enabled: boolean): BundleEdit {
 	const source = text === '' ? '{}\n' : text;
 	let manifest: Record<string, unknown>;
 	try {
@@ -97,44 +98,6 @@ export async function setBundleEnabled(options: SetBundleOptions): Promise<SetBu
 		rolledBack: true,
 		message: '写入后组合结果没有变化，已回滚到写入前的 package.json。',
 	};
-}
-
-/** 写前备份（本地时间，同秒自动加序号）。 */
-function createBackup(manifestPath: string, content: string): string {
-	const now = new Date();
-	const pad = (value: number): string => String(value).padStart(2, '0');
-	const stamp =
-		String(now.getFullYear()) +
-		pad(now.getMonth() + 1) +
-		pad(now.getDate()) +
-		'-' +
-		pad(now.getHours()) +
-		pad(now.getMinutes()) +
-		pad(now.getSeconds());
-	let backupPath = manifestPath + '.bak-' + stamp;
-	let suffix = 1;
-	while (existsSync(backupPath)) {
-		backupPath = manifestPath + '.bak-' + stamp + '-' + String(suffix);
-		suffix += 1;
-	}
-	writeFileSync(backupPath, content, { mode: 0o600 });
-	return backupPath;
-}
-
-/** 原子写：临时文件 + rename。 */
-function writeAtomic(file: string, content: string): void {
-	const tmp = path.join(path.dirname(file), '.' + path.basename(file) + '.tmp-' + String(process.pid));
-	try {
-		writeFileSync(tmp, content, { mode: 0o600 });
-		renameSync(tmp, file);
-	} catch (error) {
-		try {
-			unlinkSync(tmp);
-		} catch {
-			// 临时文件可能没写出来
-		}
-		throw error;
-	}
 }
 
 /** 是否普通对象（排除 null / 数组）。 */

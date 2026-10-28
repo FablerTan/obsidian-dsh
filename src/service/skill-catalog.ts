@@ -26,13 +26,9 @@ interface CacheEntry {
 
 let cache: CacheEntry | null = null;
 
-/** 清空技能目录缓存（技能目录变化后需要立即重读时调用）。 */
-export function clearSkillCatalogCache(): void {
-	cache = null;
-}
 
 /** 扫描的根目录（与 dsh 的 dsh-skill-filesystem 一致）。 */
-export function skillRoots(projectRoot: string): string[] {
+function skillRoots(projectRoot: string): string[] {
 	return [
 		path.join(projectRoot, '.dsh', 'skills'),
 		path.join(projectRoot, '.agents', 'skills'),

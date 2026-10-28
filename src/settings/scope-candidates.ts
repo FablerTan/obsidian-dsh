@@ -14,7 +14,7 @@
 
 import { normalizeCommandName } from './schema';
 
-export type ScopePathKind = 'file' | 'directory';
+type ScopePathKind = 'file' | 'directory';
 
 /** vault 里可加入名单的一个条目。 */
 export interface ScopePathEntry {

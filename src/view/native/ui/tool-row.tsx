@@ -106,7 +106,7 @@ const TOOL_TITLES_BY_NAME: Partial<Record<ProcessCategory, Record<string, string
 	agentControl: AGENT_CONTROL_TOOL_TITLES,
 };
 
-export function toolTitle(tool: ToolCallEntry): string {
+function toolTitle(tool: ToolCallEntry): string {
 	const title = TOOL_TITLES[tool.category];
 	const byName = TOOL_TITLES_BY_NAME[tool.category];
 	if (byName !== undefined) return byName[tool.name] ?? title;
@@ -214,7 +214,7 @@ export function toolSummary(tool: ToolCallEntry): string {
 	return oneLine(summary);
 }
 
-export function prettyJson(raw: string): string {
+function prettyJson(raw: string): string {
 	const text = raw.trim();
 	if (text === '') return '';
 	try {

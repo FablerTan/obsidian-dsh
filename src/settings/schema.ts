@@ -2,7 +2,7 @@
 export type StreamRefreshMode = 'chunk' | 'frame' | 'balanced' | 'relaxed';
 
 /** 各档对应的合并间隔（ms）；0 = 每个 chunk 立即唤醒原生端。 */
-export const STREAM_REFRESH_MS: Record<StreamRefreshMode, number> = {
+const STREAM_REFRESH_MS: Record<StreamRefreshMode, number> = {
 	chunk: 0,
 	frame: 16,
 	balanced: 50,
@@ -14,7 +14,7 @@ export function streamRefreshMs(mode: StreamRefreshMode): number {
 }
 
 /** 选区引用摘录上限（0058）：默认 2000 字，设置页可调。 */
-export const DEFAULT_QUOTE_EXCERPT_LIMIT = 2000;
+const DEFAULT_QUOTE_EXCERPT_LIMIT = 2000;
 export const MIN_QUOTE_EXCERPT_LIMIT = 100;
 export const MAX_QUOTE_EXCERPT_LIMIT = 20000;
 

@@ -8,14 +8,14 @@
  */
 
 /** 文件引用：渲染成 `[[文件名]]`。 */
-export interface FileLinkTarget {
+interface FileLinkTarget {
 	kind: 'file';
 	/** 文件名（不含扩展名），短链接的目标与显示文字。 */
 	name: string;
 }
 
 /** 文件夹引用：渲染成可点击的文件夹 chip。 */
-export interface FolderLinkTarget {
+interface FolderLinkTarget {
 	kind: 'folder';
 	/** 文件夹名（最后一段），chip 的显示文字。 */
 	name: string;
@@ -28,11 +28,11 @@ export type NoteLinkTarget = FileLinkTarget | FolderLinkTarget;
 /** 会破坏 wiki 链接语法的字符。 */
 const LINK_UNSAFE = /[[\]|#^\n\r]/;
 
-export function noteLinkOf(name: string): string {
+function noteLinkOf(name: string): string {
 	return '[[' + name + ']]';
 }
 
-export function isLinkSafe(name: string): boolean {
+function isLinkSafe(name: string): boolean {
 	return name.trim() !== '' && !LINK_UNSAFE.test(name);
 }
 
@@ -58,7 +58,7 @@ function escapeHtml(value: string): string {
 }
 
 /** 文件夹 chip 的内联 HTML；`data-dsh-folder` 存定位用的 vault 路径。 */
-export function folderChipOf(target: FolderLinkTarget): string {
+function folderChipOf(target: FolderLinkTarget): string {
 	const path = escapeHtml(target.path);
 	return (
 		'<span class="dsh-folder-ref" data-dsh-folder="' +

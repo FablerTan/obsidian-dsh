@@ -23,7 +23,7 @@ import {
  * 没有正文分隔的连续步骤仍合成一段（不按 step 逐行拆）。
  */
 
-export type ProcessStatus = 'running' | 'settled' | 'aborted' | 'error';
+type ProcessStatus = 'running' | 'settled' | 'aborted' | 'error';
 
 export interface ProcessGroupItem {
 	type: 'process';
@@ -37,7 +37,7 @@ export interface ProcessGroupItem {
 	endTime: number | null;
 }
 
-export interface TextItem {
+interface TextItem {
 	type: 'text';
 	key: string;
 	text: string;
@@ -45,12 +45,12 @@ export interface TextItem {
 	streaming?: boolean;
 }
 
-export interface NodeItem {
+interface NodeItem {
 	type: 'node';
 	node: NativeChatNode;
 }
 
-export type TimelineItem = ProcessGroupItem | TextItem | NodeItem;
+type TimelineItem = ProcessGroupItem | TextItem | NodeItem;
 
 function addTool(group: ProcessGroupItem, incoming: ToolCallEntry): void {
 	const existing = group.entries.find(

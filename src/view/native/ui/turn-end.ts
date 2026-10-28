@@ -9,7 +9,7 @@ import { asRecord, blocksOf, str } from './chat-node-data';
  * 这里不改 dsh，只在原生面板做兜底：命中时给一行提示 + 重试按钮。
  */
 
-export interface SilentTurnEnd {
+interface SilentTurnEnd {
 	turn: number;
 }
 

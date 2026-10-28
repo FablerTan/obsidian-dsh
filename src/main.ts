@@ -26,7 +26,7 @@ import type { SettingsHost } from './settings/context';
 import { DshSettingTab } from './settings/tab';
 import { dshWhaleIconSvg } from './shared/brand';
 import { errorText } from './shared/errors';
-import { LEGACY_VIEW_TYPE_DSH, VIEW_TYPE_NATIVE_CHAT } from './shared/constants';
+import { LEGACY_VIEW_TYPE_DSH, VIEW_TYPE_NATIVE_CHAT, WEBVIEW_PARTITION } from './shared/constants';
 import { createDshProbe, vaultPath } from './shared/host';
 import { logPlugin, logPluginWarn } from './shared/log';
 import type {
@@ -164,7 +164,7 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 	 * 用持久化分区是为了重开面板时不必重新 token 登录；它仍与其它插件隔离。
 	 */
 	get webviewPartition(): string | null {
-		return 'persist:dsh-obsidian';
+		return WEBVIEW_PARTITION;
 	}
 
 	/** DshPanelHost：端口上是否有服务在响应。 */

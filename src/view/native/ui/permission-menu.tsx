@@ -4,7 +4,7 @@ import { MenuShell, type MenuAnchor } from './menu-shell';
 import { PermissionIcon } from './permission-icon';
 
 /** 危险操作的确认弹窗（目前只有「完全访问」用它）。 */
-export class ConfirmModal extends Modal {
+class ConfirmModal extends Modal {
 	constructor(
 		app: App,
 		private readonly options: {

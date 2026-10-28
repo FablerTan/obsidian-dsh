@@ -75,8 +75,8 @@
 | [0061](0061-release-1.1.0.md) | 发布 1.1.0：提交 0056–0060 并推送到 GitHub，Release 正文只写版本更新内容（安装步骤留在 install.md） | ✅ 已完成（2026-10-28；release v1.1.0，资产校验一致） |
 | [0062](0062-quote-preview-unified-background.md) | 引用预览条统一底色：去掉按钮默认亮底、改与输入卡同色、图标留边 | ✅ 已完成（2026-10-28；check + CDP 计算样式与截图对比） |
 | [0063](0063-project-review-skill.md) | 新增 project-review 技能：只读扫描（冗余 / 重复 / 结构漂移 / 超长文件 / 文档漂移）→ 分级报告 → 用户确认 → 不改功能分批重构 | ✅ 已完成（2026-10-28；audit.mjs 自验 + 独立验收 + npm run check + 技能接入） |
-
-> 审阅报告（未立项）：[0064](0064-project-review-audit.md)（2026-10-28；只读扫描 127 条候选，未改码，重构范围待用户确认）。
+| [0065](0065-structure-refactor.md) | 按 0064 报告执行结构重构（范围 C）：文档同步 / 导出清理 / 拆 composer.tsx·chat.ts / 收敛 service 重复实现 | ✅ 已完成（2026-10-28；build/check/lint + 审计 127→46） |
+> 审阅报告：[0064](0064-project-review-audit.md)（2026-10-28；只读扫描 127 条候选，未改码；执行面见 [0065](0065-structure-refactor.md)）。
 
 ## 需求受理（2026-10-27 起）
 

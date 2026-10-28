@@ -35,13 +35,13 @@ export interface SelectionQuote {
 	capturedAt?: number;
 }
 
-export interface QuoteExcerpt {
+interface QuoteExcerpt {
 	text: string;
 	truncated: boolean;
 	total: number;
 }
 
-export interface ParsedQuote {
+interface ParsedQuote {
 	quote: SelectionQuote;
 	/** 引用块之后的用户正文（原样，已去掉引用块与分隔空行）。 */
 	body: string;

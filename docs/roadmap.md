@@ -70,6 +70,7 @@ dsh 版本选择（[0003](changes/0003-dsh-version-selection-and-token-auth.md)�
 | R-44 | 发布 1.1.0：把 0056–0060 的改动提交并推送到 GitHub，Releases 页面只写版本更新内容 | ✅ 已完成（2026-10-28；build/check/lint + push + release v1.1.0） | [0061](changes/0061-release-1.1.0.md) |
 | R-45 | 引用预览条上面那层更亮的底色去掉、改统一颜色（与输入卡同色），条内按钮默认亮底不再露出，双引号图标离底边留点空隙 | ✅ 已完成（2026-10-28；check + CDP 计算样式与截图对比） | [0062](changes/0062-quote-preview-unified-background.md) |
 | R-46 | 新增「项目审阅」技能：只读扫描冗余 / 重复定义 / 结构混乱 / 超长文件 / 文档漂移 → 分级报告 → 用户确认后在不改功能前提下分批重构 | ✅ 已完成（2026-10-28；audit.mjs 自验 + 独立验收 + npm run check + 技能接入） | [0063](changes/0063-project-review-skill.md) |
+| R-47 | 按 0064 审阅报告执行结构重构（范围 C：文档同步 → 导出清理 → 超长文件拆分 → 重复收敛，不改功能） | ✅ 已完成（2026-10-28；build/check/lint + 审计 127→46：死导出 0、多余 export 0、跨文件重复 0；composer 702→398、chat 568→98） | [0065](changes/0065-structure-refactor.md) |
 
 > 新需求往下追加，编号连续（R-2、R-3…），不要删旧行。状态取值：`待调研` → `等你选路` → `执行中` → `✅ 已完成` / `⏸ 暂缓`。
 

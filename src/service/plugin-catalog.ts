@@ -1,8 +1,9 @@
 import { createRequire } from 'module';
-import { existsSync, readFileSync, statSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
 import type { DshCommand, DshOptionalBundle, DshOptionalCatalog } from '../shared/types';
+import { safeMtime } from './file-atomic';
 import { profileDirOf, resolveExecutable } from './plugin-inventory';
 
 /**
@@ -35,7 +36,7 @@ export function clearOptionalCatalogCache(): void {
 	cache = null;
 }
 
-export interface OptionalCatalogOptions {
+interface OptionalCatalogOptions {
 	command: DshCommand;
 	profile: string;
 	/** 跳过缓存（「重新读取」/ 写后复验）。 */
@@ -252,13 +253,4 @@ function readJson(file: string): unknown {
 function shortName(packageName: string): string {
 	const unscoped = packageName.startsWith('@') ? packageName.slice(packageName.indexOf('/') + 1) : packageName;
 	return unscoped.replace(/^dsh-(?:experimental-|client-)?/u, '').replace(/-bundle$/u, '');
-}
-
-/** package.json 的 mtime（不存在为 0）。 */
-function safeMtime(file: string): number {
-	try {
-		return existsSync(file) ? Math.trunc(statSync(file).mtimeMs) : 0;
-	} catch {
-		return 0;
-	}
 }

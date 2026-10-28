@@ -7,7 +7,7 @@ import { renderRuntimeSection } from './sections/runtime';
 import { renderServiceSection } from './sections/service';
 
 /** 设置页模块 id（顺序即 tab 顺序）。 */
-export type SettingsSectionId = 'service' | 'runtime' | 'chat' | 'integration' | 'plugins';
+type SettingsSectionId = 'service' | 'runtime' | 'chat' | 'integration' | 'plugins';
 
 interface SettingsSection {
 	id: SettingsSectionId;

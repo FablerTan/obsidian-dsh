@@ -17,7 +17,7 @@ import type { CommandScope } from '../../settings/schema';
 import type { NativeCommand, NativeSkill } from '../../shared/native-types';
 
 /** 原生面板暂不支持的命令（见提案 0050 的风险表：/export 只返回 requested，不落文件）。 */
-export const NATIVE_UNSUPPORTED_COMMANDS: readonly string[] = ['export'];
+const NATIVE_UNSUPPORTED_COMMANDS: readonly string[] = ['export'];
 
 /** 命令名是否命中条目（精确匹配，大小写不敏感）。 */
 function matchesAny(entries: readonly string[], name: string): boolean {
