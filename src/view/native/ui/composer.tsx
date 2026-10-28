@@ -194,7 +194,7 @@ export function Composer({
 	useEffect(() => {
 		const el = inputRef.current;
 		if (el === null) return;
-		el.style.height = 'auto';
+		el.style.removeProperty('height');
 		el.style.height =
 			Math.max(INPUT_MIN_HEIGHT, Math.min(el.scrollHeight, INPUT_MAX_HEIGHT)) + 'px';
 	}, [draft]);
@@ -319,7 +319,6 @@ export function Composer({
 	useEffect(() => {
 		refreshCommands();
 		// 只按能力 / 可见性预取；菜单每次打开还会再刷新一次（目录随会话 / 预设变化）。
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [commandsAvailable, showCommands]);
 
 	useEffect(() => {

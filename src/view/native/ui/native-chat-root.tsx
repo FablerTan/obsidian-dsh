@@ -507,7 +507,7 @@ export function NativeChatRoot({
 
 	useEffect(() => {
 		void boot();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
+		// 只在挂载时启动一次（boot 内部用 mountedRef 丢弃卸载后的结果）。
 	}, []);
 
 	const restartThenBoot = async (): Promise<void> => {

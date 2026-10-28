@@ -1,7 +1,7 @@
 # 用 CDP 让 dsh 操作 / 调试 Obsidian
 
 > 开发期工作流，不是插件的运行时功能。仅桌面端（Obsidian 是 Electron）。
-> 适用：dsh 0.2.x + 本仓库 0.4.x；原生面板默认 profile `obsidian` / 端口 3081。
+> 适用：dsh 0.2.x + 本仓库 1.0.x；原生面板默认 profile `obsidian` / 端口 3081。
 > 0008 后没有可见官方面板；下面说的「面板 guest」是原生视图内部的隐藏 core。
 
 ## 为什么是 CDP
@@ -163,7 +163,7 @@ mcp__devtools__take_screenshot
 ```js
 async () => {
   const app = window.app;
-  const plugin = app.plugins.plugins['obsidian-dsh'];
+  const plugin = app.plugins.plugins['dsh-native-chat'];
   const leaves = app.workspace.getLeavesOfType('dsh-native-chat');
   const view = leaves[0]?.view;
   return {
@@ -192,8 +192,8 @@ Obsidian 的 Notice 通常在 `.notice-container` 里，需要断言提示时直
 ```js
 async () => {
   const app = window.app;
-  await app.plugins.disablePlugin('obsidian-dsh');
-  await app.plugins.enablePlugin('obsidian-dsh');
+  await app.plugins.disablePlugin('dsh-native-chat');
+  await app.plugins.enablePlugin('dsh-native-chat');
   return 'reloaded';
 }
 ```
@@ -204,8 +204,8 @@ async () => {
 () => {
   const app = window.app;
   setTimeout(async () => {
-    await app.plugins.disablePlugin('obsidian-dsh');
-    await app.plugins.enablePlugin('obsidian-dsh');
+    await app.plugins.disablePlugin('dsh-native-chat');
+    await app.plugins.enablePlugin('dsh-native-chat');
   }, 300);
   return 'scheduled';
 }
@@ -214,13 +214,13 @@ async () => {
 ### 4.3 执行命令
 
 ```js
-() => window.app.commands.executeCommandById('obsidian-dsh:open-dsh-view')
+() => window.app.commands.executeCommandById('dsh-native-chat:open-dsh-view')
 ```
 
 0008 后只有一个聊天入口（`open-dsh-view` 打开原生面板）；0010 后功能区与命令面板各只剩一个打开入口，可用命令：
 
-- `obsidian-dsh:open-dsh-view`
-- `obsidian-dsh:restart-dsh-service`（同 4.2 的自杀风险）
+- `dsh-native-chat:open-dsh-view`
+- `dsh-native-chat:restart-dsh-service`（同 4.2 的自杀风险）
 
 新建会话只在面板内（右上 ＋ / 空态按钮 / 会话选择器），没有对应命令。
 
@@ -228,21 +228,21 @@ async () => {
 
 ```js
 () => window.app.commands.listCommands()
-  .filter(c => c.id.startsWith('obsidian-dsh:'))
+  .filter(c => c.id.startsWith('dsh-native-chat:'))
   .map(c => ({ id: c.id, name: c.name }))
 ```
 
 ### 4.4 设置
 
 ```js
-() => ({ ...window.app.plugins.plugins['obsidian-dsh'].settings })
+() => ({ ...window.app.plugins.plugins['dsh-native-chat'].settings })
 ```
 
 改端口（改完要重启服务）：
 
 ```js
 async () => {
-  const p = window.app.plugins.plugins['obsidian-dsh'];
+  const p = window.app.plugins.plugins['dsh-native-chat'];
   p.settings.port = 3082;
   await p.saveSettings();
   return p.settings.port;
@@ -276,7 +276,7 @@ mcp__devtools__list_console_messages  { pageId, includeStackTraces: true }
 mcp__devtools__list_network_requests  { pageId }
 ```
 
-插件日志前缀 `[obsidian-dsh]`，服务日志前缀 `[dsh]`。console 只从 attach / 导航之后开始收集；要抓启动日志，先 attach，再重载页面 / 插件。
+插件日志前缀 `[dsh-native-chat]`，服务日志前缀 `[dsh]`。console 只从 attach / 导航之后开始收集；要抓启动日志，先 attach，再重载页面 / 插件。
 
 ### 4.7 截图
 
@@ -333,7 +333,7 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3081/
 2. `evaluate_script` 重载插件（§4.2）。
 3. `evaluate_script` 打开面板（§4.3）。
 4. `evaluate_script` 断言状态（§4.1）；必要时 `take_snapshot`。
-5. `list_console_messages` 看 `[obsidian-dsh]` / error。
+5. `list_console_messages` 看 `[dsh-native-chat]` / error。
 6. bash 检查端口 / 单实例。
 7. 执行「重启 DSH 服务」→ 重复 4–6；确认 token 更新后面板能重载。
 8. 原生聊天：`take_snapshot` + `click`/`fill`，发一条消息、看流式输出、点停止；截图留档。

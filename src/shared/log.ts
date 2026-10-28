@@ -1,23 +1,23 @@
 /**
  * 日志约定（便于在 Obsidian 开发者控制台里过滤）：
- *  - [obsidian-dsh] 插件自身的生命周期（警告走 console.warn）
+ *  - [dsh-native-chat] 插件自身的生命周期（警告走 console.warn）
  *  - [dsh]          dsh 子进程的 stdout / stderr
  */
 
 /** 插件侧普通日志。 */
 export function logPlugin(message: string): void {
-	console.log('[obsidian-dsh] ' + message);
+	console.debug('[dsh-native-chat] ' + message);
 }
 
 /** 插件侧警告日志（不阻断流程，但需要用户注意，如 dsh 版本冲突）。 */
 export function logPluginWarn(message: string): void {
-	console.warn('[obsidian-dsh] ' + message);
+	console.warn('[dsh-native-chat] ' + message);
 }
 
 /** 插件侧错误日志。 */
 export function logPluginError(message: string, error?: unknown): void {
-	if (error === undefined) console.error('[obsidian-dsh] ' + message);
-	else console.error('[obsidian-dsh] ' + message, error);
+	if (error === undefined) console.error('[dsh-native-chat] ' + message);
+	else console.error('[dsh-native-chat] ' + message, error);
 }
 
 /**
@@ -32,5 +32,5 @@ export function redactToken(text: string): string {
 export function logChild(stream: 'stdout' | 'stderr', chunk: string): void {
 	const text = '[dsh] ' + redactToken(chunk.trimEnd());
 	if (stream === 'stderr') console.error(text);
-	else console.log(text);
+	else console.debug(text);
 }

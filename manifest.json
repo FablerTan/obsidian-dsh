@@ -1,10 +1,10 @@
 {
-	"id": "obsidian-dsh",
-	"name": "DSH in Obsidian",
-	"version": "0.6.7",
-	"minAppVersion": "1.4.0",
-	"description": "在 Obsidian 中使用 DeepSeek Harness 原生聊天面板：插件自动拉起独立 dsh 服务（obsidian profile / 端口 3081 / cwd=vault）。",
+	"id": "dsh-native-chat",
+	"name": "DSH Native Chat",
+	"version": "1.0.0",
+	"minAppVersion": "1.7.2",
+	"description": "Chat with a local DeepSeek Harness agent in a native side panel, with streaming replies, tool calls, and vault-aware sessions.",
 	"author": "fabler",
-	"authorUrl": "https://127.0.0.1:3080",
+	"authorUrl": "https://github.com/FablerTan",
 	"isDesktopOnly": true
 }

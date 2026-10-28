@@ -26,7 +26,7 @@ export interface FolderLinkTarget {
 export type NoteLinkTarget = FileLinkTarget | FolderLinkTarget;
 
 /** 会破坏 wiki 链接语法的字符。 */
-const LINK_UNSAFE = /[\[\]|#^\n\r]/;
+const LINK_UNSAFE = /[[\]|#^\n\r]/;
 
 export function noteLinkOf(name: string): string {
 	return '[[' + name + ']]';
@@ -109,7 +109,7 @@ export function applyNoteLinks(
 	return changed ? lines.join('\n') : text;
 }
 
-const MENTION = /\[\[[^\[\]\n]*\]\]|(^|[^\w@])@(?:"([^"\n]+)"|([^\s@]+))/g;
+const MENTION = /\[\[[^[\]\n]*\]\]|(^|[^\w@])@(?:"([^"\n]+)"|([^\s@]+))/g;
 const TRAILING_CHAR = /[.,;:!?，。；：！？)\]】」》]/;
 
 /** 先按整段解析；失败时在标点处截断，把 `，然后` 这类尾巴还给正文。 */

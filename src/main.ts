@@ -43,7 +43,7 @@ import { findNativeChat, openNativeChat } from './view/open';
 import type { DshPanelHost } from './view/panel-host';
 
 /**
- * DSH in Obsidian — 方案 B：自动拉起独立的 dsh 服务 + Obsidian 原生聊天面板。
+ * DSH Native Chat — 方案 B：自动拉起独立的 dsh 服务 + Obsidian 原生聊天面板。
  *
  * 服务：dsh --profile obsidian --port <port>，工作目录 = 当前 vault。
  *  - 独立 profile：与日常用的 web profile（:3080）互不干扰；

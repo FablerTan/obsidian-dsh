@@ -45,14 +45,15 @@ export class DshSettingTab extends PluginSettingTab {
 		this.host = plugin;
 	}
 
-	async display(): Promise<void> {
+	/** 基类签名是 void；异步内容区渲染由 renderSection() 自己用 renderSeq 处理过期结果。 */
+	display(): void {
 		const { containerEl } = this;
 		this.activeSection = 'service';
 		// 让上一次 display 里未完成的异步渲染过期。
 		this.renderSeq += 1;
 		containerEl.empty();
 
-		containerEl.createEl('h2', { text: 'DSH in Obsidian' });
+		// 设置页标题不写插件名：Obsidian 已显示插件名，官方规则 no-problematic-settings-headings 也禁止重复。
 		containerEl.createEl('p', {
 			text: '插件会自动拉起一个独立的 dsh 服务（工作目录 = 当前 vault），聊天由 Obsidian 原生面板承载。',
 		});
@@ -73,7 +74,7 @@ export class DshSettingTab extends PluginSettingTab {
 
 		this.contentEl = containerEl.createDiv({ cls: 'dsh-settings-content' });
 		this.updateTabBar();
-		await this.renderSection();
+		void this.renderSection();
 	}
 
 	private selectSection(id: SettingsSectionId): void {

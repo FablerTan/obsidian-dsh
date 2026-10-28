@@ -134,7 +134,7 @@ dsh plugin --profile obsidian add link:<repo>/packages/dsh-obsidian-bridge
 
 - 依赖 DSH 0.2.x 的 `ctx.sessions` / `ctx.uiSession` 服务；升级后若改名，桥会降级为「服务不可用」。
 - 只在 Obsidian 的 Electron `<webview>` 面板里可用；没有 iframe 路径。
-- 不做设置入口、不做会话列表 UI、不做 provider / API key 配置；原生 UI 由 obsidian-dsh 渲染。
+- 不做设置入口、不做会话列表 UI、不做 provider / API key 配置；原生 UI 由 dsh-native-chat 渲染。
 - 模型/权限/重命名是 v2 的增量方法：旧 v2 页面没有这些函数时，原生视图会提示更新并重启服务。
 - `context` 是 v4 的增量方法：v3 桥没有时原生输入栏显示灰色空环，不影响聊天。
 - `team` 是 v6 的增量方法：旧桥没有时原生面板不显示团队入口（工具行与消息照常）；

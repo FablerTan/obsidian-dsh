@@ -9,7 +9,7 @@
 - **平台**：macOS + zsh（Windows / Linux 未验证）；插件 `isDesktopOnly: true`，**移动端不可用**。
 - **只管安装**：开发环境、构建细节、手动回归见 [development.md](development.md)；出问题先看第 11 节，再查 [troubleshooting.md](troubleshooting.md)。
 - **事实来源**：默认值取自 `src/settings/schema.ts` 的 `DEFAULT_SETTINGS`，清单取自 `manifest.json`，进程与可执行文件解析取自 `src/service/`；文档与代码冲突时以代码为准。
-- **本机已核对**（2026-10-28）：插件 0.6.7、桥 0.5.0（API v8）、dsh 0.2.1-rc.3、Obsidian 1.14.4。
+- **本机已核对**（2026-10-28）：插件 1.0.0、桥 0.5.0（API v8）、dsh 0.2.1-rc.3、Obsidian 1.14.4。
 
 > **铁律**：任何一步的成功判据不满足，就停下按第 11 节处理；**不要**跳过、不要靠换端口掩盖、不要手改产物。
 
@@ -21,7 +21,7 @@
 | 需要 Git / Node 构建工具链 | **不需要** | 需要（Node ≥ 20、npm） |
 | 插件文件从哪来 | GitHub Release 里的构建产物 | 仓库里 `npm run build` 生成 |
 | 桥从哪来 | Release 里的 `dsh-obsidian-bridge.zip` | 仓库 `packages/dsh-obsidian-bridge/` |
-| 落位方式 | 三个文件直接放进 `<vault>/.obsidian/plugins/obsidian-dsh/` | 符号链接（或复制产物） |
+| 落位方式 | 三个文件直接放进 `<vault>/.obsidian/plugins/dsh-native-chat/` | 符号链接（或复制产物） |
 | 更新插件 | 重新下载覆盖文件 | `git pull` + `npm run build` |
 | 需要仓库全部代码 | **不需要** | 需要 |
 
@@ -34,13 +34,13 @@
 
 ```bash
 export VAULT="$HOME/path/to/vault"                 # 目标 vault（建议用测试库，不要用主力库）
-export PLUGIN_DIR="$VAULT/.obsidian/plugins/obsidian-dsh"
+export PLUGIN_DIR="$VAULT/.obsidian/plugins/dsh-native-chat"
 export DSH_HOME_DIR="${DSH_HOME:-$HOME/.dsh}"       # 与 dsh 一致：环境变量优先，否则 ~/.dsh
 export PROFILE="$DSH_HOME_DIR/profiles/obsidian"
 export PORT=3081                                   # 默认端口；data.json 改过就以实际值为准
 
-export VERSION="v0.6.7"                            # 仅 A：要装的插件版本（= Release tag）
-export BRIDGE_DIR="$HOME/.local/share/obsidian-dsh/bridge-$VERSION"   # 仅 A：桥解压位置
+export VERSION="v1.0.0"                            # 仅 A：要装的插件版本（= Release tag）
+export BRIDGE_DIR="$HOME/.local/share/dsh-native-chat/bridge-$VERSION"   # 仅 A：桥解压位置
 export REPO="$HOME/path/to/obsidian-dsh"           # 仅 B：仓库 checkout
 ```
 
@@ -51,7 +51,7 @@ export REPO="$HOME/path/to/obsidian-dsh"           # 仅 B：仓库 checkout
 | 项 | A | B | 要求 | 验证 |
 |---|---|---|---|---|
 | macOS | 必需 | 必需 | 桌面端（Windows / Linux 未验证） | `uname -s`（期望 `Darwin`） |
-| Obsidian | 必需 | 必需 | ≥ 1.4.0、桌面端、带 `webviewTag`（1.14.4 已验证） | `defaults read /Applications/Obsidian.app/Contents/Info.plist CFBundleShortVersionString` |
+| Obsidian | 必需 | 必需 | ≥ 1.7.2、桌面端、带 `webviewTag`（1.14.4 已验证） | `defaults read /Applications/Obsidian.app/Contents/Info.plist CFBundleShortVersionString` |
 | dsh | 必需 | 必需 | **0.2.x** 且可执行；0.1.x 会被判「版本不支持」 | `dsh --version` |
 | pnpm | 必需 | 必需 | `dsh plugin` 把参数转发给 pnpm，缺了报 `pnpm was not found` | `pnpm -v` |
 | Node.js | 必需（dsh 以 node 运行） | 必需（构建 + 运行） | 构建 ≥ 20；运行 dsh 需满足它的 `engines.node`（以实际安装的 `package.json` 为准） | `node -v` |
@@ -68,7 +68,7 @@ lsof -nP -iTCP:"$PORT" -sTCP:LISTEN                          # 期望无输出
 which curl unzip                                             # 仅 A
 ```
 
-**成功判据**：`node -v` ≥ v20、`pnpm -v` 有版本、`dsh --version` 匹配 `^0\.2\.`、Obsidian ≥ 1.4.0、端口无监听；A 路线另外要 `curl`、`unzip` 可用。
+**成功判据**：`node -v` ≥ v20、`pnpm -v` 有版本、`dsh --version` 匹配 `^0\.2\.`、Obsidian ≥ 1.7.2、端口无监听；A 路线另外要 `curl`、`unzip` 可用。
 
 ## 3. 安装 dsh 0.2.x
 
@@ -102,7 +102,7 @@ ln -sfn "$DSH_CHECKOUT/apps/cli/lib/bin.js" "$HOME/.local/bin/dsh"
 > ① `node` + `~/.local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js`
 > → ② PATH 上的 `dsh`
 > → ③ `~/.local/bin/dsh`、`/opt/homebrew/bin/dsh`、`/usr/local/bin/dsh`。
-> **①存在就优先**，所以机器上残留的 0.1.x 全局安装会盖住新的 0.2.x —— 装完必须在第 9 节核对控制台 `[obsidian-dsh] dsh 版本:`，必要时在设置页「dsh 版本」显式选中 0.2.x 的条目（写入 `data.json` 的 `dshPath`）再「重启服务」。
+> **①存在就优先**，所以机器上残留的 0.1.x 全局安装会盖住新的 0.2.x —— 装完必须在第 9 节核对控制台 `[dsh-native-chat] dsh 版本:`，必要时在设置页「dsh 版本」显式选中 0.2.x 的条目（写入 `data.json` 的 `dshPath`）再「重启服务」。
 > 另外 `node` 必须能被 Obsidian 的进程环境找到：插件先试 `~/.local/bin/node`、`/opt/homebrew/bin/node`、`/usr/local/bin/node`，都没有才用裸 `node`。用 nvm 时建议补一条 `ln -sfn "$(command -v node)" "$HOME/.local/bin/node"`。
 
 ## 4. 确认 / 创建 obsidian profile
@@ -214,14 +214,14 @@ for f in main.js manifest.json styles.css versions.json; do
   curl -fL --retry 3 --retry-delay 2 "$BASE/$f" -o "$PLUGIN_DIR/$f"
 done
 ls -l "$PLUGIN_DIR"
-grep -m1 "version" "$PLUGIN_DIR/manifest.json"     # 期望 "0.6.7"
+grep -m1 "version" "$PLUGIN_DIR/manifest.json"     # 期望 "1.0.0"
 ```
 
 **成功判据**：
 
 - 三个文件都存在且非空（`main.js` 约 330 KB，`styles.css` 约 70 KB）；
-- `manifest.json` 里 `"id": "obsidian-dsh"`、`"version": "0.6.7"`、`"isDesktopOnly": true`；
-- `PLUGIN_DIR` 就是 `<vault>/.obsidian/plugins/obsidian-dsh`（目录名与插件 id 一致，避免多版本混淆）。
+- `manifest.json` 里 `"id": "dsh-native-chat"`、`"version": "1.0.0"`、`"isDesktopOnly": true`；
+- `PLUGIN_DIR` 就是 `<vault>/.obsidian/plugins/dsh-native-chat`（目录名与插件 id 一致，避免多版本混淆）。
 
 > 不想用 Release 时，可用同版本的 tag 直接取文件（等价的兜底）：
 > `curl -fL "https://raw.githubusercontent.com/FablerTan/obsidian-dsh/$VERSION/main.js" -o "$PLUGIN_DIR/main.js"`（`manifest.json` / `styles.css` 同理）。
@@ -261,7 +261,7 @@ cp "$REPO/main.js" "$REPO/manifest.json" "$REPO/styles.css" "$PLUGIN_DIR"/
 cp "$REPO/versions.json" "$PLUGIN_DIR"/          # 可选
 ```
 
-**成功判据**：`ls -ld` 指向仓库（符号链接）或三件套存在（复制）；`manifest.json` 里 `id=obsidian-dsh`、`name=DSH in Obsidian`、`minAppVersion=1.4.0`、`isDesktopOnly=true`。
+**成功判据**：`ls -ld` 指向仓库（符号链接）或三件套存在（复制）；`manifest.json` 里 `id=dsh-native-chat`、`name=DSH Native Chat`、`minAppVersion=1.7.2`、`isDesktopOnly=true`。
 
 > **符号链接安装时，插件目录就是本仓库**：Obsidian 会把运行时设置写到 `$REPO/data.json`（开发期它出现在仓库根）。这是**运行时数据**，不要当源码改、不要提交。
 > 默认值来自 `DEFAULT_SETTINGS`：端口 `3081`、profile `obsidian`、`autoStart: true`、`dshPath: null`、流式刷新 `frame`。
@@ -309,21 +309,21 @@ dsh --profile obsidian --dump-config | grep -x "# == dsh-obsidian-bridge"   # �
 这一步必须在 Obsidian 里点，**不要**手改 `community-plugins.json` / `app.json` 代做（除非用户明确要求且 Obsidian 已退出）。
 
 1. 启动 / 重启 Obsidian，打开目标 vault（`$VAULT`）。
-2. 设置 → **第三方插件** → 已安装 → 找到 **DSH in Obsidian** → 打开开关（首次需先关闭受限模式 / Restricted mode）。
+2. 设置 → **第三方插件** → 已安装 → 找到 **DSH Native Chat** → 打开开关（首次需先关闭受限模式 / Restricted mode）。
 3. 列表里没有它：确认 `$PLUGIN_DIR/manifest.json` 存在，然后重开设置页或重启 Obsidian。
 
 **成功判据**（全部满足）：
 
-- 设置页左侧出现 **DSH in Obsidian**，顶部 5 个 tab：服务 / dsh 版本 / 聊天 / 集成 / 插件；
+- 设置页左侧出现 **DSH Native Chat**，顶部 5 个 tab：服务 / dsh 版本 / 聊天 / 集成 / 插件；
 - 状态栏出现 `DSH: …`（初始占位；`autoStart` 默认 true，随后会拉起服务）；
-- 命令面板（`Cmd+P`）能搜到 **打开 DeepSeek Harness** 与 **重启 DSH 服务**（命令 id：`obsidian-dsh:open-dsh-view`、`obsidian-dsh:restart-dsh-service`）；
+- 命令面板（`Cmd+P`）能搜到 **打开 DeepSeek Harness** 与 **重启 DSH 服务**（命令 id：`dsh-native-chat:open-dsh-view`、`dsh-native-chat:restart-dsh-service`）；
 - 左侧功能区出现 DSH 鲸鱼图标（提示「打开 DeepSeek Harness」）。
 
 ## 9. 首次打开与重启服务
 
 **首次打开**：点状态栏 `DSH:` / 鲸鱼图标 / 命令面板「打开 DeepSeek Harness」→ 右栏出现原生聊天面板。`autoStart` 为 true 时 Obsidian 启动就会拉起服务，打开面板也会触发一次 `ensureStarted`。
 
-**重启服务**（改端口 / profile / dsh 版本 / patch / 桥之后必须做）：设置 → DSH in Obsidian →「服务」→ 点「重启」；或命令面板「重启 DSH 服务」。
+**重启服务**（改端口 / profile / dsh 版本 / patch / 桥之后必须做）：设置 → DSH Native Chat →「服务」→ 点「重启」；或命令面板「重启 DSH 服务」。
 
 **成功判据**（按顺序核对）：
 
@@ -337,7 +337,7 @@ dsh --profile obsidian --dump-config | grep -x "# == dsh-obsidian-bridge"   # �
    ```bash
    curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:$PORT/"
    ```
-4. 控制台（`Cmd+Opt+I`）有 `[obsidian-dsh] dsh 版本: 0.2.x（<路径>）`、`[obsidian-dsh] 面板承载方式: webview（persist:dsh-obsidian）`；`[dsh]` 日志里 token 显示为 `token=***`（不应出现明文）。
+4. 控制台（`Cmd+Opt+I`）有 `[dsh-native-chat] dsh 版本: 0.2.x（<路径>）`、`[dsh-native-chat] 面板承载方式: webview（persist:dsh-obsidian）`；`[dsh]` 日志里 token 显示为 `token=***`（不应出现明文）。
 5. 设置 →「服务」：端口 / Profile `obsidian` / 自动启动开；「dsh 版本」→「运行环境」显示当前路径与版本（与服务在跑时一致）。
 6. 设置 →「集成」→「桥接状态」点「重新检测」→ `已连接（v8）`（需原生面板已打开）。
 7. 面板出现会话列表或空态，右上 ＋ 能新建会话（cwd = vault）。
@@ -350,7 +350,7 @@ dsh --profile obsidian --dump-config | grep -x "# == dsh-obsidian-bridge"   # �
 | 1 | 插件文件 | A：`$PLUGIN_DIR` 下 `main.js` / `manifest.json` / `styles.css` 齐全；B：符号链接指向仓库 |
 | 2 | 服务状态 | 状态栏 `DSH: 运行中` |
 | 3 | 进程与端口 | `lsof -nP -iTCP:$PORT -sTCP:LISTEN` 只有一条；裸 URL 返回 401 |
-| 4 | dsh 版本 | 控制台 `[obsidian-dsh] dsh 版本: 0.2.x（…）` |
+| 4 | dsh 版本 | 控制台 `[dsh-native-chat] dsh 版本: 0.2.x（…）` |
 | 5 | 承载方式 | 控制台 `面板承载方式: webview（persist:dsh-obsidian）` |
 | 6 | 桥 | 设置 →「集成」→ 桥接状态 `已连接（v8）` |
 | 7 | 会话 | 面板能列会话 / 空态，＋ 新建后可直接输入；会话 cwd 是 vault |
@@ -365,7 +365,7 @@ dsh --profile obsidian --dump-config | grep -x "# == dsh-obsidian-bridge"   # �
 
 ## 11. 失败矩阵
 
-先固定三件证据：**状态栏文案**、**控制台 `[obsidian-dsh]` / `[dsh]` 日志**、**端口与进程状态**。
+先固定三件证据：**状态栏文案**、**控制台 `[dsh-native-chat]` / `[dsh]` 日志**、**端口与进程状态**。
 
 ```bash
 lsof -nP -iTCP:"$PORT" -sTCP:LISTEN      # 端口是否被监听
@@ -376,7 +376,7 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:$PORT/"
 | 现象（状态栏 / 控制台 / 终端） | 最可能原因 | 处理 | 参考 |
 |---|---|---|---|
 | A：`curl: (22) … 404` / 下载失败 | `VERSION` 写错、Release 未发布或资产改名 | 打开 Releases 页核对 tag 与资产名；或退回 tag 的 raw 地址（6A 兜底） | 本文 6A |
-| A：启用后设置页没有「DSH in Obsidian」 | 目录里缺 `manifest.json` / 目录名不对 / 受限模式没关 | 核对 `$PLUGIN_DIR` 三个文件；关闭 Restricted mode 后重开设置页 | 本文 6A / 8 |
+| A：启用后设置页没有「DSH Native Chat」 | 目录里缺 `manifest.json` / 目录名不对 / 受限模式没关 | 核对 `$PLUGIN_DIR` 三个文件；关闭 Restricted mode 后重开设置页 | 本文 6A / 8 |
 | A：面板提示「未检测到 dsh-obsidian-bridge」 | 桥没装 / 装的是旧版本 / 装完没重启 | 按 7A 解压并 `link:` → 「重启服务」→ 打开面板 →「重新检测」 | 本文 7A |
 | B：`npm ci` / `npm run build` 失败 | Node 版本不满足 / 依赖损坏 | 确认 `node -v`，删 `node_modules` 重装；不要手改产物 | [development](development.md#前置条件) |
 | B：`npm run check` 报 main.js 与源码不一致 | 改了源码没重新构建 | `npm run build` 后重跑；禁止手改 `main.js` | [development](development.md#构建与产物) |
@@ -412,11 +412,24 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:$PORT/"
 
 > A 路线升级前先确认 `$PLUGIN_DIR` **不是**符号链接（6A 的护栏会自动拦）。覆盖前可先 `cp -a "$PLUGIN_DIR" "$PLUGIN_DIR.bak-$(date +%Y%m%d)"` 留档。
 
+### 从 0.6.x 升级到 1.0.0（插件 id 变更）
+
+1.0.0 起插件 id 从 `obsidian-dsh` 改为 `dsh-native-chat`（社区目录要求 id 不含 obsidian），**安装目录也要改成同名**，否则 Obsidian 会把旧目录当成另一个插件；命令 id（`dsh-native-chat:…`）与控制台前缀（`[dsh-native-chat]`）随之变化。
+
+| 安装方式 | 操作 |
+|---|---|
+| B 符号链接 | 删旧链接再建新链接：`rm "$VAULT/.obsidian/plugins/obsidian-dsh"` → `ln -sfn "$REPO" "$PLUGIN_DIR"`（`$PLUGIN_DIR` 现在指向 `dsh-native-chat`）→ `npm run build` |
+| A Release | 按 [6A](#6a-下载构建产物不需要仓库) 把 1.0.0 重新装进 `$PLUGIN_DIR`；先在 Obsidian 里禁用旧插件，再 `rm -rf` 旧目录（先确认它不是符号链接） |
+
+- **设置不会自动迁移**：`data.json` 留在旧插件目录里；要保留端口 / profile / @ 与 / 范围等设置，先把旧目录的 `data.json` 复制到新目录再启用。符号链接安装的 `data.json` 在仓库根，不受影响。
+- **桥不用重装**：`dsh-obsidian-bridge` 仍是 0.5.0 / API v8；重载插件后点「重启服务」即可，设置页「桥接状态」应为 `已连接（v8）`。
+- 升级后核对：设置页左侧名称为 `DSH Native Chat`（设置页内容区不再重复插件名）、命令 id `dsh-native-chat:open-dsh-view` / `dsh-native-chat:restart-dsh-service`、控制台前缀 `[dsh-native-chat]`（info 日志走 `console.debug`，开发者工具需切到 Verbose 级别才可见）。
+
 ### 卸载与回滚
 
 | 目标 | 操作 | 注意 |
 |---|---|---|
-| 停用插件 | 设置 → 第三方插件 → 关掉「DSH in Obsidian」 | 自启进程会退出；端口释放见下 |
+| 停用插件 | 设置 → 第三方插件 → 关掉「DSH Native Chat」 | 自启进程会退出；端口释放见下 |
 | 移除 vault 安装（符号链接） | `[ -L "$PLUGIN_DIR" ] && rm "$PLUGIN_DIR"` | **只删链接，不会删仓库**；不要用 `rm -rf` |
 | 移除 vault 安装（真实目录，A 或复制） | `rm -rf "$PLUGIN_DIR"` | 先确认它**不是**符号链接 |
 | 移除桥 | `dsh plugin --profile obsidian remove dsh-obsidian-bridge` → 「重启服务」 | `bundles` 会自动移除该项；A 路线可再删 `$BRIDGE_DIR` |
@@ -473,7 +486,7 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:$PORT/"
 
 ### 失败后要带回的证据
 
-状态栏文案 → 控制台 `[obsidian-dsh]` 与 `[dsh]` 最后 20 行 → `lsof` / `pgrep` 输出 → `dsh --version` 与实际路径 → 逐步执行的命令与返回码。
+状态栏文案 → 控制台 `[dsh-native-chat]` 与 `[dsh]` 最后 20 行 → `lsof` / `pgrep` 输出 → `dsh --version` 与实际路径 → 逐步执行的命令与返回码。
 先修环境（dsh / profile / 端口 / 桥），**不要**为了绕过安装问题去改代码或换端口。
 
 ## 相关文档

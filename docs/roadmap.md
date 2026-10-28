@@ -1,6 +1,6 @@
 # 路线图
 
-> 当前版本 **0.6.7**（以 [manifest.json](../manifest.json) 为准）· 方案 B 已可用 · 最后更新 2026-10-28
+> 当前版本 **1.0.0**（以 [manifest.json](../manifest.json) 为准）· 方案 B 已可用 · 最后更新 2026-10-28
 
 ## 现状一句话
 
@@ -61,6 +61,7 @@ dsh 版本选择（[0003](changes/0003-dsh-version-selection-and-token-auth.md)�
 | R-35 | 为 goal 命令加一个悬浮窗口放在输入框上方，样式参考 dsh 官方（目标条：阶段标签 / 单行目标 / 暂停 / 恢复 / 编辑 / 清除，桥 v8） | ✅ 已完成（2026-10-28；build/check + CDP 实测） | [0052](changes/0052-goal-bar.md) |
 | R-36 | 使用 goal 后目标条在 Obsidian 里持续闪烁 / 出现残影（半透明模糊底 + 每轮运行提示位移导致窗口反复重合成） | ✅ 已完成（2026-10-28；build/check + 用户确认无闪烁） | [0053](changes/0053-goal-bar-flicker.md) |
 | R-37 | 目标条要始终显示在运行提示（深度求索中）下方、紧贴输入框，避免被每轮运行提示顶动 | ✅ 已完成（2026-10-28；build/check + CDP 实测） | [0054](changes/0054-goal-bar-below-run-status.md) |
+| R-38 | 上架 Obsidian 官方社区目录：manifest 合规（id `dsh-native-chat` / name `DSH Native Chat` / 英文描述 / minAppVersion 1.7.2）+ 清零官方 ESLint error + README 政策披露 + 发布 1.0.0 | ✅ 已完成（2026-10-28；build/check + lint 0 error + release v1.0.0；目录提交待用户在网页完成） | [0055](changes/0055-obsidian-community-directory.md) |
 
 > 新需求往下追加，编号连续（R-2、R-3…），不要删旧行。状态取值：`待调研` → `等你选路` → `执行中` → `✅ 已完成` / `⏸ 暂缓`。
 

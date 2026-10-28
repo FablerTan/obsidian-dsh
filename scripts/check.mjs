@@ -64,6 +64,7 @@ function checkVersions() {
 		`versions.json[${pkg.version}] (${versions[pkg.version]}) 与 manifest.minAppVersion (${manifest.minAppVersion}) 不一致`,
 	);
 	assert(manifest.isDesktopOnly === true, 'manifest.json 必须保持 isDesktopOnly: true');
+	checkManifestRules(manifest);
 
 	const runtimeDeps = [
 		...Object.keys(pkg.dependencies ?? {}),
@@ -75,6 +76,53 @@ function checkVersions() {
 	);
 
 	return pkg.version;
+}
+
+/**
+ * Obsidian 社区目录的 manifest 硬性规则（0055）：提交前拦住会被目录扫描打回的写法。
+ * 参考 https://docs.obsidian.md/Reference/Manifest 与提交要求。
+ */
+function checkManifestRules(manifest) {
+	const id = manifest.id;
+	assert(typeof id === 'string' && id.length > 0, 'manifest.json 缺少 id');
+	assert(/^[a-z][a-z0-9-]*$/.test(id), `manifest id 只能包含小写字母 / 数字 / 连字符：${id}`);
+	assert(!id.endsWith('plugin'), `manifest id 不能以 plugin 结尾：${id}`);
+	assert(!id.includes('obsidian'), `manifest id 不能包含 obsidian（社区目录要求）：${id}`);
+
+	const name = manifest.name;
+	assert(typeof name === 'string' && name.length > 0, 'manifest.json 缺少 name');
+	assert(!/obsidian/i.test(name), `manifest name 不能包含 Obsidian 及变体（社区目录要求）：${name}`);
+	assert(!/plugin/i.test(name), `manifest name 不能包含 Plugin：${name}`);
+	assert(/^[A-Za-z0-9 +()-]+$/.test(name), `manifest name 只允许 Basic Latin 与 - + ( ) 空格：${name}`);
+
+	const description = manifest.description;
+	assert(
+		typeof description === 'string' && description.length > 0,
+		'manifest.json 缺少 description',
+	);
+	assert(description.length <= 250, `manifest description 超过 250 字符（${description.length}）`);
+	assert(description.trim().endsWith('.'), 'manifest description 必须以句号 "." 结尾');
+	assert(
+		/^[\x20-\x7E]+$/.test(description),
+		'manifest description 只允许 ASCII 可打印字符（不要 emoji / 全角标点）',
+	);
+	assert(!/^this is a plugin/i.test(description), 'manifest description 不要以 "This is a plugin" 开头');
+
+	assert(typeof manifest.author === 'string' && manifest.author.length > 0, 'manifest.json 缺少 author');
+	if (manifest.authorUrl !== undefined) {
+		assert(
+			typeof manifest.authorUrl === 'string' && /^https:\/\/\S+$/.test(manifest.authorUrl),
+			`manifest authorUrl 必须是 https URL：${manifest.authorUrl}`,
+		);
+		assert(
+			!/^https:\/\/(127\.0\.0\.1|localhost)/.test(manifest.authorUrl),
+			`manifest authorUrl 不能指向本机地址：${manifest.authorUrl}`,
+		);
+	}
+	assert(
+		typeof manifest.minAppVersion === 'string' && /^\d+\.\d+\.\d+$/.test(manifest.minAppVersion),
+		'manifest minAppVersion 必须是 x.y.z',
+	);
 }
 
 function checkTypes() {
@@ -195,6 +243,7 @@ async function main() {
 	const version = checkVersions();
 	console.log(`[check] 版本 ${version} 三处一致`);
 	console.log('[check] 无运行时依赖，isDesktopOnly = true');
+	console.log('[check] manifest 合规（id / name / 描述 / authorUrl / minAppVersion）');
 
 	checkTypes();
 	console.log('[check] tsc -noEmit -skipLibCheck 通过');

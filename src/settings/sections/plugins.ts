@@ -330,7 +330,7 @@ export async function renderPluginsSection(
 			errorEl.setText(
 				'读取失败：' +
 					errorText(inventoryResult.reason) +
-					'（确认 dsh 可用、profile 目录存在；详见开发者控制台 [obsidian-dsh] 日志）',
+					'（确认 dsh 可用、profile 目录存在；详见开发者控制台 [dsh-native-chat] 日志）',
 			);
 			errorEl.addClass('is-visible');
 			summaryEl.setText('读取失败');

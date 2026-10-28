@@ -116,10 +116,9 @@ async function importCatalogLists(
 		module = nodeRequire(entry) as Record<string, unknown>;
 	} catch (requireError) {
 		try {
-			const dynamicImport = new Function('specifier', 'return import(specifier)') as (
-				specifier: string,
-			) => Promise<Record<string, unknown>>;
-			module = await dynamicImport(pathToFileURL(entry).href);
+			// 非字面量 specifier 时 esbuild 原样保留原生动态 import()（不会注入 require / eval）。
+			// eslint-disable-next-line no-unsanitized/method -- specifier 是按安装目录解析出的本地 file:// URL，不接受用户输入。
+			module = (await import(pathToFileURL(entry).href)) as Record<string, unknown>;
 		} catch {
 			throw requireError instanceof Error ? requireError : new Error(String(requireError));
 		}

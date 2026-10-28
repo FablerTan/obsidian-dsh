@@ -66,6 +66,7 @@
 | [0052](0052-goal-bar.md) | 输入框上方的 dsh 同款目标条（goal 投影 + 暂停/恢复/编辑/清除，桥 v8） | ✅ 已完成（2026-10-28；build/check + CDP 实测） |
 | [0053](0053-goal-bar-flicker.md) | goal 目标条在 Obsidian 里持续闪烁 / 残影：去掉半透明模糊底改主题实色卡片 + 目标数据没变不重渲染 | ✅ 已完成（2026-10-28；build/check + 用户确认无闪烁） |
 | [0054](0054-goal-bar-below-run-status.md) | 目标条固定到运行提示（深度求索中）下方、紧贴输入框（composer 渲染顺序 RunStatus → goalBar） | ✅ 已完成（2026-10-28；build/check + CDP 实测） |
+| [0055](0055-obsidian-community-directory.md) | 上架 Obsidian 官方社区目录：manifest 改 id `dsh-native-chat` / name `DSH Native Chat` / 英文描述 / minAppVersion 1.7.2，清 19 个官方 ESLint error，README 补政策披露，发 1.0.0 | ✅ 已完成（2026-10-28；build/check + lint 0 error + release v1.0.0） |
 
 ## 需求受理（2026-10-27 起）
 

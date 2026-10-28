@@ -1,6 +1,6 @@
 # 故障排查
 
-先拿三样信息：状态栏文案、开发者控制台（`Cmd+Opt+I`）里 `[obsidian-dsh]` 与 `[dsh]` 日志、当前端口上到底有没有进程：
+先拿三样信息：状态栏文案、开发者控制台（`Cmd+Opt+I`）里 `[dsh-native-chat]` 与 `[dsh]` 日志、当前端口上到底有没有进程。info 级日志是 `console.debug`，控制台级别要切到 **Verbose** 才看得到（warn / error 不受影响）：
 
 ```bash
 lsof -nP -iTCP:3081 -sTCP:LISTEN      # 端口是否被监听（把 3081 换成实际端口）
@@ -58,8 +58,8 @@ Error: dsh: overlay .../cordis.patch.yml must be a top-level YAML array of loade
 
 核对方式（M2-5 起不用再手动查）：
 
-1. 控制台搜 `[obsidian-dsh] dsh 版本:` —— 启动后会打印**实际使用的路径与版本**；
-2. 设置 → DSH in Obsidian →「运行环境」—— 显示当前 dsh 与其他版本安装；
+1. 控制台搜 `[dsh-native-chat] dsh 版本:` —— 启动后会打印**实际使用的路径与版本**；
+2. 设置 → DSH Native Chat →「运行环境」—— 显示当前 dsh 与其他版本安装；
 3. 若存在版本不同的多份安装，控制台会有 `发现其他版本的 dsh` 警告，并弹一次 Notice。
 
 处理：M2-5 起日志/设置页已经能看见实际版本；**0003 起可直接在设置页「dsh 版本」下拉切换**检测到的安装，
@@ -84,7 +84,7 @@ dsh 0.2.x 的 Web UI 需要浏览器会话 token（启动时打印 `dsh web: htt
 
 ## 使用 0.2.x / 切换 dsh 版本
 
-1. 设置 → DSH in Obsidian →「dsh 版本」，选「自动（按优先级）」或某个检测到的安装（显示版本 + 路径）；
+1. 设置 → DSH Native Chat →「dsh 版本」，选「自动（按优先级）」或某个检测到的安装（显示版本 + 路径）；
 2. 点「重启服务」生效；设置页「运行环境」显示当前实际使用的路径/版本；
 3. 0.2.x 的承载面地址带 token，只用于首次登录，随后走 cookie；重启服务后 token 会变，
    已打开的面板若空白/401 → 关掉面板再打开；
@@ -106,8 +106,8 @@ pkill -f "dsh --profile obsidian"   # 结束遗留实例
 dsh 0.2.x 的会话 cookie 是 `SameSite=Strict`，只有 webview 的独立顶层能携带；跨站 iframe 在 303 后不会带 cookie，
 所以原生面板的**隐藏 core** 必须走 webview，**没有 iframe 回退**（0007 / 0008）。先看控制台：
 
-- 正常：`[obsidian-dsh] 面板承载方式: webview（persist:dsh-obsidian）`；
-- 异常：`[obsidian-dsh] 当前环境不支持 webview，DSH 面板无法承载`，原生视图显示错误并弹一次 Notice。
+- 正常：`[dsh-native-chat] 面板承载方式: webview（persist:dsh-obsidian）`；
+- 异常：`[dsh-native-chat] 当前环境不支持 webview，DSH 面板无法承载`，原生视图显示错误并弹一次 Notice。
 
 处理：升级 Obsidian（当前 1.14.4 主窗口已开启 webviewTag，核心 Web viewer / Canvas 自用）；
 没有 webviewTag 的旧版本无法使用本插件。
@@ -203,7 +203,7 @@ dsh 默认只信任 loopback Host。通过樱花等隧道暴露时，在 dsh 侧
    点「配置说明」按提示编辑 `cordis.patch.yml`，见下面「模型菜单是空的 / 模型和桌面端不一致」。
 6. 「模型 / 权限 / 更多」三个按钮点了没反应 → 现在用插件自绘浮层（不再用 Obsidian 原生 `Menu`）。
    先确认插件已重新加载（`main.js` 与 `styles.css` 同时更新）；仍不出现就看控制台有没有
-   `[obsidian-dsh]` 报错，必要时「重新加载插件」。
+   `[dsh-native-chat]` 报错，必要时「重新加载插件」。
 
 ### 发送提示 `session/writer-held`
 
@@ -298,7 +298,7 @@ Phase 0 的隐藏客户端如果订阅了正在别处使用的会话，`session.
 1. 确认已启用：设置 → 插件 → 可选 / 实验性插件 → 打开「智能体团队」开关 → 点「重启服务」；只勾开关不重启不会生效。
 2. 重启后重载插件（或重新打开面板）：团队入口只在**当前会话有 `agentTeam` 投影**时出现（标题右侧 users 图标）；空白新会话也会有一行 lead，属正常。
 3. 设置页「桥接状态」应显示 **v6+**。桥版本低于 v6 时不显示团队入口，工具行与消息仍可用；更新 `packages/dsh-obsidian-bridge` 后重启服务。
-4. 面板为空 / 一直「加载中」：看控制台 `[obsidian-dsh]` 与隐藏 core 的报错；确认 profile 里「智能体团队」patch 已生效（`dsh --profile obsidian --dump-config` 应出现 `agent-team` / `tool-agent-team` / `ui-agent-team`）。
+4. 面板为空 / 一直「加载中」：看控制台 `[dsh-native-chat]` 与隐藏 core 的报错；确认 profile 里「智能体团队」patch 已生效（`dsh --profile obsidian --dump-config` 应出现 `agent-team` / `tool-agent-team` / `ui-agent-team`）。
 5. **只读面板不能导航**：点成员不会打开其会话；队友等待授权时只能看到「等待授权」标记，处理请到 dsh 桌面端 / Web（需要面板内导航见提案 0035 的路径 C，尚未实现）。
 6. 团队工具在过程行里显示中文标题（创建队友 / 发送消息 / 等待子智能体 / 团队任务 …）；如果只看到「运行代码」，说明当前会话预设走 PTC 模式，团队工具是在 `run_code` 里调用的，不是桥或渲染的问题。
 
@@ -336,4 +336,4 @@ Phase 0 的隐藏客户端如果订阅了正在别处使用的会话，`session.
 
 ## 仍然不行
 
-按顺序采集证据再定位：状态栏文案 → 控制台 `[obsidian-dsh]` 日志 → 手动跑 dsh 的输出 → 端口/进程状态。多数问题在前两步就能定性。
+按顺序采集证据再定位：状态栏文案 → 控制台 `[dsh-native-chat]` 日志 → 手动跑 dsh 的输出 → 端口/进程状态。多数问题在前两步就能定性。

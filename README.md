@@ -1,8 +1,74 @@
-# DSH in Obsidian
+# DSH Native Chat
+
+Chat with a local [DeepSeek Harness](https://github.com/deepseek-ai/dsh) (dsh) agent inside Obsidian: the plugin runs a managed dsh service whose working directory is your vault, and renders the conversation in a native React panel in the right sidebar.
+
+> Plugin id `dsh-native-chat` · version 1.0.0 · requires Obsidian ≥ 1.7.2 · **desktop only**
+
+## Features
+
+- **Native chat panel** — a real Obsidian view (not an embedded web GUI): streaming replies and thinking, stop button, session switcher, model and permission menus.
+- **Context usage ring** — see how much of the model context the current session uses, with a breakdown on click.
+- **`@` references** — insert notes and folders into the conversation; `@path` becomes a clickable note link in the reply.
+- **`/` menu** — the dsh command catalog plus your skills, with optional allow/deny lists per scope.
+- **Agent Teams & subagents** — read-only team roster and task board; open a subagent's child session, continue it or stop it.
+- **Run status and goal bar** — dsh-style "thinking, Ns" indicator and a goal bar (pause / resume / edit / clear) above the composer.
+- **Settings tabs** — service, dsh version, chat, integration and plugins, each managed separately.
+
+## Requirements
+
+| Item | Requirement |
+|---|---|
+| Obsidian | ≥ 1.7.2, **desktop only** (uses Node / `child_process`) |
+| dsh | **0.2.x** (0.1.x is rejected as unsupported) |
+| Platform | macOS (the verified platform) |
+
+The plugin uses its own profile `obsidian` and default port **3081** (so it never clashes with the web UI on 3080). Model providers and credentials are configured in that profile, not in the plugin.
+
+## Data, network and permissions
+
+This plugin works with local resources only. The following disclosures are required by the Obsidian developer policies:
+
+- **Network** — it talks to the dsh service it starts on `http://127.0.0.1:3081` (localhost). Nothing is sent to the plugin author; model requests are issued by dsh itself with the provider configured in your profile.
+- **Files outside the vault** — it reads the dsh profile directory (default `~/.dsh/profiles/obsidian`), skill directories (`~/.dsh/skills`, `~/.agents/skills`, and the vault's `.dsh/skills`), and the dsh executable. The "Plugins" settings tab edits that profile's `package.json` / `cordis.patch.yml` when you enable or disable dsh plugins.
+- **Child processes** — it spawns `dsh` and runs `dsh --dump-config` / version probes. It only ever stops dsh instances it started itself.
+- **External dependency** — dsh must already be installed on the machine. The plugin does not download, install or update dsh.
+- **No telemetry, no ads, no self-update.** The dsh agent may access your vault and the network depending on the permissions you grant it in dsh.
+
+## Installation
+
+Two routes, pick one:
+
+- **A — release build**: download `main.js`, `manifest.json` and `styles.css` from the latest release into `<vault>/.obsidian/plugins/dsh-native-chat`.
+- **B — build from source**: `npm ci && npm run build && npm run check`.
+
+The dsh-side bridge plugin `dsh-obsidian-bridge` is required for the panel (install it from the same release). Full steps, acceptance checks and troubleshooting: **[docs/install.md](docs/install.md)**. Then enable **DSH Native Chat** in *Settings → Community plugins*.
+
+## Usage
+
+- **First open** — the plugin probes `127.0.0.1:3081` and, when nothing is listening, starts `dsh --profile obsidian --port 3081` with cwd = the current vault. Auto-start is on by default.
+- **Entry points** — the DSH whale ribbon icon, the "Open DeepSeek Harness" command, or the status bar item.
+- **Sessions** — new sessions use the vault as their working directory; the title follows the dsh-generated title.
+- **Settings changes** — after changing the port, profile or dsh binary, click "Restart DSH service".
+- **Disabling** — disabling the plugin stops the dsh process it started; instances you started manually are left alone.
+
+## Documentation
+
+- [docs/install.md](docs/install.md) — installation, acceptance checks and failure matrix.
+- [docs/troubleshooting.md](docs/troubleshooting.md) — startup, blank panel, port conflicts, PATH, model errors.
+- [docs/development.md](docs/development.md) — environment, build, debug and code map.
+- [docs/README.md](docs/README.md) — index of every project document.
+
+## License
+
+[MIT](LICENSE) © 2026 fabler
+
+---
+
+# 中文说明
 
 在 Obsidian 右侧面板里，用**原生 React UI** 与 DeepSeek Harness（dsh）聊天；插件自动托管一个独立的 dsh 服务，工作目录就是当前笔记库。
 
-> 插件 id `obsidian-dsh` · 版本 0.6.7 · 需要 Obsidian ≥ 1.4.0 · 桌面端专用
+> 插件 id `dsh-native-chat` · 版本 1.0.0 · 需要 Obsidian ≥ 1.7.2 · 桌面端专用
 
 ## 为什么用它
 
@@ -10,20 +76,20 @@
 - **流式正文与思考**：回复正文与思考过程边生成边更新，随时可以停止。
 - **上下文占用圆环**：输入栏显示当前会话的上下文占用，点开可看百分比、token 与构成。
 - **「@」引用笔记与文件夹**：输入 `@` 选笔记或文件夹，内容随消息带进对话；文件夹引用可直接定位到左侧文件列表。
-- **「/」命令与技能**：行首输入 `/` 打开命令菜单（新建 / 压缩会话）与技能列表，可搜索、可执行。
+- **「/」命令与技能**：行首输入 `/` 打开命令菜单（dsh 命令目录 + 技能），可搜索、可执行，并可用白 / 黑名单裁剪显示范围。
 - **引用可点击**：消息里的 `@路径` 会渲染成笔记短链接，点击在 Obsidian 主区打开对应笔记。
 - **模型与权限**：面板底部可切换模型、思考强度与权限档位；选「完全访问」这类危险档位会二次确认。
 - **插件管理**：设置页「插件」tab 列出 dsh profile 的插件，可逐行启用 / 停用，并可选启用官方实验性插件（如智能体团队、语音输入）。
 - **智能体团队（Agent Teams）只读面板**：启用官方实验性插件后，会话标题右侧出现团队图标，可查看成员状态与共享任务板。
-- **子智能体（subagent）目录与子会话**：会话有子智能体时标题右侧出现 bot 图标，可看模式（可继续 / 一次性 / 未知）、运行状态、耗时、token 与模型；点行打开子会话看正文、续聊与 Stop，面包屑返回父会话（一次性 / 父会话不可用时只读）。
+- **子智能体（subagent）目录与子会话**：会话有子智能体时标题右侧出现 bot 图标，可看模式、运行状态、耗时、token 与模型；点行打开子会话看正文、续聊与 Stop。
+- **运行提示与目标条**：输入框上方显示 dsh 同款「深度求索中，用时 N秒」与 goal 目标条（暂停 / 恢复 / 编辑 / 清除）。
 - **5 个设置 tab**：服务 / dsh 版本 / 聊天 / 集成 / 插件，按模块分别管理。
-- **状态栏与命令面板入口**：状态栏显示服务状态，点击即可打开聊天；命令面板提供「打开 DeepSeek Harness」「重启 DSH 服务」。
 
 ## 环境要求
 
 | 项 | 要求 |
 |---|---|
-| Obsidian | ≥ 1.4.0，**桌面端**（插件依赖 Node / `child_process`，移动端不可用） |
+| Obsidian | ≥ 1.7.2，**桌面端**（插件依赖 Node / `child_process`，移动端不可用） |
 | dsh | **0.2.x**（0.1.x 不支持） |
 | 平台 | macOS（当前验证平台） |
 
@@ -36,7 +102,7 @@
 - **A｜只装插件产物**：适合只想使用插件的人，不需要这份源码。
 - **B｜源码构建**：适合要改代码或跟随最新提交的人。
 
-两条路线的完整步骤、验收清单与失败处理见 **[docs/install.md](docs/install.md)**。装好后在 Obsidian「设置 → 第三方插件」中启用 **DSH in Obsidian**。
+两条路线的完整步骤、验收清单与失败处理见 **[docs/install.md](docs/install.md)**。装好后在 Obsidian「设置 → 第三方插件」中启用 **DSH Native Chat**。
 
 ## 使用
 
@@ -47,7 +113,7 @@
 - **切换会话**：右上会话选择器切换历史会话；会话标题由 dsh 随对话自动生成。
 - **改完设置**：修改端口、profile 或 dsh 版本后，点设置页「服务」里的「重启服务」（或命令「重启 DSH 服务」）才会生效。
 - **禁用 / 卸载**：禁用插件会结束插件自己拉起的 dsh 进程；你手动启动的实例不会被动到。
-- **升级插件**：替换插件文件后，在 Obsidian 里关闭再启用插件（或「重新加载插件」）即可。
+- **升级插件**：替换插件文件后，在 Obsidian 里关闭再启用插件（或「重新加载插件」）即可；从 0.6.x 升级到 1.0.0 时插件目录名变为 `dsh-native-chat`，见 [docs/install.md](docs/install.md#从-06x-升级到-100插件-id-变更)。
 
 ### 状态栏常见状态
 
@@ -66,7 +132,7 @@
 |---|---|
 | 服务 | 端口、profile 名、自动启动、重启服务 |
 | dsh 版本 | 使用哪份 dsh 安装（自动检测或手动指定）与运行环境 |
-| 聊天 | 流式刷新节奏、`@` 引用范围、`/` 技能范围 |
+| 聊天 | 流式刷新节奏、`@` 引用范围、`/` 技能与命令范围 |
 | 集成 | 项目目录与桥接状态检测（桥 v8） |
 | 插件 | dsh 插件清单与启用 / 停用、可选实验性插件 |
 
@@ -77,7 +143,7 @@
 - 模型与 API Key 不在插件里配置，需要在 `obsidian` profile 中配置（与桌面端对齐），改完点「重启服务」。
 - 只支持 dsh **0.2.x**；0.1.x 会被判为「版本不支持」。
 - 0.2.x 的 Web token 每个进程新生成，插件只接管自己拉起的实例：上次遗留的实例会显示「需手动结束」，按提示结束它再重启服务。
-- 原生面板依赖 Obsidian 内置的 webview 能力：版本过旧时面板会提示「不支持 webview」，升级 Obsidian 即可。
+- 原生面板依赖 Obsidian 内置的 webview 能力：版本过旧时面板会提示「不支持 webview」，升级 Obsidian 即可（开发与实测版本 1.14.4）。
 
 ## 文档
 

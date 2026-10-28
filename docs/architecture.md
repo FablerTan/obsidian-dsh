@@ -84,7 +84,7 @@ src/
    ├─ types.ts        #   Probe / ProbeResult 四态契约
    ├─ async.ts        #   sleep
    ├─ errors.ts       #   errorText()：unknown → 可读文案
-   ├─ log.ts          #   [obsidian-dsh] / [dsh] 日志约定 + token 打码
+   ├─ log.ts          #   [dsh-native-chat] / [dsh] 日志约定 + token 打码
    └─ host.ts         #   vault 绝对路径
 ```
 
@@ -125,7 +125,7 @@ shared/ ──► 无内部依赖
   3. `~/.local/bin/dsh`、`/opt/homebrew/bin/dsh`、`/usr/local/bin/dsh`。
 - **环境注入**（`buildSpawnEnv()`）：把 `~/.local/bin`、`/opt/homebrew/bin`、`/usr/local/bin` 前置到 `PATH`（存在才加）。
 - 常见坑：两条路径都要保持可用。本机 `~/.local/bin/dsh` 是指向开发 checkout（`~/dsh/deepseek-harness/apps/cli/lib/bin.js`）的符号链接；只要 `~/.local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js` 存在，第 1 条就会命中并**优先使用那份全局安装**（本机可能是 0.1.x，旧于 checkout 的 0.2.x）—— 版本不一致时以实际运行的为准，别假设用的是 checkout（见 [troubleshooting](troubleshooting.md)）。
-- 版本可见性（M2-5）：`listDshCandidates()` 按上面的顺序列出所有可用安装（按 `realpath` 去重），`probeDshVersion()` 执行 `<cmd> --version`（3s 超时，失败返回 `null`），`inspectDshRuntime()` 返回「实际使用 + 版本不同的其他安装」。manager 在 spawn 成功后**后台**探测（不 await，不拖慢启动），写 `[obsidian-dsh] dsh 版本: …`；服务已在运行（非本次拉起）时同样探测，但结果标为 `confirmed: false`，日志写「插件将使用 …」。有冲突时再写一条 `console.warn` 日志，并通过 `onRuntime` 回调交给插件层：插件加载/重启后弹一次 Notice（确认时用「当前使用」，未确认时用「插件将使用」），设置页「运行环境」常驻显示路径/版本/其他安装。
+- 版本可见性（M2-5）：`listDshCandidates()` 按上面的顺序列出所有可用安装（按 `realpath` 去重），`probeDshVersion()` 执行 `<cmd> --version`（3s 超时，失败返回 `null`），`inspectDshRuntime()` 返回「实际使用 + 版本不同的其他安装」。manager 在 spawn 成功后**后台**探测（不 await，不拖慢启动），写 `[dsh-native-chat] dsh 版本: …`；服务已在运行（非本次拉起）时同样探测，但结果标为 `confirmed: false`，日志写「插件将使用 …」。有冲突时再写一条 `console.warn` 日志，并通过 `onRuntime` 回调交给插件层：插件加载/重启后弹一次 Notice（确认时用「当前使用」，未确认时用「插件将使用」），设置页「运行环境」常驻显示路径/版本/其他安装。
 - 版本选择（0003）：设置页「dsh 版本」下拉只列 `listDshCandidates()` 检测到的安装（自动 / 指定路径，显示版本号），存 `settings.dshPath`；`resolveDshInstall(preferredPath)` 按展示路径 / 启动命令 / `realpath` 匹配，未命中回退自动并通过 `fallback` 提示。显式选择后不再弹版本冲突 Notice；自动模式才提示。修改后需手动「重启服务」。
 - token 处理（0003）：0.2.x 的就绪 URL 从 stdout 整行解析，保存在 `manager.embedUrl`（承载面用）；stdout/stderr 按整行缓冲后再交给 `logChild`，整行做 `token=` 打码（跨 chunk 也不会漏），就绪日志同样打码。token 是每进程新生成的，**非本次拉起的 0.2.x 实例无法接管**。
 

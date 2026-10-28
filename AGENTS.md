@@ -32,7 +32,7 @@ Obsidian 插件（56 个源文件、约 9200 行 TS/TSX，按职责域分层：`
 | `data.json` | Obsidian 运行时设置（开发期因符号链接安装落在仓库根） | **不要当源码改、不要删** |
 | `node_modules/` / `.DS_Store` | — | 不入版本库 |
 
-根目录只应包含：插件运行必需文件（`main.js` / `manifest.json` / `styles.css` / `versions.json` / `data.json`）、构建配置（`package.json` / `package-lock.json` / `tsconfig.json` / `esbuild.config.mjs`）、说明与约定（`README.md` / `AGENTS.md`）、以及 `docs/`、`skills/`、`scripts/`、`packages/`、`.dsh/`。
+根目录只应包含：插件运行必需文件（`main.js` / `manifest.json` / `styles.css` / `versions.json` / `data.json`）、构建配置（`package.json` / `package-lock.json` / `tsconfig.json` / `esbuild.config.mjs` / `eslint.config.mjs`）、说明与约定（`README.md` / `AGENTS.md`）、以及 `docs/`、`skills/`、`scripts/`、`packages/`、`.dsh/`。
 
 ## 硬性规则
 
@@ -41,7 +41,7 @@ Obsidian 插件（56 个源文件、约 9200 行 TS/TSX，按职责域分层：`
 3. **默认值一处改、处处同步**：端口 3081 / profile `obsidian` / `autoStart: true` 定义在 `DEFAULT_SETTINGS`；改动需同步 [README](README.md)、[docs/development.md](docs/development.md)、[docs/troubleshooting.md](docs/troubleshooting.md)。
 4. **保持 `isDesktopOnly: true`**：插件依赖 `child_process` / Node API，移动端不可用，不要加移动端兼容分支。
 5. **不引入运行时依赖**：`package.json` 只放 devDependencies；产物必须自包含（`obsidian`、`electron`、`@codemirror/*`、`@lezer/*`、Node 内置已在 external）。
-6. **进程生命周期**：只杀自己 spawn 的子进程（用户手动起的实例不动）；`onunload` 不 `detach` 视图（官方 guideline）；本项目 `minAppVersion` 是 1.4.0，不要引入 1.7.2+ 才有的 `onUserEnable()` 等 API。
+6. **进程生命周期**：只杀自己 spawn 的子进程（用户手动起的实例不动）；`onunload` 不 `detach` 视图（官方 guideline）；本项目 `minAppVersion` 是 1.7.2（`Workspace.revealLeaf` / `Plugin.onUserEnable` 的下限），不要引入 1.7.2 以上才有的 API。
 7. **样式**：写进 `styles.css`，用 Obsidian 主题变量（`var(--...)`），不硬编码颜色、尺寸。
 8. **文档跟着行为走**：改端口 / profile / 命令 id / 目录结构 / 构建步骤 → 同步 `docs/` 对应文件。路线图状态只改 [docs/roadmap.md](docs/roadmap.md)，README 不重复维护清单。
 9. **技能接入方式固定**：新增技能 = `skills/<name>/SKILL.md` + `ln -sfn ../../skills/<name> .dsh/skills/<name>`；frontmatter 必须有 `name`（小写字母、数字、连字符）与 `description`。
@@ -62,7 +62,8 @@ Obsidian 插件（56 个源文件、约 9200 行 TS/TSX，按职责域分层：`
 
 ```bash
 npm run build        # tsc -noEmit -skipLibCheck + esbuild，必须无错误
-npm run check        # 版本 / 依赖 / 类型 / main.js 与源码构建一致 + bridge 插件清单与语法（提交钩子跑同一脚本）
+npm run check        # 版本 / 依赖 / manifest 合规 / 类型 / main.js 与源码构建一致 + bridge 插件清单与语法（提交钩子跑同一脚本）
+npm run lint         # 官方 eslint-plugin-obsidianmd recommended（配置 eslint.config.mjs），0 error；warning 不阻断
 node --check skills/obsidian-docs/scripts/obsdocs.mjs   # 仅在改了技能脚本时
 ```
 

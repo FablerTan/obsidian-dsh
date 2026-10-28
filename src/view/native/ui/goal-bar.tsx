@@ -188,7 +188,7 @@ export function GoalBar({ goal, pending, error, onAction }: GoalBarProps) {
 		const node = editorRef.current;
 		if (node === null) return;
 		const fit = (): void => {
-			node.style.height = 'auto';
+			node.style.removeProperty('height');
 			node.style.height = node.scrollHeight + 'px';
 		};
 		fit();

@@ -3,7 +3,7 @@
 > **怎么用**：① 按小节读要点，先确认该用哪个 API；② 需要精确签名 / 示例时，点该节末尾「原文」里的官方页面；③ 本文件只给结论，不复制原文。
 > **索引与检索**：全站 1319 页索引在 `skills/obsidian-docs/data/index-dev.json`（`pages[]`，每条含 `path` / `title` / `section` / `slug` / `url` / `headings`）；检索脚本 `skills/obsidian-docs/scripts/obsdocs.mjs` 提供 `list / find / get / url / sync`，先 `find` 定位页面，再 `get` 取正文。
 > **链接规则**：一律 `https://docs.obsidian.md/` + 索引中的页面路径（索引自带的 `url` 字段用 `+` 表示空格，本文统一写成 `%20`，两者等价）。本文所有链接都已对索引逐条核对，没有编造页面。
-> **版本基准**：文档快照覆盖到 Obsidian 1.13.x API；本项目 `manifest.json` 的 `minAppVersion` 是 `1.4.0`，文档里标 `1.5.7+ / 1.7.2+ / 1.10.0+ / 1.13.0+` 的 API 用前先确认目标版本（见 §8、文末「已知缺口」）。
+> **版本基准**：文档快照覆盖到 Obsidian 1.13.x API；本项目 `manifest.json` 的 `minAppVersion` 是 `1.7.2`，文档里标 `1.5.7+ / 1.7.2+ / 1.10.0+ / 1.13.0+` 的 API 用前先确认目标版本（见 §8、文末「已知缺口」）。
 
 ## 1. 插件骨架与生命周期
 
@@ -257,6 +257,6 @@ if (leaf) {
 - 开发者文档**没有** CORS / iframe 嵌入 / CSP 的专门页面；§6 里 requestUrl 无 CORS 限制是文档原文，iframe 与 X-Frame-Options 相关结论属工程经验（已标注「非文档结论」）。
 - Plugin.onunload 没有独立 API 页（在 Component/onunload），View.contentEl 也没有独立页（在 ItemView/contentEl），本文按实际存在的页面链接。
 - Workspace/on('...')、Vault/on('...') 这类事件页路径含引号和括号，直接写进 Markdown 链接会被括号截断，本文统一链到类页面、事件名写在正文里。
-- 设置页文档已改为「声明式 getSettingDefinitions()（1.13.0+）」为主、display() 标 legacy，两者混在同一页，没有独立的声明式参考页；本项目 minAppVersion: 1.4.0，实现时应继续用 display()。
+- 设置页文档已改为「声明式 getSettingDefinitions()（1.13.0+）」为主、display() 标 legacy，两者混在同一页，没有独立的声明式参考页；本项目 minAppVersion: 1.7.2，实现时应继续用 display()。
 - Modal 参考页已是 setTitle()/setContent()/setCloseCallback()（1.10.0+）版本，而界面指南的部分示例仍在构造函数里建 DOM，两种写法都能跑，按目标版本选。
 - 未覆盖：Bases（1.10+）、CLI handler、CodeMirror 6 编辑器扩展细节、Obsidian Publish 主题，本插件的场景用不到。

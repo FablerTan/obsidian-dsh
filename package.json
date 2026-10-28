@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-dsh",
-	"version": "0.6.7",
+	"version": "1.0.0",
 	"description": "Chat with DeepSeek Harness in Obsidian via a native panel backed by a managed dsh service.",
 	"main": "main.js",
 	"type": "module",
@@ -8,6 +8,7 @@
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"check": "node scripts/check.mjs",
+		"lint": "eslint src",
 		"hooks:install": "sh scripts/install-hooks.sh",
 		"postinstall": "sh scripts/install-hooks.sh"
 	},
@@ -23,6 +24,8 @@
 		"@types/react": "^18.3.31",
 		"@types/react-dom": "^18.3.7",
 		"esbuild": "0.25.5",
+		"eslint": "^9.39.5",
+		"eslint-plugin-obsidianmd": "^0.4.2",
 		"obsidian": "latest",
 		"react": "^18.3.1",
 		"react-dom": "^18.3.1",

@@ -456,7 +456,7 @@ function vaultPathEntries(app: App): ScopePathEntry[] {
 		.filter((file) => file.path !== '' && file.path !== '/')
 		.map((file) => ({
 			path: file.path,
-			kind: (file instanceof TFolder ? 'directory' : 'file') as ScopePathEntry['kind'],
+			kind: file instanceof TFolder ? 'directory' : 'file',
 		}));
 }
 

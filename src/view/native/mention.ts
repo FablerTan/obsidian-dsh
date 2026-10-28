@@ -37,7 +37,7 @@ const PLAIN_TOKEN = /(?:^|\s)(@([^\s]*))$/u;
 /** 与 dsh 的 excludedDirectories 一致。 */
 const EXCLUDED_DIRECTORIES = new Set(['.git', 'node_modules']);
 /** 编辑器语法无法安全表示的路径（控制字符 / 引号）。 */
-const UNSAFE_PATH = /[\u0000-\u001f\u007f-\u009f"]/u;
+const UNSAFE_PATH = /[\p{Cc}"]/u;
 
 /** 取光标前当前行的 `@` token；不在 token 里返回 null。 */
 export function activeMentionToken(draft: string, caret: number): MentionToken | null {

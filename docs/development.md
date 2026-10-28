@@ -6,15 +6,16 @@
 |---|---|---|
 | Node.js | ≥ 20（构建）；dsh 运行需 `^22.19.0 || >=24.0.0` | 版本不符会导致服务「启动失败(退出码 N)」 |
 | npm | 随 Node | 只装 devDependencies |
-| Obsidian | ≥ 1.4.0，桌面端 | 移动端不支持（插件用 `child_process`） |
+| Obsidian | ≥ 1.7.2，桌面端 | 移动端不支持（插件用 `child_process`） |
 | dsh | 已安装 0.2.x 并可执行 | 0.1.x 不再支持；见 [architecture.md](architecture.md#进程解析与环境) |
 
 ## 首次搭建
 
 ```bash
-npm install          # esbuild / typescript / obsidian 类型；postinstall 自动安装 git hooks
+npm install          # esbuild / typescript / eslint / obsidian 类型；postinstall 自动安装 git hooks
 npm run build        # tsc -noEmit -skipLibCheck && esbuild（production）→ main.js
-npm run check        # 提交前检查：版本 / 依赖 / 类型 / main.js 与源码构建一致
+npm run check        # 提交前检查：版本 / 依赖 / manifest 合规 / 类型 / main.js 与源码构建一致
+npm run lint         # 官方 eslint-plugin-obsidianmd recommended（Obsidian 社区目录同一套），0 error
 npm run dev          # watch 模式：改源码自动重编译（Obsidian 里需「重新加载插件」）
 ```
 
@@ -22,11 +23,11 @@ npm run dev          # watch 模式：改源码自动重编译（Obsidian 里需
 
 ```bash
 # 开发期推荐：符号链接，改代码即生效（记得 npm run build / npm run dev）
-ln -s ~/path/to/obsidian-dsh ~/path/to/vault/.obsidian/plugins/obsidian-dsh
+ln -s ~/path/to/obsidian-dsh ~/path/to/vault/.obsidian/plugins/dsh-native-chat
 ```
 
-发布/分享时才复制三件套到 `<vault>/.obsidian/plugins/obsidian-dsh/`：`main.js`、`manifest.json`、`styles.css`（可选加 `versions.json`）。
-启用路径：Obsidian 设置 → 第三方插件 → 启用 **DSH in Obsidian**。
+发布/分享时才复制三件套到 `<vault>/.obsidian/plugins/dsh-native-chat/`：`main.js`、`manifest.json`、`styles.css`（可选加 `versions.json`）。
+启用路径：Obsidian 设置 → 第三方插件 → 启用 **DSH Native Chat**。
 
 > 注意：符号链接安装时，插件目录就是本仓库，Obsidian 写的运行时设置 `data.json` 会落在仓库根目录。
 
@@ -47,11 +48,11 @@ obsidian profile 的模型配置是独立的：base 默认走 `deepseek-official
 
 ## 调试
 
-- **开发者工具**：`Cmd+Opt+I`。插件日志前缀 `[obsidian-dsh]`，服务日志前缀 `[dsh]`（stdout/stderr 已转发）。
+- **开发者工具**：`Cmd+Opt+I`。插件日志前缀 `[dsh-native-chat]`，服务日志前缀 `[dsh]`（stdout/stderr 已转发）。info 级日志走 `console.debug`（官方 guideline：默认控制台只应有 error），需要把控制台级别切到 **Verbose** 才看得到；warn / error 照常显示。
 - **让 dsh 自己看界面 / 控制台**：用 CDP + MCP（开发期，agent 不要跑在面板里）；启动、配置、cookbook 与全流程见 [obsidian-cdp.md](obsidian-cdp.md)。
 - **状态栏**：`DSH: 运行中 / 启动失败 / 启动超时 / 启动失败(退出码 N) / 端口被占用 / 需手动结束`，点击可打开原生聊天。
   「需手动结束」= 端口上是需要 token 的 dsh（通常是上次遗留的 0.2.x 实例），按 Notice 里的 `pkill` 命令清掉后重启服务。
-- **实际使用的 dsh**：控制台搜 `[obsidian-dsh] dsh 版本:`（服务已在运行时为「插件将使用 dsh …」，尚未确认）；设置 → DSH in Obsidian →「dsh 版本」切换安装、「运行环境」看路径/版本/其他安装。0.2.x 的启动 URL 与 token 只在内存中使用，日志里 `token=***`。
+- **实际使用的 dsh**：控制台搜 `[dsh-native-chat] dsh 版本:`（服务已在运行时为「插件将使用 dsh …」，尚未确认）；设置 → DSH Native Chat →「dsh 版本」切换安装、「运行环境」看路径/版本/其他安装。0.2.x 的启动 URL 与 token 只在内存中使用，日志里 `token=***`。
 - **手动对照**：直接跑服务，看它自己的输出：
   ```bash
   cd <vault 路径>
@@ -188,7 +189,10 @@ node --input-type=module -e "import('/tmp/locator.mjs').then(async (m) => { cons
 
 ## 提交前检查（pre-commit）
 
-- `npm run check`：版本三处一致、无运行时依赖 / `isDesktopOnly`、`tsc -noEmit -skipLibCheck`、`main.js` 与当前源码的生产构建逐字节一致（在内存中构建，不改写文件）。
+两条命令分工不同，发版前都要过：
+
+- `npm run lint`：ESLint，配置 [eslint.config.mjs](../eslint.config.mjs)，规则来自官方 `eslint-plugin-obsidianmd` 的 `recommended`（与 Obsidian 社区目录对 Source code 的扫描是同一套），只扫 `src/`；目标是 **0 error**，warning 不阻断。
+- `npm run check`：仓库自身规则——版本三处一致、无运行时依赖 / `isDesktopOnly`、manifest 合规（0055：id / name / description / authorUrl / minAppVersion）、`tsc -noEmit -skipLibCheck`、`main.js` 与当前源码的生产构建逐字节一致（在内存中构建，不改写文件）、桥插件清单与 `node --check` 语法。
 - `npm run check -- --staged`：额外检查本次提交的暂存集：禁止 `.DS_Store` / `data.json` / `node_modules` / `skills/*/data/cache/`；源码或构建配置有变动时，要求 `main.js` 一起暂存且与构建结果一致。
 - 钩子安装：`scripts/install-hooks.sh` 把 `scripts/githooks/pre-commit` 复制到 `.git/hooks/pre-commit`（幂等）；`npm install` 的 `postinstall` 与 `npm run hooks:install` 都会执行。改了模板后重跑 `npm run hooks:install`。
 - 临时绕过（不推荐，须在 commit message 注明理由）：`SKIP_COMMIT_CHECK=1 git commit ...`。
@@ -202,7 +206,7 @@ node --input-type=module -e "import('/tmp/locator.mjs').then(async (m) => { cons
 
 ## 现状与手动回归
 
-当前仓库有 git 版本控制与 `pre-commit` 检查（`npm run check`），但**没有**单元测试、lint、CI。改动靠检查 + 构建 + 手动回归验证，每次改完至少过一遍。
+当前仓库有 git 版本控制、`pre-commit` 检查（`npm run check`）与本地 lint（`npm run lint`），但**没有**单元测试与 CI。改动靠检查 + 构建 + 手动回归验证，每次改完至少过一遍。
 
 > 若服务根本起不来（状态条「启动失败」），先按 [troubleshooting.md](troubleshooting.md) 排查 profile / 可执行文件，再回来做回归。
 
@@ -213,7 +217,7 @@ node --input-type=module -e "import('/tmp/locator.mjs').then(async (m) => { cons
 5. 设置里改端口 → 重启服务 → 原生面板连接新端口；界面不再展示服务 URL。
 6. 用别的程序占端口（如 `python3 -m http.server 3082`）→ 状态条「端口被占用」、不显示「运行中」；换端口后恢复。
 7. 禁用插件 → 自启进程退出（`lsof -nP -iTCP:<port> -sTCP:LISTEN` 无输出）。
-8. 重新加载插件 → 控制台出现 `[obsidian-dsh] dsh 版本: <版本>（<路径>）`；有冲突 / 回退时 Notice 与设置页「运行环境」一致。
+8. 重新加载插件 → 控制台出现 `[dsh-native-chat] dsh 版本: <版本>（<路径>）`；有冲突 / 回退时 Notice 与设置页「运行环境」一致。
 9. 设置页「dsh 版本」切换 → 重启服务 → 原生面板正常连接；显式选择后不再弹冲突 Notice。
 10. 0.2.x：控制台出现 `dsh 就绪信号: http://…?token=***`；日志无明文 token。
 11. 端口上留一个 0.2.x 实例再重载插件 → 状态条「需手动结束」+ Notice 给 `pkill`；清掉后恢复。
@@ -244,7 +248,7 @@ node --input-type=module -e "import('/tmp/locator.mjs').then(async (m) => { cons
     悬停 tooltip 有名称与描述。
 33. 模型菜单一级只列模型；悬停有层级的模型 → 右侧出现层级菜单并勾选当前层级；点层级后 chip 与发送模型更新；
     DeepSeek chip 显示官方鲸鱼 + 层级（无层级只鲸鱼），其他模型显示「名称 · 层级」。
-34. 标签页与命令 / ribbon 显示「DeepSeek Harness」（命令 id 仍是 `obsidian-dsh:open-dsh-view`）；功能区与命令面板各只有一个打开入口；
+34. 标签页与命令 / ribbon 显示「DeepSeek Harness」（命令 id 是 `dsh-native-chat:open-dsh-view`）；功能区与命令面板各只有一个打开入口；
     标签页 / ribbon 使用 DSH 鲸鱼图标（单色，跟随主题）。
 35. 消息引用：用 `@` 选中的文件在正文里是 `@vault/相对路径`，气泡里渲染成可点击短链接；点链接在**主区新标签**打开、聊天面板保留；
     历史 `@路径` / `[[…]]` 消息同样渲染成链接；代码块 / 邮箱 / vault 里不存在的路径保持纯文本。
