@@ -2,7 +2,7 @@
 
 Chat with a local [DeepSeek Harness](https://github.com/deepseek-ai/dsh) (dsh) agent inside Obsidian: the plugin runs a managed dsh service whose working directory is your vault, and renders the conversation in a native React panel in the right sidebar.
 
-> Plugin id `dsh-native-chat` · version 1.1.0 · requires Obsidian ≥ 1.7.2 · **desktop only**
+> Plugin id `dsh-native-chat` · version 1.1.1 · requires Obsidian ≥ 1.7.2 · **desktop only**
 
 ## Features
 
@@ -72,7 +72,7 @@ The dsh-side bridge plugin `dsh-obsidian-bridge` is required for the panel (inst
 
 在 Obsidian 右侧面板里，用**原生 React UI** 与 DeepSeek Harness（dsh）聊天；插件自动托管一个独立的 dsh 服务，工作目录就是当前笔记库。
 
-> 插件 id `dsh-native-chat` · 版本 1.1.0 · 需要 Obsidian ≥ 1.7.2 · 桌面端专用
+> 插件 id `dsh-native-chat` · 版本 1.1.1 · 需要 Obsidian ≥ 1.7.2 · 桌面端专用
 
 ## 为什么用它
 

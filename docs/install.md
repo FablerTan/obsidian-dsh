@@ -9,7 +9,7 @@
 - **平台**：macOS + zsh（Windows / Linux 未验证）；插件 `isDesktopOnly: true`，**移动端不可用**。
 - **只管安装**：开发环境、构建细节、手动回归见 [development.md](development.md)；出问题先看第 11 节，再查 [troubleshooting.md](troubleshooting.md)。
 - **事实来源**：默认值取自 `src/settings/schema.ts` 的 `DEFAULT_SETTINGS`，清单取自 `manifest.json`，进程与可执行文件解析取自 `src/service/`；文档与代码冲突时以代码为准。
-- **本机已核对**（2026-10-28）：插件 1.1.0、桥 0.5.0（API v8）、dsh 0.2.1-rc.3、Obsidian 1.14.4。
+- **本机已核对**（2026-10-28）：插件 1.1.1、桥 0.5.0（API v8）、dsh 0.2.1-rc.3、Obsidian 1.14.4。
 
 > **铁律**：任何一步的成功判据不满足，就停下按第 11 节处理；**不要**跳过、不要靠换端口掩盖、不要手改产物。
 
@@ -39,7 +39,7 @@ export DSH_HOME_DIR="${DSH_HOME:-$HOME/.dsh}"       # 与 dsh 一致：环境变
 export PROFILE="$DSH_HOME_DIR/profiles/obsidian"
 export PORT=3081                                   # 默认端口；data.json 改过就以实际值为准
 
-export VERSION="v1.1.0"                            # 仅 A：要装的插件版本（= Release tag）
+export VERSION="v1.1.1"                            # 仅 A：要装的插件版本（= Release tag）
 export BRIDGE_DIR="$HOME/.local/share/dsh-native-chat/bridge-$VERSION"   # 仅 A：桥解压位置
 export REPO="$HOME/path/to/obsidian-dsh"           # 仅 B：仓库 checkout
 ```
@@ -228,13 +228,13 @@ for f in main.js manifest.json styles.css versions.json; do
   curl -fL --retry 3 --retry-delay 2 "$BASE/$f" -o "$PLUGIN_DIR/$f"
 done
 ls -l "$PLUGIN_DIR"
-grep -m1 "version" "$PLUGIN_DIR/manifest.json"     # 期望 "1.1.0"
+grep -m1 "version" "$PLUGIN_DIR/manifest.json"     # 期望 "1.1.1"
 ```
 
 **成功判据**：
 
-- 三个文件都存在且非空（`main.js` 约 346 KB，`styles.css` 约 74 KB）；
-- `manifest.json` 里 `"id": "dsh-native-chat"`、`"version": "1.1.0"`、`"isDesktopOnly": true`；
+- 四个文件都存在且非空（`main.js` 约 347 KB，`styles.css` 约 76 KB）；
+- `manifest.json` 里 `"id": "dsh-native-chat"`、`"version": "1.1.1"`、`"isDesktopOnly": true`；
 - `PLUGIN_DIR` 就是 `<vault>/.obsidian/plugins/dsh-native-chat`（目录名与插件 id 一致，避免多版本混淆）。
 
 > 不想用 Release 时，可用同版本的 tag 直接取文件（等价的兜底）：

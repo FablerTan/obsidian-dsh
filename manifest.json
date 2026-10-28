@@ -1,7 +1,7 @@
 {
 	"id": "dsh-native-chat",
 	"name": "DSH Native Chat",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"minAppVersion": "1.7.2",
 	"description": "Chat with a local DeepSeek Harness agent in a native side panel, with streaming replies, tool calls, and vault-aware sessions.",
 	"author": "fabler",

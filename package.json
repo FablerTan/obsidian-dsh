@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-dsh",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"description": "Chat with DeepSeek Harness in Obsidian via a native panel backed by a managed dsh service.",
 	"main": "main.js",
 	"type": "module",
