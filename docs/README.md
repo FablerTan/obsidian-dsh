@@ -11,7 +11,7 @@
 | [install.md](install.md) | **安装指南（给 agent）**：A 只装产物 / B 源码构建两条路线 → dsh 0.2.x → obsidian profile → 模型接入 → 插件与桥 → 验收 / 失败矩阵 / 更新回滚 |
 | [obsidian-cdp.md](obsidian-cdp.md) | 开发期让 dsh 通过 CDP + MCP 操作 / 调试 Obsidian：启动、配置、常用操作、全流程与排障 |
 | [troubleshooting.md](troubleshooting.md) | 故障排查：服务起不来、原生面板空白、端口冲突、PATH 问题 |
-| [skills.md](skills.md) | `skills/` 目录约定与 obsidian-docs 文档检索技能 |
+| [skills.md](skills.md) | `skills/` 目录约定、obsidian-docs 文档检索技能与 project-review 项目审阅技能 |
 
 ## 维护约定
 

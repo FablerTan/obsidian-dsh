@@ -69,6 +69,7 @@ Obsidian 自身 API（Plugin / ItemView / Vault / requestUrl…）**不要读类
 | 目录约定、默认值、版本、验证要求 | `AGENTS.md` |
 | Obsidian 使用/插件 API | `skills/obsidian-docs`（不要猜） |
 | 本仓库的文档清单 | `docs/README.md` |
+| 代码冗余 / 重复定义 / 超长文件 / 结构漂移怎么审阅 | `skills/project-review/SKILL.md` |
 
 ## 2. 落位决策（30 秒）
 
@@ -171,4 +172,5 @@ shared/ ──► 无内部依赖
 | 改动地图、构建、回归 | `docs/development.md` |
 | 排障 | `docs/troubleshooting.md` |
 | 技能目录约定 | `docs/skills.md` |
+| 代码审阅与不改功能的分批重构 | `skills/project-review/SKILL.md` |
 | Obsidian 官方文档检索 | `skills/obsidian-docs/SKILL.md` |

@@ -7,6 +7,7 @@
 |---|---|
 | [obsidian-docs](obsidian-docs/SKILL.md) | 检索 Obsidian 官方文档：中文帮助 / 英文帮助 / 开发者文档（含 TypeScript API），离线索引 + 在线抓正文 |
 | [project-guide](project-guide/SKILL.md) | 冷启动 + 结构指南：新会话查文档进入状态（不重读源码）、文件落位决策表、分层依赖、拆分判据与验收清单 |
+| [project-review](project-review/SKILL.md) | 项目审阅：只读扫描冗余 / 重复定义 / 结构漂移 / 超长文件 / 文档漂移，出分级报告给用户确认，再按「不改功能」分批重构并验证 |
 
 ## 接入 DSH
 

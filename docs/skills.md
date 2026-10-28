@@ -32,6 +32,7 @@ whenToUse: 什么情况下应该加载它（写成给 agent 的判断条件）
 |---|---|---|
 | `obsidian-docs` | 检索 Obsidian 三套官方文档（中文帮助 / 英文帮助 / 开发者文档）：离线索引 + 在线抓正文，中文优先、必要时回退英文 | [SKILL.md](../skills/obsidian-docs/SKILL.md) · [obsdocs.mjs](../skills/obsidian-docs/scripts/obsdocs.mjs) |
 | `project-guide` | 冷启动 + 结构指南：新会话按顺序查文档了解现状（不重读源码）、新文件落位决策表、分层依赖、拆分判据、验收清单 | [SKILL.md](../skills/project-guide/SKILL.md) |
+| `project-review` | 审阅项目代码：只读扫描冗余 / 重复定义 / 结构漂移 / 超长文件 / 文档漂移，出分级报告给用户确认，再按「不改功能」分批重构并验证 | [SKILL.md](../skills/project-review/SKILL.md) · [audit.mjs](../skills/project-review/scripts/audit.mjs) |
 
 常用命令（在项目根执行）：
 
@@ -39,6 +40,8 @@ whenToUse: 什么情况下应该加载它（写成给 agent 的判断条件）
 node skills/obsidian-docs/scripts/obsdocs.mjs find 属性 --lang zh     # 搜目录
 node skills/obsidian-docs/scripts/obsdocs.mjs get 编辑与格式化/属性    # 取正文
 node skills/obsidian-docs/scripts/obsdocs.mjs sync                    # 文档站更新后重建索引
+node skills/project-review/scripts/audit.mjs                          # 只读扫描结构债（Markdown 报告）
+node skills/project-review/scripts/audit.mjs --json --top 20          # 结构化 findings（JSON）
 ```
 
 ## 接入 DSH
@@ -57,7 +60,7 @@ DSH 从若干目录发现技能，优先级从高到低（本项目只用到第�
 .dsh/skills/<技能名> -> ../../skills/<技能名>
 ```
 
-已接入：`.dsh/skills/obsidian-docs -> ../../skills/obsidian-docs`、`.dsh/skills/project-guide -> ../../skills/project-guide`。加载后技能的 `resourceBase` 指向 `.dsh/skills/<技能名>`，所以技能内部互相引用的相对路径照常可用。
+已接入：`.dsh/skills/obsidian-docs -> ../../skills/obsidian-docs`、`.dsh/skills/project-guide -> ../../skills/project-guide`、`.dsh/skills/project-review -> ../../skills/project-review`。加载后技能的 `resourceBase` 指向 `.dsh/skills/<技能名>`，所以技能内部互相引用的相对路径照常可用。
 
 > 项目根由 DSH 向上查找 `.git` 决定；本仓库已 `git init`（2026-10-26），项目根就是本目录，链接继续有效。
 
