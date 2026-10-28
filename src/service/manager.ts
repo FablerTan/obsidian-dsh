@@ -3,6 +3,13 @@ import { sleep } from '../shared/async';
 import { logChild, logPlugin, logPluginError, logPluginWarn, redactToken } from '../shared/log';
 import type { DshCommand, DshRuntimeInfo, Probe, ProbeResult } from '../shared/types';
 import { buildSpawnEnv, inspectDshRuntime, resolveDshInstall } from './locator';
+import {
+	listPortListenerPids,
+	looksLikeDshCommand,
+	readProcessCommand,
+	terminateProcesses,
+	type PortListener,
+} from './port-dsh';
 
 /** dsh 服务配置（端口、profile、指定安装由设置页决定，运行期可能变化）。 */
 export interface DshServiceConfig {
@@ -19,6 +26,21 @@ export type DshServiceOutcome =
 			ok: false;
 			reason: 'locator' | 'exited' | 'timeout' | 'occupied' | 'auth' | 'unsupported';
 			exitCode?: number | null;
+	  };
+
+/**
+ * 「结束后台 dsh」的结果：成功（含是否结束了本次拉起的子进程、结束了哪些 PID），
+ * 或失败分类（foreign = 端口上是别的程序；unidentified = 列不出 / 认不出监听者；
+ * timeout = 已发信号但端口仍被占用）。
+ */
+export type DshStopOutcome =
+	| { ok: true; stoppedOwn: boolean; pids: number[] }
+	| {
+			ok: false;
+			reason: 'foreign' | 'unidentified' | 'timeout';
+			stoppedOwn: boolean;
+			pids: number[];
+			stuck?: number[];
 	  };
 
 export interface DshServiceOptions {
@@ -41,10 +63,27 @@ const READY_INTERVAL_MS = 500;
 const KILL_GRACE_MS = 2000;
 /** 重启时等待旧进程退出的上限。 */
 const STOP_TIMEOUT_MS = 3000;
+/** 「结束后台 dsh」成功后等待端口释放的上限。 */
+const PORT_RELEASE_MS = 3000;
+/** 停掉自拉子进程后额外的端口释放宽限（系统回收监听套接字可能比进程退出慢一拍）。 */
+const OWN_RELEASE_GRACE_MS = 1500;
+/** 轮询端口是否已释放的间隔。 */
+const PORT_POLL_INTERVAL_MS = 150;
 /** stdout/stderr 行缓冲上限：URL 与日志都按整行处理，留余量防止跨 chunk 被截断。 */
 const OUTPUT_BUFFER_LIMIT = 65536;
 /** dsh 0.2.x 的就绪信号：`dsh web: <带 token 的 URL>`。 */
 const WEB_URL_PATTERN = /dsh web: (https?:\/\/[^\s]+)/;
+
+/** 日志里展示监听进程：pid（命令行）。 */
+function describeListeners(listeners: readonly PortListener[]): string {
+	return listeners
+		.map(
+			(listener) =>
+				String(listener.pid) +
+				(listener.command === null ? '（命令行不可读）' : '（' + listener.command + '）'),
+		)
+		.join('、');
+}
 
 /**
  * dsh 服务的进程托管：探测 → 拉起 → 等待就绪 → 重启 / 停止。
@@ -135,6 +174,97 @@ export class DshServiceManager {
 		logPlugin('dsh 未在 ' + String(timeoutMs) + 'ms 内退出，改用 SIGKILL');
 		child.kill('SIGKILL');
 		return this.waitExit(child, 1000);
+	}
+
+	/**
+	 * 结束后台 dsh：先停本次拉起的子进程，再处理占住配置端口的遗留 dsh 实例。
+	 *
+	 * 只用「端口探测 + 命令行核实」判定能否安全结束：
+	 *  - 探测为 foreign（端口上是别的程序）→ 一律不动，返回 reason: 'foreign'；
+	 *  - 列不出 / 认不出监听进程（无 lsof、命令行不可读、命令行不像 dsh）→ 'unidentified'；
+	 *  - 发了 SIGTERM/SIGKILL 但端口仍被占用 → 'timeout'（附仍存活的 pid）。
+	 * 命令执行异常一律收敛成 'unidentified'，不向调用方抛。成功后不自动重启。
+	 */
+	async stopBackground(): Promise<DshStopOutcome> {
+		let stoppedOwn = this.child !== null;
+		try {
+			await this.stopAndWait(STOP_TIMEOUT_MS);
+			// 旧 start 可能还在等就绪信号：等它收敛，避免刚结束又被它拉起 / 误判端口状态。
+			const starting = this.starting;
+			if (starting !== null) await starting.catch(() => undefined);
+			// start 可能在 stopAndWait 之后才 spawn 出子进程，再收一次尾。
+			if (this.child !== null) {
+				stoppedOwn = true;
+				await this.stopAndWait(STOP_TIMEOUT_MS);
+			}
+			const port = this.options.getConfig().port;
+			const state = await this.check();
+			if (state === 'down') {
+				this.options.onStatus('已结束');
+				return { ok: true, stoppedOwn, pids: [] };
+			}
+			if (state === 'foreign') {
+				logPluginWarn(
+					'端口 ' + String(port) + ' 被非 dsh 程序占用；「结束后台 dsh」不会结束它',
+				);
+				this.options.onStatus('端口被其他程序占用');
+				return { ok: false, reason: 'foreign', stoppedOwn, pids: [] };
+			}
+			// auth / running：端口上是 dsh（0.2.x 的 token 实例或可直接访问的旧实例）。
+			const pids = await listPortListenerPids(port);
+			if (pids.length === 0) {
+				logPluginWarn('端口 ' + String(port) + ' 上是 dsh，但列不出监听进程（缺少 lsof？）');
+				this.options.onStatus('无法结束');
+				return { ok: false, reason: 'unidentified', stoppedOwn, pids: [] };
+			}
+			const commands = await Promise.all(pids.map((pid) => readProcessCommand(pid)));
+			const verified = pids.filter((_pid, index) => looksLikeDshCommand(commands[index] ?? null));
+			if (verified.length === 0) {
+				const listeners = pids.map((pid, index) => ({ pid, command: commands[index] ?? null }));
+				logPluginWarn(
+					'端口 ' +
+						String(port) +
+						' 上的监听进程不像 dsh，拒绝结束: ' +
+						describeListeners(listeners),
+				);
+				this.options.onStatus('无法结束');
+				return { ok: false, reason: 'unidentified', stoppedOwn, pids };
+			}
+			logPlugin('结束后台 dsh（pid ' + verified.map(String).join(', ') + '）');
+			const stuck = await terminateProcesses(verified);
+			// 刚结束自拉进程时，系统回收监听套接字可能比进程退出慢一拍：多给 1.5s 预算
+			// （总预算 3s + 1.5s，端口一空就立即返回，不会白等）。
+			const releaseBudget = PORT_RELEASE_MS + (stoppedOwn ? OWN_RELEASE_GRACE_MS : 0);
+			if (await this.waitPortFree(port, releaseBudget)) {
+				this.options.onStatus('已结束');
+				logPlugin('端口 ' + String(port) + ' 已释放');
+				return { ok: true, stoppedOwn, pids: verified };
+			}
+			logPluginWarn(
+				'端口 ' +
+					String(port) +
+					' 仍被占用' +
+					(stuck.length > 0 ? '（未退出的 pid ' + stuck.map(String).join(', ') + '）' : ''),
+			);
+			this.options.onStatus('结束超时');
+			return { ok: false, reason: 'timeout', stoppedOwn, pids: verified, stuck };
+		} catch (error) {
+			logPluginWarn(
+				'结束后台 dsh 失败: ' + (error instanceof Error ? error.message : String(error)),
+			);
+			this.options.onStatus('无法结束');
+			return { ok: false, reason: 'unidentified', stoppedOwn, pids: [] };
+		}
+	}
+
+	/** 等端口不再有人监听；超时返回 false。 */
+	private async waitPortFree(port: number, timeoutMs: number): Promise<boolean> {
+		const deadline = Date.now() + timeoutMs;
+		for (;;) {
+			if ((await listPortListenerPids(port)).length === 0) return true;
+			if (Date.now() >= deadline) return false;
+			await sleep(PORT_POLL_INTERVAL_MS);
+		}
 	}
 
 	private async doStart(): Promise<DshServiceOutcome> {
@@ -233,7 +363,7 @@ export class DshServiceManager {
 				// Obsidian 从 Finder/Dock 启动时 PATH 是精简的（无 ~/.local/bin），
 				// 这里把常见 bin 目录前置注入，保证 dsh 的 shebang（#!/usr/bin/env node）
 				// 和 dsh 内部的子进程都能找到 node / pnpm 等工具。
-				env: buildSpawnEnv(),
+				env: buildSpawnEnv(resolved.env),
 				stdio: ['ignore', 'pipe', 'pipe'],
 			});
 		} catch (error) {

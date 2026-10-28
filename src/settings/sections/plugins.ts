@@ -349,15 +349,23 @@ export async function renderPluginsSection(
 	};
 	restartButtonEl.onclick = async (): Promise<void> => {
 		restartButtonEl.disabled = true;
+		restartButtonEl.setText('重启中…');
 		setNotice('正在重启 DSH 服务…', false);
 		try {
-			await host.restartService();
+			const result = await host.restartService();
 			await load(true);
-			setNotice('已执行重启（结果见 Notice / 状态栏）。', false);
+			if (context.isStale()) return;
+			setNotice(
+				result.ok
+					? result.message
+					: '重启失败：' + result.message + (result.hint === undefined ? '' : '；' + result.hint),
+				!result.ok,
+			);
 		} catch (error) {
 			setNotice('重启失败：' + errorText(error), true);
 		} finally {
 			restartButtonEl.disabled = false;
+			restartButtonEl.setText('重启服务');
 		}
 	};
 	filterEl.oninput = () => {

@@ -1,11 +1,13 @@
 import type { App } from 'obsidian';
 import type {
+	DshActionResult,
 	DshBridgeStatus,
 	DshInstall,
 	DshOptionalCatalog,
 	DshPluginInventory,
 	DshPluginRow,
 	DshRuntimeInfo,
+	DshStopResult,
 } from '../shared/types';
 import type { DshPluginSettings } from './schema';
 
@@ -13,7 +15,10 @@ import type { DshPluginSettings } from './schema';
 export interface SettingsHost {
 	settings: DshPluginSettings;
 	saveSettings(): Promise<void>;
-	restartService(): Promise<void>;
+	/** 重启服务；结果交给调用方就地展示（0056：进度 / 成功 / 失败 + 下一步建议）。 */
+	restartService(): Promise<DshActionResult>;
+	/** 结束后台 dsh：插件自拉进程 + 占用配置端口的遗留 dsh（0056）。 */
+	stopBackgroundService(): Promise<DshStopResult>;
 	/** 实际使用的 dsh（路径 / 版本 / 其他版本安装）；尚未拉起时返回 null。 */
 	getRuntimeInfo(): DshRuntimeInfo | null;
 	/** 检测到的 dsh 安装（带版本），供「dsh 版本」下拉与「运行环境」展示。 */

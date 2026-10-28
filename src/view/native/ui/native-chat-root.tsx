@@ -1,5 +1,11 @@
 import { Notice, TFolder, type App } from 'obsidian';
-import { useEffect, useRef, useState } from 'react';
+import {
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+	type MouseEvent as ReactMouseEvent,
+} from 'react';
 import type {
 	NativeChatLive,
 	NativeChatSnapshot,
@@ -34,6 +40,12 @@ import { describeNativeBridgeError } from '../core-bridge';
 import type { MentionEntry } from '../mention';
 import { filterMentionEntries } from '../mention-scope';
 import type { NoteTracker } from '../note-tracker';
+import {
+	captureSelectionQuote,
+	jumpToQuote,
+	observeEditorSelection,
+} from '../editor-selection';
+import { formatQuote, quoteKey, type SelectionQuote } from '../quote';
 import { Composer } from './composer';
 import { ContextDetails } from './context-meter';
 import { GoalBar } from './goal-bar';
@@ -110,6 +122,8 @@ export interface NativeChatRootProps {
 	getSkillScope: () => SkillScope;
 	/** 设置页的「/」命令范围（0050）；每次打开 / 菜单时读取，只影响菜单显示。 */
 	getCommandScope: () => CommandScope;
+	/** 设置页的选区引用摘录上限（0058）；发送 / 预览时读取。 */
+	getQuoteExcerptLimit: () => number;
 }
 
 export function NativeChatRoot({
@@ -124,6 +138,7 @@ export function NativeChatRoot({
 	getMentionScope,
 	getSkillScope,
 	getCommandScope,
+	getQuoteExcerptLimit,
 }: NativeChatRootProps) {
 	const [phase, setPhase] = useState<Phase>('booting');
 	const [bootError, setBootError] = useState<string | null>(null);
@@ -155,6 +170,8 @@ export function NativeChatRoot({
 	const [goalPending, setGoalPending] = useState(false);
 	/** 目标操作的错误文案：显示在目标条里，下一次操作 / 切换会话时清空。 */
 	const [goalError, setGoalError] = useState<string | null>(null);
+	/** 0058：点输入框时捕获的选区引用（预览条显示，发送时前置到消息文本）。 */
+	const [pendingQuote, setPendingQuote] = useState<SelectionQuote | null>(null);
 
 	const mountedRef = useRef(true);
 	const tokenRef = useRef(0);
@@ -172,6 +189,8 @@ export function NativeChatRoot({
 	const subagentRequestRef = useRef(0);
 	/** 目标投影请求序号（0052），与上下文同样的「只接受最新一次」策略。 */
 	const goalRequestRef = useRef(0);
+	/** 0058：用户点 × 明确不引用的选区指纹；同一选区不再自动带回。 */
+	const dismissedQuoteRef = useRef<string | null>(null);
 	/** 同一帧内的多个 live 包只保留最后一个。 */
 	const pendingLiveRef = useRef<NativeChatLive | null>(null);
 	const liveRafRef = useRef<number | null>(null);
@@ -583,15 +602,57 @@ export function NativeChatRoot({
 		}
 	};
 
+	/**
+	 * 0058：选区快照 → 预览状态。`null` 或「用户点过 × 的同一选区」不显示；
+	 * 选区变化时清掉旧的 dismissed，让新选区能正常出现。
+	 */
+	const applyQuote = useCallback((next: SelectionQuote | null): void => {
+		if (next === null) {
+			dismissedQuoteRef.current = null;
+			setPendingQuote((prev) => (prev === null ? prev : null));
+			return;
+		}
+		const key = quoteKey(next);
+		if (dismissedQuoteRef.current === key) {
+			setPendingQuote((prev) => (prev === null ? prev : null));
+			return;
+		}
+		dismissedQuoteRef.current = null;
+		setPendingQuote((prev) => (prev !== null && quoteKey(prev) === key ? prev : next));
+	}, []);
+
+	// 0059：编辑区选区一变就同步预览（不必先点输入框）；失焦后编辑器选区仍在，点面板不会清掉。
+	useEffect(() => observeEditorSelection(app, applyQuote), [app, applyQuote]);
+
+	/** 0058：点输入卡 / 输入框获得焦点前再抓一次（实时监听的兜底）。 */
+	const captureQuote = (): void => {
+		applyQuote(captureSelectionQuote(app));
+	};
+
+	/** 0058：点 × 只对「当前选区」生效；下次选区变了还会重新带上。 */
+	const clearQuote = (): void => {
+		if (pendingQuote !== null) dismissedQuoteRef.current = quoteKey(pendingQuote);
+		setPendingQuote(null);
+	};
+
 	const send = async (): Promise<void> => {
 		const text = draft.trim();
 		if (text === '' || sessionId === null) return;
+		// 0058：选区引用随消息文本发送；草稿是 / 命令时不加（dsh 命令判定要求单个 text block 且以 / 开头）。
+		const quote = pendingQuote !== null && !text.startsWith('/') ? pendingQuote : null;
 		setBusy(true);
 		setError(null);
 		try {
-			await bridge.send(text);
+			const payload =
+				quote === null ? text : formatQuote(quote, getQuoteExcerptLimit()) + '\n\n' + text;
+			await bridge.send(payload);
 			if (!mountedRef.current) return;
 			setDraft('');
+			if (quote !== null) {
+				// R2：不自动把焦点切回编辑区；同一选区也不在下一轮自动重复引用。
+				dismissedQuoteRef.current = quoteKey(quote);
+				setPendingQuote(null);
+			}
 			await refreshSnapshot();
 		} catch (failure) {
 			if (!mountedRef.current) return;
@@ -859,8 +920,25 @@ export function NativeChatRoot({
 			? snapshot.session.lastAgentError
 			: null;
 
+	/**
+	 * 0058：点面板空白处不抢编辑区焦点。消息正文 / 输入框 / 可交互元素保持默认行为，
+	 * 否则会破坏文本选择、复制与输入。
+	 */
+	const handleBlankMouseDown = (event: ReactMouseEvent<HTMLDivElement>): void => {
+		const target = event.target;
+		if (!(target instanceof HTMLElement)) return;
+		if (
+			target.closest(
+				'.dsh-native-timeline, .dsh-native-composer, input, textarea, select, button, a, summary, [contenteditable="true"], [role="button"]',
+			) !== null
+		) {
+			return;
+		}
+		event.preventDefault();
+	};
+
 	return (
-		<div className="dsh-native-app">
+		<div className="dsh-native-app" onMouseDownCapture={handleBlankMouseDown}>
 			<header className="dsh-native-header">
 				<button className="dsh-native-title" onClick={() => setPickerOpen((value) => !value)}>
 					<span>{title}</span>
@@ -1073,6 +1151,13 @@ export function NativeChatRoot({
 								/>
 							) : null
 						}
+						quote={pendingQuote}
+						quoteLimit={getQuoteExcerptLimit()}
+						onCaptureQuote={captureQuote}
+						onOpenQuote={() => {
+							if (pendingQuote !== null) void jumpToQuote(app, pendingQuote);
+						}}
+						onClearQuote={clearQuote}
 						pending={
 							pending !== null ? (
 								<PendingCard

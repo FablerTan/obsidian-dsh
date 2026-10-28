@@ -91,6 +91,7 @@ export class DshNativeChatView extends ItemView {
 					getMentionScope={() => this.host.getMentionScope()}
 					getSkillScope={() => this.host.getSkillScope()}
 					getCommandScope={() => this.host.getCommandScope()}
+					getQuoteExcerptLimit={() => this.host.getQuoteExcerptLimit()}
 				/>,
 			);
 		} finally {
@@ -196,7 +197,10 @@ export class DshNativeChatView extends ItemView {
 	private async restartService(): Promise<void> {
 		try {
 			// 主进程的重启逻辑会调用 reloadAfterRestart()；React 的 boot() 随后刷新列表。
-			await this.host.restartService();
+			const result = await this.host.restartService();
+			if (!result.ok) {
+				new Notice('DSH：' + result.message + (result.hint === undefined ? '' : ' — ' + result.hint), 12000);
+			}
 		} catch (error) {
 			new Notice('DSH：重启服务失败 — ' + errorText(error), 12000);
 		}

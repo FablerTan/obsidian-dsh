@@ -79,7 +79,14 @@ dsh 0.2.x 的 Web UI 需要浏览器会话 token（启动时打印 `dsh web: htt
 插件能接管**自己拉起**的 0.2.x（从 stdout 读就绪 URL），但拿不到**别的进程**的 token：
 
 - 典型场景：上次 Obsidian 崩溃/强退，遗留的 0.2.x 还占着端口 → 插件探测到 `auth`、状态条「需手动结束」；
-- 处理：`pkill -f "dsh --profile obsidian"` 结束遗留实例 → 点「重启服务」；
+- **首选处理（0056 起）**：设置 → DSH Native Chat →「服务」→ 点「结束后台 dsh」行的「结束」→ 行下显示「已结束后台 dsh（PID …）」→ 再点「重启服务」；
+- 这个按钮只结束**占用当前端口**的 dsh：先 `lsof` 取监听 PID，再用 `ps`（不可用时 `pgrep`）校验命令行确实是 dsh 才动手，本机 3082 等其它同 profile 实例不会被碰；
+- 按钮报 `unidentified`（取不到监听 PID / 命令行不像 dsh）或 `timeout` 时才用**手动兜底**（会杀掉同 profile 的**所有**实例）：
+
+  ```bash
+  pkill -f "dsh --profile obsidian"   # 手动兜底：会杀掉同 profile 的全部实例
+  ```
+
 - 不要用「换个端口」绕，遗留实例会继续占着旧端口。
 
 ## 使用 0.2.x / 切换 dsh 版本
@@ -90,16 +97,34 @@ dsh 0.2.x 的 Web UI 需要浏览器会话 token（启动时打印 `dsh web: htt
    已打开的面板若空白/401 → 关掉面板再打开；
 4. 显式选择某个版本后，启动时不再弹「发现其他版本」的 Notice（仍会写日志，可在「运行环境」查看）。
 
+### 用桌面 App 内置的 dsh
+
+机器上装了 DeepSeek Harness 桌面端（macOS `/Applications`、Windows `%LOCALAPPDATA%\Programs` 等标准位置）时，设置页「dsh 版本」会多出一项，路径是 App 根目录，版本是 App 内置的 dsh（0.2.x）。
+选中它 →「重启服务」即可：插件用 App 的 Electron 以 node 模式拉起自己的服务（cwd = vault、profile `obsidian`），不接管桌面 App 正在跑的实例；两者共用 `$DSH_HOME`。
+
+| 现象 | 原因 | 处理 |
+|---|---|---|
+| 选中后启动失败 / 版本显示「未知」 | App 升级改了内部入口路径，或 App 内置 dsh 与 profile 的版本差太大（如 0.2.1 跑 0.2.2 建的 profile） | 先「重启服务」重试；仍失败就在「dsh 版本」切回「自动」或另一份 0.2.x 安装 |
+| 「插件」tab 读不出可选插件目录 / 提示没有提供目录 | `app.asar` 是归档文件，普通 Node 读不到里面的安装内容（聊天、服务不受影响） | 改用 npm / checkout 的 dsh，或直接在终端用 `dsh plugin --profile obsidian add ...` |
+| Windows 上选中后无法启动 | Windows 启动方式（Electron-as-node、`.exe` 路径）尚未实测 | 在「dsh 版本」切回全局安装；把控制台 `[dsh]` 日志发来排障 |
+
+> 这是「用 App 里的 dsh 可执行文件」，不是「连上桌面 App 正在跑的服务」：0.2.x 的 token 每个进程新生成，插件仍只管理自己拉起的子进程。
+
 ### 0.1.x 不再支持
 
 0.3.0 起插件只接受 0.2.x：端口上如果是 0.1.x（裸 URL 返回 200 + `__ModuleLoader__`），
 状态条会显示「版本不支持」并拒绝拉起新进程。处理：
 
+1. 设置 → DSH Native Chat →「服务」→「结束后台 dsh」（只结束占用当前端口的实例）；
+2. 在设置页「dsh 版本」选择一份 0.2.x 安装，点「重启服务」。
+
+按钮失败时的**手动兜底**（会杀掉同 profile 的全部实例）：
+
 ```bash
-pkill -f "dsh --profile obsidian"   # 结束遗留实例
+pkill -f "dsh --profile obsidian"
 ```
 
-然后在设置页选择一份 0.2.x 安装，点「重启服务」。旧的 0.1.1 全局安装可以删除或改名备份。
+旧的 0.1.1 全局安装可以删除或改名备份。
 
 ## 原生聊天提示「不支持 webview」/ 仍 401
 
@@ -140,13 +165,13 @@ dsh 0.2.x 的会话 cookie 是 `SameSite=Strict`，只有 webview 的独立顶�
 
 1. `lsof -nP -iTCP:<port> -sTCP:LISTEN` 看占用者；
 2. 若是别的程序 → 插件设置里换端口 → 点「重启服务」；
-3. 若是之前遗留的 dsh（探测无法确认归属）→ `pkill -f "dsh --profile obsidian"` 清掉，再「重启服务」。
+3. 若是之前遗留的 dsh（探测无法确认归属）→ 设置页「服务」→「结束后台 dsh」，再「重启服务」；按钮取不到 PID 时用 `pkill -f "dsh --profile obsidian"` 手动兜底。
 
 ## 端口冲突 / 起了两个 dsh
 
 1. `lsof -nP -iTCP:<port>` 找出占用者；手动起的实例插件不会杀（设计如此）；
    - **插件重载 / Obsidian 崩溃**后，旧 dsh 可能变成孤儿继续占用端口（父进程已消失）。0.2.x 遗留实例会探测为 `auth`，
-     插件显示「需手动结束」、不会复用；清掉它（`kill <pid>` 或 `pkill -f "dsh --profile obsidian"`）后重启服务。
+     插件显示「需手动结束」、不会复用；点设置页「服务」→「结束后台 dsh」结束它（只针对当前端口）后重启服务。
 2. 结束多余进程，或在设置里改端口后点「重启服务」；
 3. 文档默认端口是 **3081**，但 `data.json` 里可能是你改过的值（比如 3082）——**以 data.json 为准**。
 

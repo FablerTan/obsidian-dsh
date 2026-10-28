@@ -24,6 +24,7 @@ flowchart LR
 | 关注点 | 归属 | 位置 |
 |---|---|---|
 | 拉起 / 健康检查 / 重启 / 清理 dsh 进程 | 插件 | `src/service/manager.ts` 的 `DshServiceManager` |
+| 结束后台 dsh（遗留实例，0056） | 插件 | `src/service/port-dsh.ts`（端口监听 PID + `ps` / `pgrep` 命令行校验 + SIGTERM/SIGKILL）+ `src/service/manager.ts` 的 `stopBackground()` + `src/settings/sections/service.ts`（按钮 / 就地状态行）+ `src/main.ts` |
 | 可执行文件解析、版本选择、版本探测与 PATH 注入 | 插件 | `src/service/locator.ts`（`resolveDshInstall` + `listDshCandidates`） |
 | dsh 版本选择（自动 / 指定检测到的安装） | 插件设置 | `src/settings/schema.ts`（`dshPath`）+ `src/settings/sections/runtime.ts` + `locator.ts` |
 | dsh 版本冲突的可见提示（M2-5） | 插件 | `src/service/manager.ts`（日志/回调）+ `src/main.ts`（Notice）+ `src/settings/sections/runtime.ts`（运行环境） |
@@ -33,6 +34,7 @@ flowchart LR
 | 隐藏 core 承载（Electron webview + 专用分区） | 插件 | `src/view/surface.ts`；分区由 `src/main.ts` 提供 |
 | 页面桥 v8（会话 / 快照 / 动作 / 审批提问 / 模型权限 / 流式 live / 上下文占用 / 命令与技能目录 / 团队投影 / 子智能体目录与子会话 / 目标投影与目标操作） | 插件 + dsh 客户端插件 | `src/view/native/core-bridge.ts` + `src/main.ts`；dsh 侧 `packages/dsh-obsidian-bridge/lib/client.js` |
 | 流式输出（live tail） | 插件 + dsh 客户端插件 | 桥同步订阅 `SessionBinding.eventSource`，`nextEvent` 同时返回结构游标与 `liveCursor/live`；原生端在 `timeline-model.ts` 合成运行中的 assistant-step |
+| 编辑器选区引用（0058 / 0059） | 插件 | `src/view/native/quote.ts`（引用块编解码纯函数）+ `editor-selection.ts`（`getMostRecentLeaf` 选区快照、`observeEditorSelection` 实时监听 / 跳转并选中）+ `ui/quote-card.tsx` / `ui/quote-preview.tsx` + `composer.tsx` / `native-chat-root.tsx`（实时预览、预览条点击跳转、发送前置、空白点击不抢焦点）+ `settings/schema.ts`（`quoteExcerptLimit`）+ `settings/sections/chat.ts` + `styles.css` |
 | 宿主接口（地址 / 分区 / 服务生命周期 / 设置读取） | 插件 | `src/view/panel-host.ts` |
 | 「@」引用范围（白名单 / 黑名单，0030） | 插件设置 | `src/settings/schema.ts` + `src/settings/sections/chat.ts` + `src/view/native/mention-scope.ts`（纯函数过滤）+ `src/view/panel-host.ts` / `src/main.ts`（`getMentionScope`）+ `src/view/native/ui/native-chat-root.tsx` |
 | 「/」菜单技能范围（白名单 / 黑名单，0037） | 插件设置 | `src/settings/schema.ts`（`ScopeMode` + `skillScope` / `skillWhitelist` / `skillBlacklist`）+ `src/settings/sections/chat.ts` + `src/view/native/skill-scope.ts`（纯函数过滤）+ `src/view/panel-host.ts` / `src/main.ts`（`getSkillScope`）+ `src/view/native/ui/native-chat-root.tsx` / `composer.tsx` |
@@ -60,6 +62,7 @@ src/
 ├─ main.ts            # 组合根：Plugin 子类，只做注册与装配（注入依赖、映射结果到 Notice）
 ├─ service/           # dsh 进程域（纯 Node，不 import obsidian）
 │  ├─ manager.ts      #   DshServiceManager：探测 → 拉起 → 等待就绪 → 重启 / 停止
+│  ├─ port-dsh.ts     #   结束后台 dsh：端口监听 PID + 命令行校验 + SIGTERM/SIGKILL（0056）
 │  ├─ locator.ts      #   可执行文件解析 + 版本探测 + PATH 注入
 │  ├─ plugin-inventory.ts # 插件清单：--dump-config 组合结果解析 + 版本（0031）
 │  ├─ plugin-patch.ts #   组件行启停：cordis.patch.yml 最小覆盖（备份 / 原子写 / 回滚，0031）
@@ -104,7 +107,7 @@ shared/ ──► 无内部依赖
 
 ## 服务生命周期
 
-状态：未知 → 探测中 → 启动中 → 运行中 / 启动失败 / 启动超时 / 端口被占用 / 需手动结束 / 版本不支持，状态条（`DSH: …`）实时反映。
+状态：未知 → 探测中 → 启动中 → 运行中 / 启动失败 / 启动超时 / 端口被占用 / 需手动结束 / 版本不支持；用户点「结束后台 dsh」后为「已结束」（失败时「端口被其他程序占用」/「无法结束」/「结束超时」）。状态条（`DSH: …`）实时反映。
 
 1. **触发**：`onload`（`autoStart` 为真时）、打开原生聊天、命令「重启 DSH 服务」。
 2. **去重**：`DshServiceManager.start()` 用内部的 `starting` 字段复用同一个 Promise，避免并发 spawn 多个进程。
@@ -114,6 +117,7 @@ shared/ ──► 无内部依赖
 6. **隐藏 core 地址**：`manager.embedUrl` 是带 token 的 URL（首次登录后走专用分区 cookie）；未就绪时回退裸 `url`。原生面板不展示 URL，token 不进 Notice / 设置页 / 日志。
 7. **卸载**：`onunload` 只杀**自己 spawn 的**子进程（`SIGTERM`，2s 后兜底 `SIGKILL`），用户手动启动的实例不动。
 8. **重启**：`manager.restart()` → `stopAndWait(3000)`（等 `exit`，超时 `SIGKILL` 再等 1s）→ 重新 `start()`，避免 `EADDRINUSE` 与「误判已就绪」。切换 dsh 版本后需手动点「重启服务」；`main.restartService()` 成功后若原生面板开着，会调用 `reloadAfterRestart()` 用新 token 重载隐藏 core，不需要手动重开。
+9. **结束后台 dsh（0056）**：只在用户显式点设置页「服务」→「结束后台 dsh」时触发；自动路径（启动 / 重启 / 卸载）仍然只结束自拉子进程。顺序：先停自拉子进程（`stopAndWait`，并等正在进行的 `start()` 收敛、必要时二次收尾）→ 探测端口（`down` 直接成功、`foreign` 拒绝）→ `port-dsh.ts` 取**当前端口**的监听 PID（POSIX `lsof`，缺 lsof 的 Linux 回落 `ss`；Windows `netstat`）→ 命令行核实确为 dsh（`ps` / `powershell`；否则 `unidentified`，不动手）→ SIGTERM → 轮询 3s 后 SIGKILL → 轮询端口释放（自拉进程额外等 1.5s；超时 `timeout`，附仍存活的 `stuck` PID）。只作用于当前端口，不碰 3082 等其它同 profile 实例；结果（`{ ok, stoppedOwn, pids }` / 失败 reason）交给设置页就地状态行展示。
 
 ## 进程解析与环境
 
@@ -122,8 +126,11 @@ shared/ ──► 无内部依赖
 - **可执行文件解析顺序**（`resolveDshInstall()`）：
   1. `node` + `~/.local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js`（绕开 `#!/usr/bin/env node` shebang 解析）；
   2. `PATH` 上的 `dsh`；
-  3. `~/.local/bin/dsh`、`/opt/homebrew/bin/dsh`、`/usr/local/bin/dsh`。
-- **环境注入**（`buildSpawnEnv()`）：把 `~/.local/bin`、`/opt/homebrew/bin`、`/usr/local/bin` 前置到 `PATH`（存在才加）。
+  3. `~/.local/bin/dsh`、`/opt/homebrew/bin/dsh`、`/usr/local/bin/dsh`；
+  4. 桌面 App 内置的 dsh（0057）：macOS `/Applications`、`~/Applications` 下的 `DeepSeek Harness.app`，Windows `%LOCALAPPDATA%\Programs`、`%ProgramFiles%`、`%ProgramFiles(x86)%` 下的 `DeepSeek Harness`。
+     启动方式不是 App 的 shell / `.cmd` 外壳，而是直接跑 App 的 Electron：`{ cmd: <Electron>, prefix: ['--expose-internals', 'app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/cli.js'], env: { ELECTRON_RUN_AS_NODE: '1' } }`
+     —— 子进程就是真正的 dsh 进程，`stop()` / `stopBackground()` 能直接结束；`app.asar` 内的安装内容普通 Node 读不到，所以「插件」tab 的可选插件目录可能解析不到。
+- **环境注入**（`buildSpawnEnv(extra?)`）：把 `~/.local/bin`、`/opt/homebrew/bin`、`/usr/local/bin` 前置到 `PATH`（存在才加）；`extra` 只合并本次启动需要的变量（如 App 的 `ELECTRON_RUN_AS_NODE=1`），不改全局 env。
 - 常见坑：两条路径都要保持可用。本机 `~/.local/bin/dsh` 是指向开发 checkout（`~/dsh/deepseek-harness/apps/cli/lib/bin.js`）的符号链接；只要 `~/.local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js` 存在，第 1 条就会命中并**优先使用那份全局安装**（本机可能是 0.1.x，旧于 checkout 的 0.2.x）—— 版本不一致时以实际运行的为准，别假设用的是 checkout（见 [troubleshooting](troubleshooting.md)）。
 - 版本可见性（M2-5）：`listDshCandidates()` 按上面的顺序列出所有可用安装（按 `realpath` 去重），`probeDshVersion()` 执行 `<cmd> --version`（3s 超时，失败返回 `null`），`inspectDshRuntime()` 返回「实际使用 + 版本不同的其他安装」。manager 在 spawn 成功后**后台**探测（不 await，不拖慢启动），写 `[dsh-native-chat] dsh 版本: …`；服务已在运行（非本次拉起）时同样探测，但结果标为 `confirmed: false`，日志写「插件将使用 …」。有冲突时再写一条 `console.warn` 日志，并通过 `onRuntime` 回调交给插件层：插件加载/重启后弹一次 Notice（确认时用「当前使用」，未确认时用「插件将使用」），设置页「运行环境」常驻显示路径/版本/其他安装。
 - 版本选择（0003）：设置页「dsh 版本」下拉只列 `listDshCandidates()` 检测到的安装（自动 / 指定路径，显示版本号），存 `settings.dshPath`；`resolveDshInstall(preferredPath)` 按展示路径 / 启动命令 / `realpath` 匹配，未命中回退自动并通过 `fallback` 提示。显式选择后不再弹版本冲突 Notice；自动模式才提示。修改后需手动「重启服务」。
@@ -218,6 +225,7 @@ shared/ ──► 无内部依赖
 | `commandScope` | off | 同上 | 「/」命令范围：off(不启用) / whitelist(白名单) / blacklist(黑名单)；下一次打开 / 菜单生效，只过滤命令行、不影响命令目录与执行 |
 | `commandWhitelist` | [] | 同上 | 白名单命令名（dsh 命令名规则 `^[a-z][a-z0-9_-]*$`，精确匹配）；读取时归一化、去重 |
 | `commandBlacklist` | [] | 同上 | 黑名单命令名（同上） |
+| `quoteExcerptLimit` | 2000 | 同上 | 编辑器选区引用的摘录上限（100–20000 字）；超出截断并写「已截断」，行号范围仍完整；下一次发送生效 |
 
 - 白 / 黑名单添加栏的「选取」只读候选、不写配置（0038 / 0051）：@ 取 vault 快照（`app.vault.getAllLoadedFiles()`），/ 的技能取本地技能目录扫描结果（15s 缓存）、命令取原生面板桥的当前会话 `commands()`（面板未打开时为空）；选中只回填输入框，写回仍走原有「添加」与归一化 / 校验。
 - **默认值**写在 `DEFAULT_SETTINGS`；用户值由 Obsidian 持久化到插件目录的 `data.json`。开发期用符号链接安装，所以 `data.json` 落在本仓库根目录 —— 它是**运行时数据**，不要当源码改。

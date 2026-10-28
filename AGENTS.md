@@ -78,7 +78,7 @@ node --check skills/obsidian-docs/scripts/obsdocs.mjs   # 仅在改了技能脚�
   模型接入要跟桌面 profile 对齐（`llm-pi-ai` + `agent-default-model` + 禁用 `llm-deepseek`），
   否则原生聊天会走 base 默认的 `deepseek-official` 并报 `Authentication Fails`；凭据共享
   `$DSH_HOME/.credentials.yaml`，配置见 [docs/development.md](docs/development.md#profile-的模型接入与桌面端一致)。
-- dsh 可执行文件：`node + ~/.local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js`（存在时优先），或 PATH 上的 `dsh`，或 `~/.local/bin/dsh` 等绝对路径候选；设置页「dsh 版本」可手动选择检测到的任一份。
+- dsh 可执行文件：`node + ~/.local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js`（存在时优先），或 PATH 上的 `dsh`，或 `~/.local/bin/dsh` 等绝对路径候选，或**桌面 App 内置的 dsh**（macOS / Windows 标准安装位置；以 `ELECTRON_RUN_AS_NODE=1` 跑 App 的 Electron，0057）；设置页「dsh 版本」可手动选择检测到的任一份。
 - 客户端插件 `dsh-obsidian-bridge`：已迁入本仓库 `packages/`；`dsh-obsidian-mentions`、`dsh-ui-obsidian-layout` 仍在外部仓库（如 `~/dsh-plugin`）维护，改它们不算本仓库任务。
 
 需要跨仓库配合时，在说明里写清依赖的版本与生效方式（是否需要「重启服务」）。

@@ -13,6 +13,22 @@ export function streamRefreshMs(mode: StreamRefreshMode): number {
 	return STREAM_REFRESH_MS[mode] ?? STREAM_REFRESH_MS.frame;
 }
 
+/** 选区引用摘录上限（0058）：默认 2000 字，设置页可调。 */
+export const DEFAULT_QUOTE_EXCERPT_LIMIT = 2000;
+export const MIN_QUOTE_EXCERPT_LIMIT = 100;
+export const MAX_QUOTE_EXCERPT_LIMIT = 20000;
+
+/** 摘录上限归一化：非数字回落默认值，越界夹到区间内，取整。 */
+export function quoteExcerptLimitOf(value: unknown): number {
+	if (typeof value !== 'number' || !Number.isFinite(value)) {
+		return DEFAULT_QUOTE_EXCERPT_LIMIT;
+	}
+	const rounded = Math.round(value);
+	if (rounded < MIN_QUOTE_EXCERPT_LIMIT) return MIN_QUOTE_EXCERPT_LIMIT;
+	if (rounded > MAX_QUOTE_EXCERPT_LIMIT) return MAX_QUOTE_EXCERPT_LIMIT;
+	return rounded;
+}
+
 /** 运行提示（0047）的位置（0048）：输入框上方 / 消息流最下方。 */
 export type RunStatusPlacement = 'composer' | 'flow';
 
@@ -159,6 +175,8 @@ export interface DshPluginSettings {
 	commandWhitelist: string[];
 	/** 黑名单命令名（0050；精确匹配）。 */
 	commandBlacklist: string[];
+	/** 编辑器选区引用的摘录上限（0058，默认 2000 字）。 */
+	quoteExcerptLimit: number;
 }
 
 export const DEFAULT_SETTINGS: DshPluginSettings = {
@@ -177,6 +195,7 @@ export const DEFAULT_SETTINGS: DshPluginSettings = {
 	commandScope: 'off',
 	commandWhitelist: [],
 	commandBlacklist: [],
+	quoteExcerptLimit: DEFAULT_QUOTE_EXCERPT_LIMIT,
 };
 
 /** 合并已保存的设置与默认值（缺失 / 旧版本字段自动回落到默认）。 */
@@ -197,6 +216,7 @@ export function mergeSettings(saved: unknown): DshPluginSettings {
 	merged.commandWhitelist = normalizeCommandNames(merged.commandWhitelist);
 	merged.commandBlacklist = normalizeCommandNames(merged.commandBlacklist);
 	merged.runStatusPlacement = runStatusPlacementOf(merged.runStatusPlacement);
+	merged.quoteExcerptLimit = quoteExcerptLimitOf(merged.quoteExcerptLimit);
 	return merged;
 }
 

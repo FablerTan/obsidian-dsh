@@ -2,7 +2,7 @@
 
 Chat with a local [DeepSeek Harness](https://github.com/deepseek-ai/dsh) (dsh) agent inside Obsidian: the plugin runs a managed dsh service whose working directory is your vault, and renders the conversation in a native React panel in the right sidebar.
 
-> Plugin id `dsh-native-chat` · version 1.0.0 · requires Obsidian ≥ 1.7.2 · **desktop only**
+> Plugin id `dsh-native-chat` · version 1.1.0 · requires Obsidian ≥ 1.7.2 · **desktop only**
 
 ## Features
 
@@ -68,7 +68,7 @@ The dsh-side bridge plugin `dsh-obsidian-bridge` is required for the panel (inst
 
 在 Obsidian 右侧面板里，用**原生 React UI** 与 DeepSeek Harness（dsh）聊天；插件自动托管一个独立的 dsh 服务，工作目录就是当前笔记库。
 
-> 插件 id `dsh-native-chat` · 版本 1.0.0 · 需要 Obsidian ≥ 1.7.2 · 桌面端专用
+> 插件 id `dsh-native-chat` · 版本 1.1.0 · 需要 Obsidian ≥ 1.7.2 · 桌面端专用
 
 ## 为什么用它
 
@@ -90,7 +90,7 @@ The dsh-side bridge plugin `dsh-obsidian-bridge` is required for the panel (inst
 | 项 | 要求 |
 |---|---|
 | Obsidian | ≥ 1.7.2，**桌面端**（插件依赖 Node / `child_process`，移动端不可用） |
-| dsh | **0.2.x**（0.1.x 不支持） |
+| dsh | **0.2.x**（0.1.x 不支持；已装桌面端 DeepSeek Harness 时可直接用 App 内置的那份） |
 | 平台 | macOS（当前验证平台） |
 
 插件使用独立的 profile `obsidian` 与默认端口 **3081**（避开 web profile 的 3080），与日常使用的 dsh 互不干扰；模型与凭据在 profile 里配置。
@@ -104,14 +104,18 @@ The dsh-side bridge plugin `dsh-obsidian-bridge` is required for the panel (inst
 
 两条路线的完整步骤、验收清单与失败处理见 **[docs/install.md](docs/install.md)**。装好后在 Obsidian「设置 → 第三方插件」中启用 **DSH Native Chat**。
 
+> 机器上已装桌面端 DeepSeek Harness 的话，不必再单独安装 dsh：插件会自动检测 App 内置的 dsh，在设置页「dsh 版本」选中它并「重启服务」即可（见 [install.md 第 3 节情况 D](docs/install.md#3-安装-dsh-02x)；Windows 路径已适配、尚未实测）。
+
 ## 使用
 
 - **首次打开**：插件探测 `127.0.0.1:3081`；未在监听时自动拉起 `dsh --profile obsidian --port 3081`（cwd = 当前 vault），就绪后面板自动连接。自动启动默认开启。
 - **入口**：左侧功能区的 DSH 鲸鱼图标，或命令面板「打开 DeepSeek Harness」；状态栏 `DSH: 运行中` 也可点击打开。
 - **新建会话**：面板右上 ＋、空态按钮或会话选择器；会话 cwd 固定为当前笔记库。
 - **发消息**：发送后用户消息立即出现，回复正文与思考流式更新；回合进行中可以随时停止。
+- **选区引用**：在主编辑区选中文字，右栏会立即显示引用预览；发送时自动把「当前笔记路径 + 选中原文」作为引用带上。点预览条或气泡里的引用卡都会回到原笔记的选中位置并高亮（摘录上限可在设置「聊天」里改，默认 2000 字）。
 - **切换会话**：右上会话选择器切换历史会话；会话标题由 dsh 随对话自动生成。
 - **改完设置**：修改端口、profile 或 dsh 版本后，点设置页「服务」里的「重启服务」（或命令「重启 DSH 服务」）才会生效。
+- **结束 / 重启**：设置页「服务」可「结束后台 dsh」——结束插件拉起的 dsh 与占用当前端口的遗留 dsh（不动其它端口上的实例），结束后再点「重启服务」；两个按钮下方都就地显示进度与结果，不再叠多条 Notice。
 - **禁用 / 卸载**：禁用插件会结束插件自己拉起的 dsh 进程；你手动启动的实例不会被动到。
 - **升级插件**：替换插件文件后，在 Obsidian 里关闭再启用插件（或「重新加载插件」）即可；从 0.6.x 升级到 1.0.0 时插件目录名变为 `dsh-native-chat`，见 [docs/install.md](docs/install.md#从-06x-升级到-100插件-id-变更)。
 
@@ -123,16 +127,17 @@ The dsh-side bridge plugin `dsh-obsidian-bridge` is required for the panel (inst
 | `DSH: 运行中` | 服务已就绪 | 正常，可打开面板 |
 | `DSH: 启动失败` | 找不到 dsh 可执行文件 | 按安装指南装好 dsh |
 | `DSH: 端口被占用` | 端口上跑着别的程序 | 换端口或结束占用进程 |
-| `DSH: 需手动结束` | 端口上是拿不到 token 的遗留实例 | 按提示结束它后重启服务 |
+| `DSH: 需手动结束` | 端口上是拿不到 token 的遗留实例 | 设置页「服务」→「结束后台 dsh」后重启服务 |
 | `DSH: 版本不支持` | 端口上的 dsh 不是 0.2.x | 结束它并选用 0.2.x |
+| `DSH: 已结束` | 刚点过「结束后台 dsh」 | 点「重启服务」重新拉起 |
 
 ## 设置项一览
 
 | tab | 管什么 |
 |---|---|
-| 服务 | 端口、profile 名、自动启动、重启服务 |
+| 服务 | 端口、profile 名、自动启动、结束后台 dsh、重启服务（就地进度 / 结果） |
 | dsh 版本 | 使用哪份 dsh 安装（自动检测或手动指定）与运行环境 |
-| 聊天 | 流式刷新节奏、`@` 引用范围、`/` 技能与命令范围 |
+| 聊天 | 流式刷新节奏、`@` 引用范围、`/` 技能与命令范围、选区引用摘录上限 |
 | 集成 | 项目目录与桥接状态检测（桥 v8） |
 | 插件 | dsh 插件清单与启用 / 停用、可选实验性插件 |
 
@@ -142,8 +147,9 @@ The dsh-side bridge plugin `dsh-obsidian-bridge` is required for the panel (inst
 - 子智能体只支持一层直接子级（子代理的子代理留给后续）；目录只读，可继续子会话能续聊与 Stop，但面板不能创建 / 重命名子代理。
 - 模型与 API Key 不在插件里配置，需要在 `obsidian` profile 中配置（与桌面端对齐），改完点「重启服务」。
 - 只支持 dsh **0.2.x**；0.1.x 会被判为「版本不支持」。
-- 0.2.x 的 Web token 每个进程新生成，插件只接管自己拉起的实例：上次遗留的实例会显示「需手动结束」，按提示结束它再重启服务。
+- 0.2.x 的 Web token 每个进程新生成，插件只接管自己拉起的实例：上次遗留的实例会显示「需手动结束」，点设置页「服务」里的「结束后台 dsh」结束它再重启服务（只针对当前端口，不动其它实例）。
 - 原生面板依赖 Obsidian 内置的 webview 能力：版本过旧时面板会提示「不支持 webview」，升级 Obsidian 即可（开发与实测版本 1.14.4）。
+- 用桌面 App 内置的 dsh 时：App 的安装文件在 `app.asar` 里，普通 Node 读不到，设置页「插件」tab 的可选插件目录可能解析不到（聊天 / 服务不受影响）；App 内置版本与 profile 版本差太大时启动失败，切回另一份安装即可。
 
 ## 文档
 

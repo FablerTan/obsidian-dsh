@@ -45,6 +45,39 @@
 	box-shadow: 0 0 0 2px var(--interactive-accent);
 }
 
+/* 设置页：服务动作的就地反馈（0056）—— 状态行放进 Setting 描述区，空内容不占位 */
+.dsh-service-action-status {
+	display: none;
+	margin: 8px 0 2px;
+	padding: 6px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.5;
+}
+
+.dsh-service-action-status.is-visible {
+	display: block;
+}
+
+.dsh-service-action-status.is-busy {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.dsh-service-action-status.is-error {
+	border-color: var(--text-error);
+	background: var(--background-secondary);
+	color: var(--text-error);
+}
+
+.dsh-service-action-hint {
+	margin-top: 3px;
+	color: var(--text-muted);
+}
+
 /* 设置页：范围设置分组卡片（0039）—— 徽标 + 标题 + 模式下拉 + 说明 + 名单详情同卡，颜色全走主题变量 */
 .dsh-settings-scope-card {
 	display: flex;
@@ -3318,4 +3351,146 @@
 	background-color: transparent;
 	box-shadow: none;
 	outline: none;
+}
+
+/* ===== 0058 编辑器选区引用：微信式引用卡（用户消息里）+ 输入框上方的引用预览条 ===== */
+.dsh-native-quote-card {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin: 0 0 6px;
+	padding: 5px 8px 6px;
+	border-left: 2px solid var(--interactive-accent);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	cursor: pointer;
+	overflow: hidden;
+}
+
+.dsh-native-quote-card:hover {
+	background: var(--background-primary-alt);
+}
+
+.dsh-native-quote-card:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 1px;
+}
+
+.dsh-native-quote-card-head {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	min-width: 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.dsh-native-quote-card-head .dsh-native-icon {
+	flex: 0 0 auto;
+	color: var(--interactive-accent);
+}
+
+.dsh-native-quote-card-name {
+	overflow: hidden;
+	color: var(--text-normal);
+	font-weight: 500;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dsh-native-quote-card-range {
+	flex: 0 0 auto;
+	color: var(--text-faint);
+}
+
+.dsh-native-quote-card-excerpt {
+	display: -webkit-box;
+	overflow: hidden;
+	color: var(--text-muted);
+	font-size: calc(1em - 1px);
+	line-height: 1.5;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+
+/* 输入框上方的引用预览条：笔记名 + 行范围 + 单行摘录 + 关闭。 */
+.dsh-native-quote-preview {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0 0 6px;
+	padding: 4px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.4;
+}
+
+.dsh-native-quote-preview-icon {
+	display: inline-flex;
+	flex: 0 0 auto;
+	color: var(--interactive-accent);
+}
+
+.dsh-native-quote-preview-label {
+	flex: 0 0 auto;
+	color: var(--text-normal);
+	white-space: nowrap;
+}
+
+.dsh-native-quote-preview-text {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	color: var(--text-faint);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dsh-native-quote-preview-close {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	padding: 2px;
+	border: none;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-faint);
+	cursor: pointer;
+}
+
+.dsh-native-quote-preview-close:hover {
+	color: var(--text-normal);
+}
+
+/* 0060：预览条主区域可点击（跳回笔记并选中高亮）；与 × 并列，重置按钮基础样式。 */
+.dsh-native-quote-preview-main {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	padding: 0;
+	border: none;
+	background: transparent;
+	box-shadow: none;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.dsh-native-quote-preview-main:hover .dsh-native-quote-preview-text {
+	color: var(--text-muted);
+}
+
+.dsh-native-quote-preview-main:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+	border-radius: var(--radius-s);
 }

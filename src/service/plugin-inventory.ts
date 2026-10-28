@@ -123,7 +123,7 @@ function runDumpConfig(options: PluginInventoryOptions): Promise<string> {
 				{
 					cwd: options.cwd,
 					timeout: DUMP_TIMEOUT_MS,
-					env: buildSpawnEnv(),
+					env: buildSpawnEnv(options.command.env),
 					maxBuffer: DUMP_MAX_BUFFER,
 				},
 				(error, stdout, stderr) => {

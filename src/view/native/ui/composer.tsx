@@ -40,7 +40,9 @@ import { Icon } from './icon';
 import { MentionMenu, type MentionItem } from './mention-menu';
 import { modelChip, WhaleMark } from './model-brand';
 import { PermissionIcon } from './permission-icon';
+import { QuotePreview } from './quote-preview';
 import { RunStatus } from './run-status';
+import type { SelectionQuote } from '../quote';
 import { SlashMenu } from './slash-menu';
 
 const INPUT_MIN_HEIGHT = 72;
@@ -126,6 +128,11 @@ export function Composer({
 	getCommandScope,
 	pending,
 	goalBar,
+	quote,
+	quoteLimit,
+	onCaptureQuote,
+	onOpenQuote,
+	onClearQuote,
 }: {
 	/** 非 null = 只读（一次性 / 类型未知 / 父会话不可用的子会话）：不显示输入框，只保留停止。 */
 	readOnly: string | null;
@@ -170,6 +177,16 @@ export function Composer({
 	pending: ReactNode;
 	/** 0052：输入框上方的目标条（有目标时由根组件传入，无目标为 null）。 */
 	goalBar: ReactNode;
+	/** 0058：点输入卡 / 输入框时捕获的选区引用；null = 本次不引用。 */
+	quote: SelectionQuote | null;
+	/** 0058：设置页的摘录上限（预览与实际发送共用）。 */
+	quoteLimit: number;
+	/** 0058：输入卡 mousedown / 输入框 focus 时抓选区快照（必须在失焦前）。 */
+	onCaptureQuote: () => void;
+	/** 0060：点预览条跳回笔记并选中高亮（与点引用卡一致）。 */
+	onOpenQuote: () => void;
+	/** 0058：点 × 本次不引用（同一选区不再自动带回）。 */
+	onClearQuote: () => void;
 }) {
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const entriesRef = useRef<MentionEntry[] | null>(null);
@@ -462,7 +479,7 @@ export function Composer({
 	const unroutable = models !== null && models.routable === false;
 
 	return (
-		<div className="dsh-native-composer">
+		<div className="dsh-native-composer" onMouseDownCapture={onCaptureQuote}>
 			{/* 0054：目标条固定在运行提示下方、紧贴输入卡片——运行提示每轮开关时目标条不会被顶动。 */}
 			{showRunStatus ? <RunStatus running={running} startedAt={runStartedAt} /> : null}
 			{goalBar}
@@ -516,6 +533,14 @@ export function Composer({
 						onDrill={(item) => pick(item, 'drill')}
 					/>
 				) : null}
+				{quote !== null ? (
+					<QuotePreview
+						quote={quote}
+						limit={quoteLimit}
+						onOpen={onOpenQuote}
+						onClear={onClearQuote}
+					/>
+				) : null}
 				<div className="dsh-native-input-shell">
 					<textarea
 						ref={inputRef}
@@ -532,6 +557,7 @@ export function Composer({
 							onDraft(event.target.value);
 							sync(event.target.value, event.target.selectionStart);
 						}}
+						onFocus={onCaptureQuote}
 						onClick={(event) => sync(event.currentTarget.value, event.currentTarget.selectionStart)}
 						onKeyUp={(event) => {
 							if (

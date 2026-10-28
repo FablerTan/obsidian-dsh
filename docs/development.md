@@ -50,8 +50,8 @@ obsidian profile 的模型配置是独立的：base 默认走 `deepseek-official
 
 - **开发者工具**：`Cmd+Opt+I`。插件日志前缀 `[dsh-native-chat]`，服务日志前缀 `[dsh]`（stdout/stderr 已转发）。info 级日志走 `console.debug`（官方 guideline：默认控制台只应有 error），需要把控制台级别切到 **Verbose** 才看得到；warn / error 照常显示。
 - **让 dsh 自己看界面 / 控制台**：用 CDP + MCP（开发期，agent 不要跑在面板里）；启动、配置、cookbook 与全流程见 [obsidian-cdp.md](obsidian-cdp.md)。
-- **状态栏**：`DSH: 运行中 / 启动失败 / 启动超时 / 启动失败(退出码 N) / 端口被占用 / 需手动结束`，点击可打开原生聊天。
-  「需手动结束」= 端口上是需要 token 的 dsh（通常是上次遗留的 0.2.x 实例），按 Notice 里的 `pkill` 命令清掉后重启服务。
+- **状态栏**：`DSH: 运行中 / 启动失败 / 启动超时 / 启动失败(退出码 N) / 端口被占用 / 需手动结束 / 版本不支持`；点「结束后台 dsh」后为 `已结束`（失败时 `端口被其他程序占用` / `无法结束` / `结束超时`）。点击可打开原生聊天。
+  「需手动结束」= 端口上是需要 token 的 dsh（通常是上次遗留的 0.2.x 实例）：设置 → DSH Native Chat →「服务」→「结束后台 dsh」行的「结束」，行下显示「已结束后台 dsh（PID …）」后再点「重启服务」。
 - **实际使用的 dsh**：控制台搜 `[dsh-native-chat] dsh 版本:`（服务已在运行时为「插件将使用 dsh …」，尚未确认）；设置 → DSH Native Chat →「dsh 版本」切换安装、「运行环境」看路径/版本/其他安装。0.2.x 的启动 URL 与 token 只在内存中使用，日志里 `token=***`。
 - **手动对照**：直接跑服务，看它自己的输出：
   ```bash
@@ -73,17 +73,20 @@ obsidian profile 的模型配置是独立的：base 默认走 `deepseek-official
 | 文件 | 职责 |
 |---|---|
 | [src/main.ts](../src/main.ts) | 组合根：注册视图 / 命令 / 状态栏 / 设置页，注入 `DshServiceManager`，把结果映射成 Notice |
-| [src/service/manager.ts](../src/service/manager.ts) | `DshServiceManager`：探测 → 拉起 → 等待就绪（0.2.x 用 stdout `dsh web:` 行）→ 重启 / 停止；`embedUrl` 与 `url` 分离 |
+| [src/service/manager.ts](../src/service/manager.ts) | `DshServiceManager`：探测 → 拉起 → 等待就绪（0.2.x 用 stdout `dsh web:` 行）→ 重启 / 停止；`stopBackground()`（0056）结束自拉进程与当前端口上的遗留 dsh；`embedUrl` 与 `url` 分离 |
+| [src/service/port-dsh.ts](../src/service/port-dsh.ts) | 结束后台 dsh 的平台实现（0056）：`PortListener` / `listPortListenerPids`（POSIX `lsof`，缺 lsof 的 Linux 回落 `ss`；Windows `netstat`）、`readProcessCommand`（`ps -o command=`，不可用时回退 `pgrep -laf`；Windows `powershell`）、`listPortListeners`、`looksLikeDshCommand` 命令行核实、`terminateProcesses`（SIGTERM → 轮询 3s → SIGKILL → 再等 1s）、`isProcessAlive`；不向插件自身发信号 |
 | [src/service/locator.ts](../src/service/locator.ts) | `resolveDshInstall()` / `listDshCandidates()` / `probeDshVersion()` / `inspectDshRuntime()` / `buildSpawnEnv()`：可执行文件解析、版本选择 / 探测与 PATH 注入 |
 | [src/service/plugin-inventory.ts](../src/service/plugin-inventory.ts) | 插件清单（0031）：spawn `dsh --profile <p> --dump-config` 取**组合结果**，按 `# ==` 分段 + 顶层条目解析成 bundle / 组件行（排除分组行），版本从 `node_modules` 逐层读；15s 缓存 + patch mtime 感知 |
 | [src/service/plugin-patch.ts](../src/service/plugin-patch.ts) | 组件行启停（0031）：最小 YAML 覆盖的增 / 改 / 删（`disabled`）、写前备份 `.bak-<时间戳>`、原子写、写后复验失败回滚；不引入 YAML 依赖 |
 | [src/service/plugin-catalog.ts](../src/service/plugin-catalog.ts) | 可选 / 实验性插件目录（0032）：解析 `@deepseek-ai/dsh-official-bundles`（`require(ESM)`，失败回落 `import()`）取 OPTIONAL / EXPERIMENTAL / ON_DEMAND 名单，逐包读版本与 `locale/zh.json` 标题描述；15s 缓存 |
 | [src/service/plugin-bundles.ts](../src/service/plugin-bundles.ts) | bundle 级启停（0032）：改 profile `package.json` 的 `dsh.profile.bundles`（JSON），备份 / 原子写 / 复验失败回滚 |
-| [src/view/panel-host.ts](../src/view/panel-host.ts) | `DshPanelHost` 接口：原生视图需要的地址 / 分区 / 服务生命周期 / 设置读取（流式刷新、@ 引用范围、/ 技能范围） |
+| [src/view/panel-host.ts](../src/view/panel-host.ts) | `DshPanelHost` 接口：原生视图需要的地址 / 分区 / 服务生命周期 / 设置读取（流式刷新、@ 引用范围、/ 技能与命令范围、选区引用摘录上限） |
 | [src/view/surface.ts](../src/view/surface.ts) | 隐藏 core 的 Electron webview：创建、换源、重载、销毁、`executeJavaScript` |
 | [src/view/native/core-bridge.ts](../src/view/native/core-bridge.ts) | 原生聊天数据桥（v2–v8）：executeJavaScript 调用、探测、等待就绪、结构 + live 长轮询、上下文占用、命令 / 技能目录、Agent Teams 团队投影、子智能体目录与 addressed 订阅（`supportsSubagents` / `subagents()`）、目标投影与目标操作（`supportsGoal` / `goal()` / `goalAction()`）、错误归因 |
 | [src/view/native/native-chat-view.tsx](../src/view/native/native-chat-view.tsx) | 原生聊天视图：隐藏 core + React root + probe / 重启重载 |
 | [src/view/native/note-tracker.ts](../src/view/native/note-tracker.ts) | 记住最后一次激活的 Markdown 笔记（@ 菜单的「当前笔记」候选） |
+| [src/view/native/quote.ts](../src/view/native/quote.ts) | 选区引用纯逻辑（0058）：`formatQuote`（引用块 + 摘录上限 / 截断标记）/ `parseQuote`（拆出引用与正文，解析失败返回 null）/ `quoteExcerpt` / `quoteKey` / `quoteLineLabel`；不 import obsidian，可单独冒烟 |
+| [src/view/native/editor-selection.ts](../src/view/native/editor-selection.ts) | 选区 ↔ 主编辑器（0058 / 0059）：`captureSelectionQuote()` 用官方 `workspace.getMostRecentLeaf()` 在面板获焦前读「最后一次活跃 MarkdownView」的选区（面板获焦后 `activeEditor` 会变 null，但编辑器 CM6 选区仍在）；`observeEditorSelection()` 实时跟踪（`selectionchange` + `active-leaf-change` / `file-open`，80ms 防抖 + `quoteKey` 去重）；`jumpToQuote()` 复用已开 leaf / `openLinkText(path, sourcePath, true)` 打开笔记、必要时切 source 模式、`setSelection + scrollIntoView + focus`，行号漂移时按摘录搜索兜底 |
 | [src/view/native/slash.ts](../src/view/native/slash.ts) | “/” 命令菜单纯逻辑：行首 token 检测（`/` 独占行首、含空格/斜杠不触发）、本地命令表（仅 new，0050 起 dsh 命令来自 `commands()`）、名字过滤排序（完全 > 前缀 > 包含 > 子序列）、命令 / 技能行模型与 `/name ` 插入格式化；first-party 命令按 name 映射中文标签（compact / export / feedback / goal / permission / plan），未知命令回退 dsh 英文描述 |
 | [src/view/native/mention.ts](../src/view/native/mention.ts) | @ 引用纯逻辑：token 检测（起点/空白后、`@"…` 引号、词内邮箱不触发）、候选排序（对齐 dsh）、目录直列、`@path` 插入格式化（目录 drill 保留打开引号 / 采纳时 `completeMention` 补齐）、20 条上限 |
 | [src/view/native/mention-scope.ts](../src/view/native/mention-scope.ts) | @ 菜单候选范围过滤（0030，纯函数）：`filterMentionEntries(entries, scope)` —— 白名单保留条目内候选并补上祖先文件夹（保证从根目录能下钻）、黑名单排除条目内候选；「当前笔记」首行由菜单自己维护，不经过它 |
@@ -94,19 +97,20 @@ obsidian profile 的模型配置是独立的：base 默认走 `deepseek-official
 | [src/view/native/note-links.ts](../src/view/native/note-links.ts) | `applyNoteLinks` / `noteLinkOf` / `isLinkSafe` / `folderChipOf`：消息里的 `@vault/路径.md` → 短链接；带结尾斜杠的 `@文件夹/` → 可点击文件夹 chip（跳过代码块 / 行内代码 / 已有 `[[…]]` / 邮箱；按 vault 存在性校验） |
 | [src/view/native/folder-reveal.ts](../src/view/native/folder-reveal.ts) | `revealFolderInExplorer`：点击文件夹 chip 时展开左侧栏、逐级展开祖先、选中并滚动到文件列表里的该文件夹（内部 API 全部按存在性调用，缺视图时用 `file-explorer:open` 兜底） |
 | [src/view/native/ui/markdown-text.tsx](../src/view/native/ui/markdown-text.tsx) | `MarkdownText`：消息 markdown 渲染 + 引用转换 + `a.internal-link` 点击在**主区新标签**打开（聊天面板保留）+ 文件夹 chip 点击在左侧文件列表展开选中 |
-| [src/view/native/ui/](../src/view/native/ui) | React 18 UI：浮层骨架 `menu-shell.tsx`（定位/背板/二级浮层）、`mention-menu.tsx`（@ 引用下拉：当前笔记 + 文件与文件夹分组、键盘高亮、目录行「进入目录」箭头）、`slash-menu.tsx`（“/” 命令下拉：本地命令 + dsh 命令组 + 「技能」分组，同一个列表、没有二级菜单，命令组 / 技能组各有说明行）、`model-menu.tsx` / `permission-menu.tsx` / `session-menu.tsx` / `context-meter.tsx`（上下文占用圆环与详情）、`timeline.tsx`（滚动外壳）+ `timeline-model.ts`（折叠过程：按正文分界分段，0036）+ `timeline-process.tsx`（过程行 / 思考行）+ `tool-row.tsx`（工具行）+ `timeline-nodes.tsx`（其余节点）+ `markdown-text.tsx`（消息排版与引用链接）+ `team-panel.tsx`（Agent Teams 只读团队浮层）+ `subagent-panel.tsx`（只读子智能体目录：模式 / 状态 / 耗时 / token / 模型 / 团队徽标）、输入框、`pending.tsx`（审批 / 提问卡片：提问单题一屏 + 底部翻页与草稿）、`run-status.tsx`（输入框上方的运行提示：dsh 同款鲸鱼 + 逐秒计时，0047）、`goal-bar.tsx`（输入框上方的目标条：目标图标 / 阶段标签 / 单行目标 / 暂停 / 恢复 / 内联编辑 / 清除，0052）；品牌与权限图标在 `model-brand.tsx` / `permission-icon.tsx` |
+| [src/view/native/ui/](../src/view/native/ui) | React 18 UI：浮层骨架 `menu-shell.tsx`（定位/背板/二级浮层）、`mention-menu.tsx`（@ 引用下拉：当前笔记 + 文件与文件夹分组、键盘高亮、目录行「进入目录」箭头）、`slash-menu.tsx`（“/” 命令下拉：本地命令 + dsh 命令组 + 「技能」分组，同一个列表、没有二级菜单，命令组 / 技能组各有说明行）、`model-menu.tsx` / `permission-menu.tsx` / `session-menu.tsx` / `context-meter.tsx`（上下文占用圆环与详情）、`timeline.tsx`（滚动外壳）+ `timeline-model.ts`（折叠过程：按正文分界分段，0036）+ `timeline-process.tsx`（过程行 / 思考行）+ `tool-row.tsx`（工具行）+ `timeline-nodes.tsx`（其余节点）+ `markdown-text.tsx`（消息排版与引用链接）+ `team-panel.tsx`（Agent Teams 只读团队浮层）+ `subagent-panel.tsx`（只读子智能体目录：模式 / 状态 / 耗时 / token / 模型 / 团队徽标）、输入框、`pending.tsx`（审批 / 提问卡片：提问单题一屏 + 底部翻页与草稿）、`run-status.tsx`（输入框上方的运行提示：dsh 同款鲸鱼 + 逐秒计时，0047）、`goal-bar.tsx`（输入框上方的目标条：目标图标 / 阶段标签 / 单行目标 / 暂停 / 恢复 / 内联编辑 / 清除，0052）、`quote-card.tsx`（微信式选区引用卡：竖线 + 笔记名 + 行范围 + 两行摘录，点击跳回并高亮，0058）、`quote-preview.tsx`（输入框上方的引用预览条 + ×）；品牌与权限图标在 `model-brand.tsx` / `permission-icon.tsx` |
 | [src/shared/native-types.ts](../src/shared/native-types.ts) | 原生聊天 DTO（会话/节点/模型/权限/笔记/团队/子智能体）与桥错误类型 |
 | [src/view/open.ts](../src/view/open.ts) | `openNativeChat()` / `findNativeChat()`：复用或新建右侧 leaf |
 | [src/settings/schema.ts](../src/settings/schema.ts) | 设置类型、默认值（含 `dshPath`）、端口校验 |
 | [src/settings/context.ts](../src/settings/context.ts) | `SettingsHost` 接口 + `SettingsRenderContext`（模块渲染上下文：host / app / `isStale()` / `refresh()`） |
 | [src/settings/tab.ts](../src/settings/tab.ts) | `DshSettingTab`：顶部 5 个模块 tab（服务 / dsh 版本 / 聊天 / 集成 / 插件）+ 内容区调度 |
-| [src/settings/sections/](../src/settings/sections) | 各模块渲染函数：`service.ts`（端口 / Profile / 自动启动 / 重启）、`runtime.ts`（版本选择 + 运行环境）、`chat.ts`（流式刷新 / @ 引用范围 / 「/」技能范围 / 「/」命令范围 / 名单「选取」）、`integration.ts`（项目目录 / 桥接状态 / 安装提示）、`plugins.ts`（dsh 插件清单 / 组件行启停 / 可选·实验性插件，0031 + 0032） |
+| [src/settings/sections/](../src/settings/sections) | 各模块渲染函数：`service.ts`（端口 / Profile / 自动启动 /「结束后台 dsh」/ 重启，后两者带就地进度与结果状态行，0056）、`runtime.ts`（版本选择 + 运行环境）、`chat.ts`（流式刷新 / @ 引用范围 / 「/」技能范围 / 「/」命令范围 / 名单「选取」/ 选区引用摘录上限，0058）、`integration.ts`（项目目录 / 桥接状态 / 安装提示）、`plugins.ts`（dsh 插件清单 / 组件行启停 / 可选·实验性插件，0031 + 0032） |
 | [src/shared/](../src/shared) | 视图常量与 `isDshPage()`、四态类型、`sleep`、`errorText()`、日志约定（含 token 打码）、vault 路径、`createDshProbe()`、DSH 鲸鱼图标（`brand.ts`） |
 
 | 想改 | 看哪里 |
 |---|---|
 | 启动、探测、等待就绪、重启 | `service/manager.ts` |
-| 可执行文件查找、版本探测与 PATH | `service/locator.ts` |
+| 结束后台 dsh / 重启就地反馈（0056） | `service/port-dsh.ts`（端口监听 PID + 命令行核实 + SIGTERM/SIGKILL）+ `service/manager.ts`（`stopBackground()` / `DshStopOutcome`）+ `settings/sections/service.ts`（两个按钮 + 行下状态行）+ `settings/context.ts` / `view/panel-host.ts` / `view/native/native-chat-view.tsx`（`restartService` 返回 `DshActionResult`）+ `settings/sections/plugins.ts`（插件 tab 重启也用返回值）+ `main.ts`（`stopBackgroundService()` / `describeOutcome()` / `describeStop()`）+ `shared/types.ts` + `styles.css`（`.dsh-service-action-*`） |
+| 可执行文件查找、版本探测与 PATH（含桌面 App 内置 dsh 探测：`desktopAppRoots()` / `listDesktopAppInstalls()`） | `service/locator.ts` |
 | dsh 版本冲突提示（日志 / Notice / 设置页运行环境） | `service/manager.ts` + `main.ts` + `settings/sections/runtime.ts` |
 | 切换 dsh 版本 / 0.2.x token 就绪与隐藏 core 地址 | `settings/schema.ts` + `settings/sections/runtime.ts` + `service/locator.ts` + `service/manager.ts` + `view/native/native-chat-view.tsx` |
 | 设置页 tab 条 / 模块划分 | `settings/tab.ts`（tab 条 + 调度）+ `settings/sections/` + `styles.css`（`.dsh-settings-*`） |
@@ -123,6 +127,7 @@ obsidian profile 的模型配置是独立的：base 默认走 `deepseek-official
 | 输入框 “/” 命令菜单（本地 new + dsh 命令目录 + 技能列表，0050） | `view/native/slash.ts`（纯逻辑：本地命令 + dsh 命令映射 + 技能分组）+ `view/native/command-scope.ts`（范围 / 降级 / 发送路由判断）+ `view/native/ui/slash-menu.tsx` + `composer.tsx`（键盘 / 替换 / 打开时刷新命令与技能目录 / Enter 路由 / 压缩过程提示）+ `native-chat-root.tsx`（`onNewSession` / `loadCommands` / `onRunCommand` / `loadSkills`）；桥 `commands()` / `skills()` / `executeCommand()` |
 | 新建会话（面板内 ＋ / 空态 / 会话选择器） | `view/native/ui/native-chat-root.tsx` + `view/native/core-bridge.ts`；dsh 侧 `packages/dsh-obsidian-bridge/` |
 | 消息里的引用渲染 / `[[…]]` 点击打开 | `view/native/note-links.ts` + `view/native/ui/markdown-text.tsx`；`@` 插入在 `view/native/ui/composer.tsx`（发送不再自动拼前缀） |
+| 编辑器选区引用（0058 / 0059：实时预览、发送自动附笔记 + 选区、微信式引用卡、点击跳回并高亮） | `view/native/quote.ts`（引用块编解码）+ `view/native/editor-selection.ts`（选区快照 / 实时监听 `observeEditorSelection` / 跳转选中）+ `view/native/ui/quote-card.tsx` / `quote-preview.tsx` + `composer.tsx`（mousedown / focus 捕获兜底）+ `native-chat-root.tsx`（`applyQuote` 实时状态、发送前置引用、预览条点击跳转、空白点击不抢焦点）+ `settings/schema.ts` / `settings/sections/chat.ts`（`quoteExcerptLimit`）+ `view/panel-host.ts` / `main.ts`（`getQuoteExcerptLimit`）+ `styles.css`（`.dsh-native-quote-*`） |
 | 文件夹 chip 点击定位（左侧文件列表展开选中） | `view/native/folder-reveal.ts` + `view/native/ui/markdown-text.tsx`（事件委托）+ `view/native/note-links.ts`（chip HTML） |
 | 面板布局与显示 | `view/native/ui/` + [styles.css](../styles.css) |
 | 思考 / 工具调用的折叠、展开与一行摘要 | `view/native/ui/timeline-model.ts` + `timeline-process.tsx` + `tool-row.tsx` |
@@ -220,7 +225,7 @@ node --input-type=module -e "import('/tmp/locator.mjs').then(async (m) => { cons
 8. 重新加载插件 → 控制台出现 `[dsh-native-chat] dsh 版本: <版本>（<路径>）`；有冲突 / 回退时 Notice 与设置页「运行环境」一致。
 9. 设置页「dsh 版本」切换 → 重启服务 → 原生面板正常连接；显式选择后不再弹冲突 Notice。
 10. 0.2.x：控制台出现 `dsh 就绪信号: http://…?token=***`；日志无明文 token。
-11. 端口上留一个 0.2.x 实例再重载插件 → 状态条「需手动结束」+ Notice 给 `pkill`；清掉后恢复。
+11. 端口上留一个 0.2.x 实例再重载插件 → 状态条「需手动结束」+ Notice 指引「结束后台 dsh」；点设置页「服务」→「结束」后端口释放（行下显示 PID），再「重启服务」恢复。
 12. 重新 link 桥插件并重启 → 设置页「桥接状态」显示「已连接（v8）」；原生面板发送 / 停止 / 流式正常。
 13. 输入框输入 `/` → 出现 `/new`、`/compact` 与「技能」分组（当前会话没有技能时显示一行说明）；`/co` 过滤到 compact；点技能行插入 `/技能名 `；`/compact` 执行时输入框上方出现「正在压缩会话历史…」，结束后时间线出现 `/compact` 卡片。
 13. 端口上放一个 0.1.x（裸 URL 200）→ 状态条「版本不支持」+ Notice。
@@ -302,3 +307,10 @@ node --input-type=module -e "import('/tmp/locator.mjs').then(async (m) => { cons
 73. 目标条降级（0052）：目标 complete 或会话无目标 → 不显示目标条；旧桥（v7，或 `ping().methods` 不含 `goal`）→ 完全不显示目标条，消息 / 流式 / 命令 / 团队 / 子智能体照常；profile 缺 dsh goal 插件 → 条不出现，强行点动作时错误文案在条内 `role="alert"` 显示（不弹 Notice）。
 74. 目标条不闪烁（0053）：使用 goal 且自动续跑时，Obsidian 窗口不再持续闪烁，输入框上方只有一条目标条（不出现「半透明残影 + 实条」双份）；目标条为实色卡片（主题底 + 1px 描边 + 阴影，无模糊底），暂停 / 恢复 / 编辑 / 清除照常。
 75. 目标条位置（0054）：运行中「深度求索中」运行提示在目标条**上方**，目标条紧贴输入卡；运行提示每轮出现 / 消失时目标条不被顶开、与输入卡间距不变；无运行提示时目标条仍是输入卡正上方一张卡，无目标时不占位。
+76. 结束后台 dsh（0056）：端口上有遗留 dsh 时（状态条「需手动结束」）→ 设置 →「服务」→ 点「结束」→ 按钮「结束中…」、两个按钮都禁用、行下「正在结束后台 dsh… N.Ns」→ 结果 `HH:mm:ss · 已结束后台 dsh（PID …，用时 N.Ns）`、状态栏 `DSH: 已结束`、`lsof -nP -iTCP:<port> -sTCP:LISTEN` 无输出；同机 3082 等其它同 profile 实例仍在；再点「重启」→ `DSH: 运行中`。
+77. 桌面 App 内置 dsh（0057）：装好 DeepSeek Harness 桌面端（macOS /Applications 或 Windows `%LOCALAPPDATA%\Programs`）→ 设置 →「dsh 版本」多出一项，路径是 App 根目录、版本与 App 内置 dsh 一致；选中它 →「重启服务」→ 控制台路径为 App 根目录、原生面板正常收发；`lsof -nP -iTCP:<port> -sTCP:LISTEN` 的进程是 App 的 Electron 可执行文件；改回「自动」后仍走原来的默认安装。
+77. 结束 / 重启的就地反馈（0056）：点「重启」→ 按钮「重启中…」、行下「正在重启 dsh 服务… N.Ns」→ 结果 `HH:mm:ss · 服务已重启（端口 …，用时 N.Ns）`，设置页不再弹 Notice；端口上是别的程序时「结束」给出「被其他程序占用（不是 dsh）」+ 换端口建议且**不杀**该进程；从命令面板「重启 DSH 服务」→ 先出现「DSH：正在重启服务…」，结束后换成结果 Notice。
+78. 选区引用（0058）：编辑区选中一段文字 → 点右栏输入框，输入框上方出现引用预览条（笔记名 / 行范围 / 摘录）；发送后气泡里是引用卡（竖线 + 笔记名 + 行范围 + 两行摘录，不是 blockquote），正文照旧 Markdown；点引用卡 → 主区打开 / 切到该笔记、选中原范围并高亮，聊天面板留在右栏；刷新面板 / 重启服务后同一条引用仍可点击（引用随消息文本落库）。
+79. 选区引用边界（0058）：不选文字 / 只读子会话 / 草稿以 `/` 开头发送 → 不显示预览、不加引用；点预览条 × 后同一选区不再自动带回、改选区后重新出现；面板空白处点击不抢编辑区焦点（消息正文与输入框保持原行为，仍可选词复制）；设置 →「聊天」→ 选区引用摘录上限改成 100 → 发送超长选区时消息里带「…（已截断，共 N 字）」，行号范围仍完整。
+80. 选区预览实时化（0059）：在编辑区拖选文字（不点右栏）→ 右栏输入框上方立即出现预览条；改选别的行 → 预览跟着变；点编辑区空白折叠选区 → 预览消失；重新选中同一段 → 预览恢复；点输入框后预览保留；点 × 后同一段隐藏、折叠后重选恢复；切换会话不影响预览（预览只反映编辑区当前选区）。
+81. 引用预览条可点击（0060）：选中文字出现预览条 → 点预览条主区域 → 主区打开 / 切到笔记、选中原范围并高亮、焦点到编辑区，预览条保留；点 × 只取消本次引用（不跳转、不动选区）；键盘 Tab + Enter / Space 同样能跳转。

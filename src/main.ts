@@ -1,5 +1,5 @@
 import { Notice, Plugin, addIcon, type WorkspaceLeaf } from 'obsidian';
-import { DshServiceManager, type DshServiceOutcome } from './service/manager';
+import { DshServiceManager, type DshServiceOutcome, type DshStopOutcome } from './service/manager';
 import { listDshCandidates, PATH_DSH_PLACEHOLDER, probeDshVersion, resolveDshInstall } from './service/locator';
 import { clearOptionalCatalogCache, readOptionalCatalog } from './service/plugin-catalog';
 import { listLocalSkillNames } from './service/skill-catalog';
@@ -13,6 +13,7 @@ import {
 import { togglePluginEnabled } from './service/plugin-patch';
 import {
 	mergeSettings,
+	quoteExcerptLimitOf,
 	runStatusPlacementOf,
 	type CommandScope,
 	type DshPluginSettings,
@@ -29,6 +30,7 @@ import { LEGACY_VIEW_TYPE_DSH, VIEW_TYPE_NATIVE_CHAT } from './shared/constants'
 import { createDshProbe, vaultPath } from './shared/host';
 import { logPlugin, logPluginWarn } from './shared/log';
 import type {
+	DshActionResult,
 	DshBridgeStatus,
 	DshCommand,
 	DshInstall,
@@ -37,6 +39,7 @@ import type {
 	DshPluginRow,
 	DshPluginRowState,
 	DshRuntimeInfo,
+	DshStopResult,
 } from './shared/types';
 import { DshNativeChatView } from './view/native/native-chat-view';
 import { findNativeChat, openNativeChat } from './view/open';
@@ -72,6 +75,8 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 	private runtimeHintShown = false;
 	/** 「指定的 dsh 不存在，已回退自动」提示每次加载只弹一次。 */
 	private fallbackHintShown = false;
+	/** 正在进行中的重启（去重：命令面板 / 设置页连点不会并发 stop 两次，0056）。 */
+	private restarting: Promise<DshActionResult> | null = null;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -122,7 +127,7 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 			id: 'restart-dsh-service',
 			name: '重启 DSH 服务',
 			callback: () => {
-				void this.restartService();
+				void this.restartFromCommand();
 			},
 		});
 
@@ -197,11 +202,54 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 		await this.saveData(this.settings);
 	}
 
-	/** 重启服务：杀自启进程 → 重新拉起；原生面板打开时重载隐藏 core。 */
-	async restartService(): Promise<void> {
+	/**
+	 * SettingsHost / DshPanelHost：重启服务。
+	 *
+	 * 不弹 Notice：设置页用返回值在行下就地显示进度与结果（0056），命令面板由
+	 * restartFromCommand 统一提示。原生面板打开时重载隐藏 core，但**不阻塞**返回值
+	 * （重载要等页面 + 桥就绪，最长 25s；面板自己的 ensureReady 有并发去重）。
+	 */
+	restartService(): Promise<DshActionResult> {
+		if (this.restarting === null) {
+			this.restarting = this.doRestart().finally(() => {
+				this.restarting = null;
+			});
+		}
+		return this.restarting;
+	}
+
+	private async doRestart(): Promise<DshActionResult> {
+		const started = Date.now();
 		const outcome = await this.service.restart();
-		this.reportOutcome(outcome, true);
-		if (!outcome.ok) return;
+		const result = this.describeOutcome(outcome, Date.now() - started);
+		if (outcome.ok) void this.reloadPanelAfterRestart();
+		return result;
+	}
+
+	/** SettingsHost：结束后台 dsh（插件自拉进程 + 占用端口的遗留 dsh）；结果交设置页就地展示。 */
+	async stopBackgroundService(): Promise<DshStopResult> {
+		// 先等正在进行的重启收敛，避免「边起边杀」。
+		if (this.restarting !== null) await this.restarting.catch((): undefined => undefined);
+		const started = Date.now();
+		const outcome = await this.service.stopBackground();
+		return this.describeStop(outcome, Date.now() - started);
+	}
+
+	/** 命令面板入口：没有设置页的就地状态，用一条常驻 Notice 显示进行中，结束后换成结果。 */
+	private async restartFromCommand(): Promise<void> {
+		const pending = new Notice('DSH：正在重启服务…', 0);
+		try {
+			const result = await this.restartService();
+			pending.hide();
+			new Notice(this.actionText(result), result.ok ? 8000 : 15000);
+		} catch (error) {
+			// 常驻 Notice 必须收掉，否则会一直挂在窗口上。
+			pending.hide();
+			new Notice('DSH：重启服务失败 — ' + errorText(error), 15000);
+		}
+	}
+
+	private async reloadPanelAfterRestart(): Promise<void> {
 		const view = findNativeChat(this.app);
 		if (view === null) return;
 		try {
@@ -246,6 +294,11 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 			allow: this.settings.commandWhitelist,
 			deny: this.settings.commandBlacklist,
 		};
+	}
+
+	/** DshPanelHost：选区引用摘录上限（0058），发送 / 预览引用时读取。 */
+	getQuoteExcerptLimit(): number {
+		return quoteExcerptLimitOf(this.settings.quoteExcerptLimit);
 	}
 
 	/** SettingsHost：本地技能目录里的技能名（0038，设置页「/」技能范围的「选取」按钮）。 */
@@ -355,42 +408,124 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 	}
 
 	private async ensureDsh(): Promise<boolean> {
-		return this.reportOutcome(await this.service.start(), false);
+		const started = Date.now();
+		const result = this.describeOutcome(await this.service.start(), Date.now() - started);
+		// 面板打开 / 自动启动失败时给一条可操作的 Notice（成功不打扰）。
+		if (!result.ok) new Notice(this.actionText(result), 15000);
+		return result.ok;
 	}
 
-	/** 把 service 的结果翻译成用户可见的 Notice，返回服务是否可用。 */
-	private reportOutcome(outcome: DshServiceOutcome, fromRestart: boolean): boolean {
+	/** 把 manager 的启动结果翻译成一行文案 + 下一步建议（0056：就地反馈与 Notice 共用）。 */
+	private describeOutcome(outcome: DshServiceOutcome, elapsedMs: number): DshActionResult {
+		const port = String(this.settings.port);
+		const seconds = (elapsedMs / 1000).toFixed(1);
 		if (outcome.ok) {
-			if (fromRestart) new Notice('DSH 服务已重启');
-			return true;
+			return {
+				ok: true,
+				message: outcome.alreadyRunning
+					? '服务已在运行（端口 ' + port + '）'
+					: '服务已重启（端口 ' + port + '，用时 ' + seconds + 's）',
+				elapsedMs,
+			};
 		}
-		if (outcome.reason === 'locator') {
-			new Notice('DSH：无法定位 dsh 可执行文件，请确认已安装');
-		} else if (outcome.reason === 'exited') {
-			new Notice('DSH 进程提前退出（退出码 ' + String(outcome.exitCode) + '）。详见开发者控制台 [dsh] 日志');
-		} else if (outcome.reason === 'occupied') {
-			new Notice(
-				'DSH：端口 ' + String(this.settings.port) + ' 已被其他程序占用，请在设置里换端口后重启服务',
-			);
-		} else if (outcome.reason === 'auth') {
-			new Notice(
-				'DSH：端口上的 dsh 需要 token，插件无法接管（通常是上次遗留的实例）。请先结束它（pkill -f "dsh --profile ' +
-					this.settings.profile +
-					'"），再点「重启服务」',
-				15000,
-			);
-		} else if (outcome.reason === 'unsupported') {
-			new Notice(
-				'DSH：端口 ' +
-					String(this.settings.port) +
-					' 上是 0.1.x 或不带 token 鉴权的实例，本插件只支持 0.2.x；请先结束它（pkill -f "dsh --profile ' +
-					this.settings.profile +
-					'"），再点「重启服务」',
-				15000,
-			);
+		switch (outcome.reason) {
+			case 'locator':
+				return {
+					ok: false,
+					message: '无法定位 dsh 可执行文件',
+					hint: '确认已安装 dsh，并在「dsh 版本」里选中一份可用安装',
+					elapsedMs,
+				};
+			case 'exited':
+				return {
+					ok: false,
+					message: 'dsh 进程提前退出（退出码 ' + String(outcome.exitCode) + '）',
+					hint: '详见开发者控制台 [dsh] 日志',
+					elapsedMs,
+				};
+			case 'timeout':
+				return {
+					ok: false,
+					message: '启动超时（20 秒内端口未就绪）',
+					hint: '看控制台 [dsh] 日志确认是慢还是卡住；必要时点「结束后台 dsh」重来',
+					elapsedMs,
+				};
+			case 'occupied':
+				return {
+					ok: false,
+					message: '端口 ' + port + ' 已被其他程序占用',
+					hint: '在「端口」里换一个端口后重启',
+					elapsedMs,
+				};
+			case 'auth':
+				return {
+					ok: false,
+					message: '端口 ' + port + ' 上是需要 token 的遗留 dsh，插件无法接管',
+					hint: '先点「结束后台 dsh」，再点「重启服务」',
+					elapsedMs,
+				};
+			case 'unsupported':
+				return {
+					ok: false,
+					message: '端口 ' + port + ' 上是旧版 / 不带 token 鉴权的 dsh',
+					hint: '先点「结束后台 dsh」，再点「重启服务」',
+					elapsedMs,
+				};
 		}
-		if (fromRestart) new Notice('DSH 服务重启失败');
-		return false;
+	}
+
+	/** 把「结束后台 dsh」的结果翻译成文案（0056）。 */
+	private describeStop(outcome: DshStopOutcome, elapsedMs: number): DshStopResult {
+		const port = String(this.settings.port);
+		const seconds = (elapsedMs / 1000).toFixed(1);
+		const pids = outcome.pids;
+		if (outcome.ok) {
+			let message: string;
+			if (pids.length > 0) {
+				message = '已结束后台 dsh（PID ' + pids.join('、') + '，用时 ' + seconds + 's）';
+			} else if (outcome.stoppedOwn) {
+				message = '已结束插件拉起的 dsh 服务（用时 ' + seconds + 's）';
+			} else {
+				message = '没有在运行的 dsh 服务（端口 ' + port + ' 空闲）';
+			}
+			return { ok: true, message, pids, stoppedOwn: outcome.stoppedOwn };
+		}
+		if (outcome.reason === 'foreign') {
+			return {
+				ok: false,
+				message: '端口 ' + port + ' 被其他程序占用（不是 dsh），没有结束它',
+				hint: '可以换个端口，或在系统里手动处理占用该端口的程序',
+				pids,
+				stoppedOwn: outcome.stoppedOwn,
+			};
+		}
+		if (outcome.reason === 'timeout') {
+			const stuck = outcome.stuck ?? [];
+			return {
+				ok: false,
+				message:
+					'已发送结束信号，但 dsh 仍在运行' +
+					(stuck.length === 0 ? '' : '（PID ' + stuck.join('、') + '）'),
+				hint: '再点一次「结束后台 dsh」；仍不行可在终端手动结束该进程',
+				pids,
+				stoppedOwn: outcome.stoppedOwn,
+			};
+		}
+		return {
+			ok: false,
+			message: '端口 ' + port + ' 上是 dsh，但没找到可安全结束的进程',
+			hint:
+				'可手动结束：pkill -f "dsh --profile ' +
+				this.settings.profile +
+				'"（会结束同 profile 的所有实例）',
+			pids,
+			stoppedOwn: outcome.stoppedOwn,
+		};
+	}
+
+	/** Notice / 就地反馈统一前缀。 */
+	private actionText(result: DshActionResult | DshStopResult): string {
+		return 'DSH：' + result.message + (result.hint === undefined ? '' : ' — ' + result.hint);
 	}
 
 	/**

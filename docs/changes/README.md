@@ -67,6 +67,12 @@
 | [0053](0053-goal-bar-flicker.md) | goal 目标条在 Obsidian 里持续闪烁 / 残影：去掉半透明模糊底改主题实色卡片 + 目标数据没变不重渲染 | ✅ 已完成（2026-10-28；build/check + 用户确认无闪烁） |
 | [0054](0054-goal-bar-below-run-status.md) | 目标条固定到运行提示（深度求索中）下方、紧贴输入框（composer 渲染顺序 RunStatus → goalBar） | ✅ 已完成（2026-10-28；build/check + CDP 实测） |
 | [0055](0055-obsidian-community-directory.md) | 上架 Obsidian 官方社区目录：manifest 改 id `dsh-native-chat` / name `DSH Native Chat` / 英文描述 / minAppVersion 1.7.2，清 19 个官方 ESLint error，README 补政策披露，发 1.0.0 | ✅ 已完成（2026-10-28；build/check + lint 0 error + release v1.0.0） |
+| [0056](0056-dsh-stop-button.md) | 设置页「结束后台 dsh」按钮（端口精确识别 + 命令行核实，不误杀同 profile 其它实例）+ 重启就地反馈 | ✅ 已完成（2026-10-28；build/check + 35 项服务冒烟 + CDP 实测） |
+| [0057](0057-desktop-app-dsh.md) | 支持使用桌面 App 内置的 dsh：locator 探测 App 根目录（macOS / Windows），以 Electron-as-node 直接启动插件自用服务 | ✅ 已完成（2026-10-28；build/check + 原生 app 端到端冒烟 + Windows 路径逻辑断言） |
+| [0058](0058-selection-quote.md) | 编辑器选区引用：发送自动附「笔记 + 选区」、微信式引用卡、点击跳回并高亮选区；摘录上限可设置（路径 A + F1 / R2） | ✅ 已完成（2026-10-28；build/check + 11 项纯函数冒烟 + CDP 实测） |
+| [0059](0059-live-selection-preview.md) | 选区预览实时化：编辑区选区变化时右栏立即显示/更新引用预览（selectionchange + workspace 事件，80ms 防抖） | ✅ 已完成（2026-10-28；build/check + CDP 实测） |
+| [0060](0060-quote-preview-clickable.md) | 引用预览条可点击：点预览条与点消息内引用卡一致，跳回笔记并选中高亮（× 仍只取消本次引用） | ✅ 已完成（2026-10-28；build/check + CDP 实测） |
+| [0061](0061-release-1.1.0.md) | 发布 1.1.0：提交 0056–0060 并推送到 GitHub，Release 正文只写版本更新内容（安装步骤留在 install.md） | 🚧 执行中 |
 
 ## 需求受理（2026-10-27 起）
 

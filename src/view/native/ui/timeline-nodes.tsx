@@ -3,6 +3,8 @@ import type { NativeChatNode } from '../../../shared/native-types';
 import { asRecord, textOfContent } from './chat-node-data';
 import { Icon } from './icon';
 import { MarkdownText } from './markdown-text';
+import { parseQuote } from '../quote';
+import { QuoteCard } from './quote-card';
 import { oneLine } from './tool-row';
 
 /**
@@ -22,15 +24,25 @@ function UserMessage({
 	sourcePath: string;
 }) {
 	const text = textOfContent(content);
+	// 0058：引用块单独渲染成微信式引用卡，正文仍走 Markdown；拆不出来按原文渲染。
+	const parsed = parseQuote(text);
+	const body = parsed === null ? text : parsed.body;
 	return (
 		<div className="dsh-native-message is-user">
 			<div className="dsh-native-message-label">{label}</div>
 			<div className="dsh-native-bubble">
-				{text === '' ? (
+				{parsed !== null ? (
+					<QuoteCard
+						app={app}
+						quote={parsed.quote}
+						truncatedTotal={parsed.truncatedTotal}
+					/>
+				) : null}
+				{body !== '' ? (
+					<MarkdownText app={app} text={body} sourcePath={sourcePath} />
+				) : parsed === null ? (
 					<span className="dsh-native-muted">[非文本消息]</span>
-				) : (
-					<MarkdownText app={app} text={text} sourcePath={sourcePath} />
-				)}
+				) : null}
 			</div>
 		</div>
 	);

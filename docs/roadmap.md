@@ -1,6 +1,6 @@
 # 路线图
 
-> 当前版本 **1.0.0**（以 [manifest.json](../manifest.json) 为准）· 方案 B 已可用 · 最后更新 2026-10-28
+> 当前版本 **1.1.0**（以 [manifest.json](../manifest.json) 为准）· 方案 B 已可用 · 最后更新 2026-10-28
 
 ## 现状一句话
 
@@ -62,6 +62,12 @@ dsh 版本选择（[0003](changes/0003-dsh-version-selection-and-token-auth.md)�
 | R-36 | 使用 goal 后目标条在 Obsidian 里持续闪烁 / 出现残影（半透明模糊底 + 每轮运行提示位移导致窗口反复重合成） | ✅ 已完成（2026-10-28；build/check + 用户确认无闪烁） | [0053](changes/0053-goal-bar-flicker.md) |
 | R-37 | 目标条要始终显示在运行提示（深度求索中）下方、紧贴输入框，避免被每轮运行提示顶动 | ✅ 已完成（2026-10-28；build/check + CDP 实测） | [0054](changes/0054-goal-bar-below-run-status.md) |
 | R-38 | 上架 Obsidian 官方社区目录：manifest 合规（id `dsh-native-chat` / name `DSH Native Chat` / 英文描述 / minAppVersion 1.7.2）+ 清零官方 ESLint error + README 政策披露 + 发布 1.0.0 | ✅ 已完成（2026-10-28；build/check + lint 0 error + release v1.0.0；目录提交待用户在网页完成） | [0055](changes/0055-obsidian-community-directory.md) |
+| R-39 | 设置页新增「结束后台 dsh」按钮（结束遗留实例，不必再手动 pkill）+「重启服务」改为就地进度 / 结果反馈 | ✅ 已完成（2026-10-28；build/check + 35 项服务冒烟 + CDP 实测） | [0056](changes/0056-dsh-stop-button.md) |
+| R-40 | 支持使用桌面 App 内置的 dsh：设置页「dsh 版本」能检测到 macOS / Windows 桌面 App 安装，并只用 App 的可执行文件拉起插件自用的 dsh | ✅ 已完成（2026-10-28；build/check + 原生 app 端到端冒烟 + Windows 路径逻辑断言） | [0057](changes/0057-desktop-app-dsh.md) |
+| R-41 | 编辑器选区引用：发送时自动带上「当前笔记 + 选中文本」，气泡以微信式引用卡渲染；点击引用跳回笔记、选中并高亮原选区；同时处理右栏聊天改变编辑区焦点的问题 | ✅ 已完成（2026-10-28；build/check + 11 项纯函数冒烟 + CDP 实测） | [0058](changes/0058-selection-quote.md) |
+| R-42 | 选区引用预览实时化：编辑区里选中文字时右栏立即显示/更新引用预览，不用先点输入框 | ✅ 已完成（2026-10-28；build/check + CDP 实测） | [0059](changes/0059-live-selection-preview.md) |
+| R-43 | 引用预览条可点击：点输入框上方的预览条与点消息内引用卡一致，跳回笔记并选中高亮原选区（× 仍只取消本次引用） | ✅ 已完成（2026-10-28；build/check + CDP 实测） | [0060](changes/0060-quote-preview-clickable.md) |
+| R-44 | 发布 1.1.0：把 0056–0060 的改动提交并推送到 GitHub，Releases 页面只写版本更新内容 | 🚧 执行中 | [0061](changes/0061-release-1.1.0.md) |
 
 > 新需求往下追加，编号连续（R-2、R-3…），不要删旧行。状态取值：`待调研` → `等你选路` → `执行中` → `✅ 已完成` / `⏸ 暂缓`。
 

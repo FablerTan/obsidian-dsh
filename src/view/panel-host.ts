@@ -5,6 +5,7 @@ import type {
 	SkillScope,
 	StreamRefreshMode,
 } from '../settings/schema';
+import type { DshActionResult } from '../shared/types';
 
 /**
  * 原生聊天面板需要的最小宿主能力（由插件实现）。
@@ -21,8 +22,8 @@ export interface DshPanelHost {
 	isRunning(): Promise<boolean>;
 	/** 确保服务在跑（原生面板打开时调用）。 */
 	ensureStarted(): Promise<boolean>;
-	/** 重启插件自启的 dsh 服务（原生面板错误页使用）。 */
-	restartService(): Promise<void>;
+	/** 重启插件自启的 dsh 服务（原生面板错误页使用）；失败原因由返回值带回（0056）。 */
+	restartService(): Promise<DshActionResult>;
 	/** 当前设置里的流式刷新节奏（0021）；面板打开期间切换需即时生效。 */
 	getStreamRefresh(): StreamRefreshMode;
 	/** 当前设置里的运行提示位置（0048）；面板每次渲染读取，运行中切换即时生效。 */
@@ -33,4 +34,6 @@ export interface DshPanelHost {
 	getSkillScope(): SkillScope;
 	/** 当前设置里的「/」命令范围（0050）；只影响菜单显示，每次打开 / 菜单时读取。 */
 	getCommandScope(): CommandScope;
+	/** 当前设置里的选区引用摘录上限（0058）；发送 / 预览引用时读取。 */
+	getQuoteExcerptLimit(): number;
 }

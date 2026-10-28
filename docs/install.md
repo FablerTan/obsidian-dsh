@@ -9,7 +9,7 @@
 - **平台**：macOS + zsh（Windows / Linux 未验证）；插件 `isDesktopOnly: true`，**移动端不可用**。
 - **只管安装**：开发环境、构建细节、手动回归见 [development.md](development.md)；出问题先看第 11 节，再查 [troubleshooting.md](troubleshooting.md)。
 - **事实来源**：默认值取自 `src/settings/schema.ts` 的 `DEFAULT_SETTINGS`，清单取自 `manifest.json`，进程与可执行文件解析取自 `src/service/`；文档与代码冲突时以代码为准。
-- **本机已核对**（2026-10-28）：插件 1.0.0、桥 0.5.0（API v8）、dsh 0.2.1-rc.3、Obsidian 1.14.4。
+- **本机已核对**（2026-10-28）：插件 1.1.0、桥 0.5.0（API v8）、dsh 0.2.1-rc.3、Obsidian 1.14.4。
 
 > **铁律**：任何一步的成功判据不满足，就停下按第 11 节处理；**不要**跳过、不要靠换端口掩盖、不要手改产物。
 
@@ -39,7 +39,7 @@ export DSH_HOME_DIR="${DSH_HOME:-$HOME/.dsh}"       # 与 dsh 一致：环境变
 export PROFILE="$DSH_HOME_DIR/profiles/obsidian"
 export PORT=3081                                   # 默认端口；data.json 改过就以实际值为准
 
-export VERSION="v1.0.0"                            # 仅 A：要装的插件版本（= Release tag）
+export VERSION="v1.1.0"                            # 仅 A：要装的插件版本（= Release tag）
 export BRIDGE_DIR="$HOME/.local/share/dsh-native-chat/bridge-$VERSION"   # 仅 A：桥解压位置
 export REPO="$HOME/path/to/obsidian-dsh"           # 仅 B：仓库 checkout
 ```
@@ -96,12 +96,26 @@ ln -sfn "$DSH_CHECKOUT/apps/cli/lib/bin.js" "$HOME/.local/bin/dsh"
 "$HOME/.local/bin/dsh" --version          # 期望 0.2.x
 ```
 
-**成功判据**：`dsh --version`（或 `"$HOME/.local/bin/dsh" --version`）输出 `0.2.x`。
+**情况 D：直接用桌面 App 内置的 dsh**（机器上装了 DeepSeek Harness 桌面端时推荐，无需另装）：
+
+插件会自动探测桌面 App 的标准安装位置，并在设置页「dsh 版本」列出一项（显示 App 根目录、版本为 App 内置 dsh 的 0.2.x）：
+
+- macOS：`/Applications/DeepSeek Harness.app`、`~/Applications/DeepSeek Harness.app`；
+- Windows：`%LOCALAPPDATA%\Programs\DeepSeek Harness`、`%ProgramFiles%\DeepSeek Harness`、`%ProgramFiles(x86)%\DeepSeek Harness`。
+
+选中它并「重启服务」即可：插件用 App 的 Electron 以 node 模式跑 `app.asar` 里的 dsh CLI，拉起的是插件自己的服务（cwd = vault、profile `obsidian`），
+与桌面 App 正在跑的实例互不接管，但两者共用 `$DSH_HOME`（默认 `~/.dsh`）。
+
+> 限制：`app.asar` 是归档文件，普通 Node 读不到里面的内容，所以设置页「插件」tab 的可选插件目录可能解析不到（聊天 / 服务不受影响）；
+> App 内置的 dsh 版本（如 0.2.1-rc.3）比本机 npm 版旧时，profile 若组合失败，在「dsh 版本」切回另一份即可。Windows 路径按桌面端打包快照实现，尚未实测。
+
+**成功判据**：`dsh --version`（或 `"$HOME/.local/bin/dsh" --version`）输出 `0.2.x`；用桌面 App 时在设置页「dsh 版本」能看到版本号。
 
 > **解析顺序（关键）**：插件的 `resolveDshInstall()` 依次尝试
 > ① `node` + `~/.local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js`
 > → ② PATH 上的 `dsh`
-> → ③ `~/.local/bin/dsh`、`/opt/homebrew/bin/dsh`、`/usr/local/bin/dsh`。
+> → ③ `~/.local/bin/dsh`、`/opt/homebrew/bin/dsh`、`/usr/local/bin/dsh`
+> → ④ 桌面 App 内置的 dsh（macOS / Windows 标准安装位置；排在最后，不改变已有安装的默认选择）。
 > **①存在就优先**，所以机器上残留的 0.1.x 全局安装会盖住新的 0.2.x —— 装完必须在第 9 节核对控制台 `[dsh-native-chat] dsh 版本:`，必要时在设置页「dsh 版本」显式选中 0.2.x 的条目（写入 `data.json` 的 `dshPath`）再「重启服务」。
 > 另外 `node` 必须能被 Obsidian 的进程环境找到：插件先试 `~/.local/bin/node`、`/opt/homebrew/bin/node`、`/usr/local/bin/node`，都没有才用裸 `node`。用 nvm 时建议补一条 `ln -sfn "$(command -v node)" "$HOME/.local/bin/node"`。
 
@@ -214,13 +228,13 @@ for f in main.js manifest.json styles.css versions.json; do
   curl -fL --retry 3 --retry-delay 2 "$BASE/$f" -o "$PLUGIN_DIR/$f"
 done
 ls -l "$PLUGIN_DIR"
-grep -m1 "version" "$PLUGIN_DIR/manifest.json"     # 期望 "1.0.0"
+grep -m1 "version" "$PLUGIN_DIR/manifest.json"     # 期望 "1.1.0"
 ```
 
 **成功判据**：
 
-- 三个文件都存在且非空（`main.js` 约 330 KB，`styles.css` 约 70 KB）；
-- `manifest.json` 里 `"id": "dsh-native-chat"`、`"version": "1.0.0"`、`"isDesktopOnly": true`；
+- 三个文件都存在且非空（`main.js` 约 346 KB，`styles.css` 约 74 KB）；
+- `manifest.json` 里 `"id": "dsh-native-chat"`、`"version": "1.1.0"`、`"isDesktopOnly": true`；
 - `PLUGIN_DIR` 就是 `<vault>/.obsidian/plugins/dsh-native-chat`（目录名与插件 id 一致，避免多版本混淆）。
 
 > 不想用 Release 时，可用同版本的 tag 直接取文件（等价的兜底）：
@@ -380,11 +394,11 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:$PORT/"
 | A：面板提示「未检测到 dsh-obsidian-bridge」 | 桥没装 / 装的是旧版本 / 装完没重启 | 按 7A 解压并 `link:` → 「重启服务」→ 打开面板 →「重新检测」 | 本文 7A |
 | B：`npm ci` / `npm run build` 失败 | Node 版本不满足 / 依赖损坏 | 确认 `node -v`，删 `node_modules` 重装；不要手改产物 | [development](development.md#前置条件) |
 | B：`npm run check` 报 main.js 与源码不一致 | 改了源码没重新构建 | `npm run build` 后重跑；禁止手改 `main.js` | [development](development.md#构建与产物) |
-| `DSH: 启动失败` + Notice「无法定位 dsh 可执行文件」 | 四个候选位置都没有 dsh | 按第 3 节装 / 建链；或在设置页「dsh 版本」选检测到的安装 | [troubleshooting](troubleshooting.md#状态栏启动失败-notice无法定位-dsh-可执行文件) |
+| `DSH: 启动失败` + Notice「无法定位 dsh 可执行文件」 | 所有候选位置（全局 npm / PATH / 常用路径 / 桌面 App）都没有 dsh | 按第 3 节装 / 建链，或直接用桌面 App 内置版；在设置页「dsh 版本」选检测到的安装 | [troubleshooting](troubleshooting.md#状态栏启动失败-notice无法定位-dsh-可执行文件) |
 | `DSH: 启动失败(退出码 N)`，日志有 `profile "xxx" does not exist` | 设置里的 profile 名不存在 | 建 profile（第 4 节）或把 Profile 改回 `obsidian` | [troubleshooting](troubleshooting.md#状态栏启动失败退出码-n) |
 | 同上，日志报 `cordis.patch.yml must be a top-level YAML array` | patch 文件只有注释、解析成 `null` | 在文件末尾补一行 `[]`，保留注释，再「重启服务」 | [troubleshooting](troubleshooting.md#每次都启动失败退出码-1且日志提到-cordispatchyml) |
 | `DSH: 启动失败(退出码 N)`，日志有 `EADDRINUSE` / 缺依赖 / 找不到模块 | 端口被占 / dsh 安装不完整 / profile bundles 缺失 | 换端口或结束占用进程；重装 dsh；检查 profile 的 `package.json` | [troubleshooting](troubleshooting.md#状态栏启动失败退出码-n) |
-| `DSH: 需手动结束` + Notice 要给 `pkill` | 端口上是**上次遗留**的 0.2.x（拿不到它的 token） | `pkill -f "dsh --profile obsidian"` 后点「重启服务」；不要靠换端口绕过 | [troubleshooting](troubleshooting.md#状态条需手动结束-notice端口上的-dsh-需要-token) |
+| `DSH: 需手动结束` + Notice 指引结束后台 dsh | 端口上是**上次遗留**的 0.2.x（拿不到它的 token） | 设置页「服务」→「结束后台 dsh」→「重启服务」；按钮取不到 PID 时再用 `pkill -f "dsh --profile obsidian"` 手动兜底；不要靠换端口绕过 | [troubleshooting](troubleshooting.md#状态条需手动结束-notice端口上的-dsh-需要-token) |
 | `DSH: 版本不支持` | 端口上是 0.1.x / 无 token 鉴权的实例 | 结束旧实例，在「dsh 版本」选 0.2.x 后重启 | [troubleshooting](troubleshooting.md#使用-02x--切换-dsh-版本) |
 | `DSH: 端口被占用` | 端口上有别的程序（或无法确认归属的 dsh） | `lsof` 找占用者；换端口或结束它，再「重启服务」 | [troubleshooting](troubleshooting.md#状态条端口被占用-notice端口已被其他程序占用) |
 | `DSH: 启动超时`（约 20s 未就绪） | 首次启动 / Cordis 挂载慢 / 某插件卡住 | 在 vault 里手动跑同一条命令看真实输出；不要盲目调大等待 | [troubleshooting](troubleshooting.md#状态栏启动超时) |
@@ -437,7 +451,7 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:$PORT/"
 | 回滚模型接入 | 删除第 5 节追加的 `llm-pi-ai` / `agent-default-model` / `llm-deepseek` 条目，或恢复备份 | 同一 `id` 重复写会整体覆盖，恢复时注意别留半截 |
 | 重置插件设置 | 删除 `data.json` 后「重新加载插件」 | 端口 / profile / 范围设置全部回到默认；**先问用户** |
 | 删除整个 profile | `rm -rf "$PROFILE"` | 连同会话与配置一起删除；**先问用户** |
-| 释放端口 | 退出 / 禁用插件后 `pkill -f "dsh --profile obsidian"` | 只清遗留实例；用户手动起的其他 dsh 不要动 |
+| 释放端口 | 设置页「服务」→「结束后台 dsh」；或退出 / 禁用插件后 `pkill -f "dsh --profile obsidian"` | 按钮只结束当前端口的监听者；手动 `pkill` 会清掉同 profile 全部遗留实例，其它端口的实例不要动 |
 | 回滚 dsh 版本 | 设置页「dsh 版本」改回「自动」或选另一份 →「重启服务」 | 插件只支持 0.2.x |
 | 回滚插件代码（仅 B） | `git -C "$REPO" checkout -- <文件>` 后 `npm run build` | 不要用旧 `main.js` 配新源码 |
 
@@ -477,7 +491,7 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:$PORT/"
 | 手改 `$PROFILE/cordis.yml` | dsh 每次启动都重写为 `[]`，改了也会被覆盖 |
 | 用 pnpm / `dsh plugin` 安装 `@deepseek-ai/dsh-web-app` | 官方 bundle 随 dsh 提供；注册表版本与 0.2.x 不兼容，会被拒装 |
 | 往 profile 里加非 0.2.x 组件 | 桥依赖 0.2.x 的内部服务，会降级或起不来 |
-| `pkill -f dsh` 或杀用户手动起的实例 | 插件只该管自己 spawn 的进程；只清 `--profile obsidian` 的遗留实例，且先 `pgrep -fl` 确认 |
+| `pkill -f dsh` 或杀其它端口上的实例 | 结束遗留实例统一用设置页「结束后台 dsh」（只认当前端口的监听 PID + `ps` / `pgrep` 校验）；手动兜底也只清 `--profile obsidian` 的实例，且先 `pgrep -fl` 确认 |
 | 用换端口绕过「需手动结束」 | 遗留实例仍占着旧端口，问题不会消失 |
 | 对符号链接 `rm -rf` | 会删掉链接指向的真实内容；先用 `[ -L ]` 判断 |
 | 改 / 删 / 提交 `data.json` | 运行时数据，不是源码 |

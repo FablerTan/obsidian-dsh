@@ -21,6 +21,11 @@ export type Probe = (url: string) => Promise<ProbeResult>;
 export interface DshCommand {
 	cmd: string;
 	prefix: string[];
+	/**
+	 * 额外注入的子进程环境变量（只作用于这次启动 / 探测）。
+	 * 桌面 App 内置的 dsh 需要 ELECTRON_RUN_AS_NODE=1 才能把 App 的 Electron 当 node 跑。
+	 */
+	env?: Record<string, string>;
 }
 
 /** 一份可用的 dsh 安装：启动方式 + 展示路径 + 版本（探测失败为 null）。 */
@@ -103,6 +108,33 @@ export interface DshOptionalCatalog {
 	onDemand: string[];
 	/** 目录不可用时的说明。 */
 	message?: string;
+}
+
+/**
+ * 服务操作结果（0056）：设置页就地反馈与命令面板 Notice 共用。
+ *
+ * 文案在组合根（main.ts）由 manager 的 outcome 翻译，UI 只负责展示，
+ * 避免「设置页 + main + 命令面板」各弹一遍 Notice。
+ */
+export interface DshActionResult {
+	ok: boolean;
+	/** 一行结果文案（成功时含端口与耗时；失败时描述原因）。 */
+	message: string;
+	/** 失败时的下一步建议（例如「先点结束后台 dsh」），成功时省略。 */
+	hint?: string;
+	/** 从发起到出结果的实际耗时（毫秒）。 */
+	elapsedMs: number;
+}
+
+/** 「结束后台 dsh」的结果（0056）。 */
+export interface DshStopResult {
+	ok: boolean;
+	message: string;
+	hint?: string;
+	/** 被结束的端口监听进程 PID（不含插件自己拉起的子进程）。 */
+	pids: number[];
+	/** 插件自己拉起的子进程是否也被结束。 */
+	stoppedOwn: boolean;
 }
 
 /** profile 的组合插件清单（设置页「插件」tab 展示，0031）。 */
