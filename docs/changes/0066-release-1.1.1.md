@@ -1,5 +1,5 @@
 ---
-status: approved
+status: done
 created: 2026-10-28
 approved: 2026-10-28       # 用户当轮明确要求：推送到 GitHub 并发布
 scope: manifest.json / package.json / package-lock.json / versions.json / README.md / docs
@@ -85,4 +85,18 @@ issue: 发布 1.1.1：把 0063–0065（审阅技能 + 结构重构）推送到 
 
 ## 9. 实施记录
 
-（发布完成后填写）
+**落地（2026-10-28）**：
+
+- 版本 1.1.0 → **1.1.1**：`manifest.json` / `package.json` / `package-lock.json`（根与 `packages[""]` 两处）/ `versions.json`（追加 `"1.1.1": "1.7.2"`）；README（中 / 英头部）、`docs/roadmap.md`、`docs/install.md`（事实核对行、`VERSION` 示例、成功判据）同步版本字样；产物体积判据更新为 `main.js` 约 347 KB / `styles.css` 约 76 KB。
+- 发布提交 `4cc1949`（9 个文件）；注释 tag `v1.1.1`；推送 `origin/main`（`b49f17e..4cc1949`）与 tag。
+- Release：<https://github.com/FablerTan/obsidian-dsh/releases/tag/v1.1.1>，标题「1.1.1 — 内部结构重构（无用户可见变化）」，正文只有「本版内容」四条（不含安装 / 校验步骤）。
+- 桥 zip 由 `packages/dsh-obsidian-bridge/` 现打包（23,058 字节，与 1.1.0 资产同尺寸：桥未改动，仍 0.5.0 / API v8）。
+
+**验证结果**：
+
+- `npm run build` → `main.js` 347.0kb；`npm run check` 全项通过（版本三处一致 / 无运行时依赖 / manifest 合规 / tsc / 桥清单与语法 / `main.js` 与源码构建逐字节一致）；`npm run lint` 0 error（31 条既有 warning）。
+- 本地 tag `v1.1.1` = `4cc1949`；`git ls-remote` 显示远端 `main` = `4cc1949`、`refs/tags/v1.1.1` 存在。
+- Release 非 draft / 非 prerelease；资产：`main.js` 355,321 / `manifest.json` 342 / `styles.css` 77,300 / `versions.json` 326 / `dsh-obsidian-bridge.zip` 23,058 字节。
+- 下载 5 个资产逐一比对 SHA-256：与本地文件完全一致；远端 `manifest.json` 的 `version` 为 `1.1.1`。
+
+**与提案的偏差**：无。补充说明：`main.js` 比 1.1.0 大 1,053 字节（355,321 vs 354,268）——源码净减 1,185 行，但拆分后跨文件导入与组件包装让压缩产物体积略增；`npm run check` 已逐字节确认产物与源码一致。
