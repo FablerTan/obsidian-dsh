@@ -819,7 +819,10 @@
 	font-size: var(--font-ui-smaller);
 }
 
-.dsh-native-context summary {
+/* 注意：.dsh-native-context 是输入栏「上下文占用圆环」的类名（见文末 .dsh-native-app .dsh-native-context）；
+ * 时间线里的上下文 / 压缩 / 未知节点卡片用 .dsh-native-context-card，否则会被圆环的 24×24 规则压扁。 */
+.dsh-native-context-card summary,
+.dsh-native-answer summary {
 	display: flex;
 	align-items: center;
 	gap: 4px;
@@ -1046,7 +1049,7 @@
 }
 
 .dsh-native-tool-body pre,
-.dsh-native-context pre,
+.dsh-native-context-card pre,
 .dsh-native-pending-reason,
 .dsh-native-command-text {
 	max-height: 260px;
@@ -1068,10 +1071,60 @@
 	margin-top: 4px;
 }
 
-.dsh-native-context {
+.dsh-native-context-card {
 	border: 1px dashed var(--background-modifier-border);
 	border-radius: var(--radius-m);
 	padding: 4px 8px;
+}
+
+/* 提问答案记录：一行摘要（已回答 · N 题 · 答案预览），展开看每题问与答。 */
+.dsh-native-answer {
+	border: 1px dashed var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	padding: 4px 8px;
+}
+
+.dsh-native-answer-preview {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.dsh-native-answer-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin: 6px 0 2px;
+	padding: 0;
+	list-style: none;
+}
+
+.dsh-native-answer-list li {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 4px 6px;
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+}
+
+.dsh-native-answer-question {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.45;
+}
+
+.dsh-native-answer-value {
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	line-height: 1.45;
+	overflow-wrap: anywhere;
+}
+
+.dsh-native-answer-value.is-empty {
+	color: var(--text-faint);
 }
 
 .dsh-native-command {
@@ -1162,6 +1215,21 @@
 	background: var(--background-secondary);
 }
 
+/* 提问卡对齐官方提问面板：单题一屏、底部翻页；头部与底栏固定，中部内容超出时卡内纵向滚动。 */
+.dsh-native-pending-card.is-question {
+	display: flex;
+	flex-direction: column;
+	max-height: min(60vh, 520px);
+	/* 底部留 10px：翻页 / 跳过 / 提交不再贴着卡片下边框。 */
+	padding: 0 0 10px;
+	overflow: hidden;
+}
+
+.dsh-native-pending-card.is-question .dsh-native-pending-head {
+	flex: none;
+	padding: 10px 12px 0;
+}
+
 .dsh-native-pending-head {
 	display: flex;
 	align-items: center;
@@ -1184,63 +1252,253 @@
 	margin-top: 8px;
 }
 
-.dsh-native-question {
-	margin-top: 8px;
+/* 提问头：对齐官方的 eyebrow（问题标题）+ 正文两行结构。 */
+.dsh-native-question-head {
+	flex: none;
+	padding: 6px 12px 0;
 }
 
-.dsh-native-question-header {
+.dsh-native-question-eyebrow {
+	margin-bottom: 2px;
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
+	line-height: 1.4;
 }
 
 .dsh-native-question-text {
-	font-size: var(--font-ui-small);
+	font-size: var(--font-ui-medium);
 	font-weight: 500;
+	line-height: 1.45;
+}
+
+.dsh-native-question-body {
+	flex: 1 1 auto;
+	min-height: 0;
+	padding: 0 12px;
+	overflow-x: hidden;
+	overflow-y: auto;
 }
 
 .dsh-native-question-detail {
+	margin-top: 6px;
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
-	margin-top: 2px;
+	line-height: 1.5;
 }
 
+/* 选项：一行一条，左侧复选框 / 序号，右侧标签 +「推荐」徽标 + 说明同排换行。 */
 .dsh-native-question-options {
 	display: flex;
 	flex-direction: column;
-	gap: 3px;
-	margin-top: 4px;
+	gap: 2px;
+	margin-top: 8px;
+	padding-bottom: 2px;
 }
 
-.dsh-native-option {
+/* 用「父类 + button」提高优先级：Obsidian 的 button 默认样式（:not(.clickable-icon)）优先级更高，会盖掉这里的底色。 */
+.dsh-native-question-options button.dsh-native-option {
 	display: flex;
-	flex-direction: column;
 	align-items: flex-start;
-	padding: 4px 8px;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-s);
-	background: var(--background-primary);
+	gap: 8px;
+	width: 100%;
+	min-height: 34px;
+	height: auto;
+	padding: 6px 10px 6px 8px;
+	border: 1px solid transparent;
+	border-radius: var(--radius-m);
+	background-color: transparent;
 	box-shadow: none;
+	color: var(--text-normal);
+	font: inherit;
+	font-size: var(--font-ui-small);
+	line-height: 1.5;
+	white-space: normal;
 	text-align: left;
 	cursor: pointer;
 }
 
-.dsh-native-option.is-active {
-	border-color: var(--color-accent);
-	background: var(--background-modifier-active-hover);
+.dsh-native-question-options button.dsh-native-option:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+/* 选中态：强调色描边 + 悬浮底色，单选 / 多选都一眼可辨。 */
+.dsh-native-question-options button.dsh-native-option.is-active {
+	border-color: var(--interactive-accent);
+	background-color: var(--background-modifier-hover);
+}
+
+.dsh-native-option-box {
+	display: grid;
+	place-items: center;
+	flex: 0 0 18px;
+	width: 18px;
+	height: 18px;
+	margin-top: 2px;
+	border: 1px solid var(--background-modifier-border-hover);
+	border-radius: var(--radius-s);
+	color: var(--text-on-accent);
+}
+
+.dsh-native-option-box.is-checked {
+	border-color: var(--interactive-accent);
+	background: var(--interactive-accent);
+}
+
+.dsh-native-option-number {
+	display: grid;
+	place-items: center;
+	flex: 0 0 18px;
+	width: 18px;
+	height: 18px;
+	margin-top: 2px;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-border);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1;
+}
+
+.dsh-native-option-copy {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.dsh-native-option-line {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 2px 6px;
 }
 
 .dsh-native-option-label {
 	font-size: var(--font-ui-small);
+	font-weight: 500;
+}
+
+.dsh-native-option-badge {
+	padding: 0 4px;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-border);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+	line-height: 1.5;
 }
 
 .dsh-native-option-detail {
 	color: var(--text-muted);
-	font-size: var(--font-ui-smaller);
+	font-size: var(--font-ui-small);
+}
+
+/* 自填答案：有选项时作为列表最后一行（与选项同排版），无选项时独占一块输入框。 */
+.dsh-native-custom-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	min-height: 34px;
+	padding: 6px 10px 6px 8px;
+	border: 1px solid transparent;
+	border-radius: var(--radius-m);
+}
+
+.dsh-native-custom-row:hover,
+.dsh-native-custom-row:focus-within {
+	background: var(--background-modifier-hover);
+}
+
+.dsh-native-custom-row:focus-within,
+.dsh-native-custom-row.is-active {
+	border-color: var(--background-modifier-border);
 }
 
 .dsh-native-question-custom {
+	flex: 1 1 auto;
+	min-width: 0;
+	height: auto;
+	padding: 2px 0 0;
+	border: none;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	line-height: 1.5;
+}
+
+.dsh-native-question-custom:focus {
+	border: none;
+	box-shadow: none;
+	outline: none;
+}
+
+.dsh-native-question-custom.is-block {
+	flex: none;
 	width: 100%;
-	margin-top: 4px;
+	padding: 8px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary);
+}
+
+/* 底栏：左「‹ 1/2 ›」翻页，中间未答完提示，右「跳过 / 提交」。 */
+.dsh-native-question-footer {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: 8px;
+	margin-top: 10px;
+	padding: 0 12px;
+}
+
+.dsh-native-question-pager {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.dsh-native-question-pager button.dsh-native-icon-button {
+	display: grid;
+	place-items: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: 999px;
+	background-color: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.dsh-native-question-pager button.dsh-native-icon-button:hover:not(:disabled) {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.dsh-native-question-pager button.dsh-native-icon-button:disabled {
+	color: var(--text-faint);
+	cursor: default;
+}
+
+.dsh-native-question-progress {
+	padding: 0 2px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	font-variant-numeric: tabular-nums;
+}
+
+.dsh-native-question-error {
+	flex: 1 1 auto;
+	min-width: 0;
+	color: var(--text-error);
+	font-size: var(--font-ui-smaller);
+	text-align: right;
+}
+
+.dsh-native-question-actions {
+	display: flex;
+	flex: none;
+	gap: 6px;
+	margin-left: auto;
 }
 
 .dsh-native-composer-warning {
@@ -1426,6 +1684,177 @@
 	background: var(--background-secondary);
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
+}
+
+/* dsh 同款运行提示（0047）：输入卡片上方左对齐一行「鲸鱼尾 + 深度求索中，用时 N秒 ···」。
+   文案 / 字号 / 节奏对齐 dsh：12px 字、22px 行高、每秒刷新；颜色取 dsh 的
+   --dsw-alias-label-deep-diving（浅色 = deepseek-500 70% + blue-950 30%；
+   深色 = deepseek-450 55% + neutral-bluish-400 45%），shimmer 用同样的 mix 反比色。 */
+.dsh-native-run-status {
+	--dsh-native-run-color: rgb(52, 94, 186);
+	--dsh-native-run-shimmer: rgb(36, 61, 128);
+	display: flex;
+	align-items: center;
+	min-height: 22px;
+	/* 11px + composer 的 16px 内边距 = 27px：与正文列左边界对齐（0026）。 */
+	margin: 0 0 6px;
+	padding-left: 11px;
+	color: var(--dsh-native-run-color);
+	font-size: 12px;
+	line-height: 22px;
+}
+
+/* 0048：放在消息流最下方时，纵向间距交给时间线的 gap，左侧与正文列对齐（时间线内容左缘）。 */
+.dsh-native-run-status.is-flow {
+	margin: 0;
+	padding-left: 0;
+}
+
+.theme-dark .dsh-native-run-status {
+	--dsh-native-run-color: rgb(125, 154, 222);
+	--dsh-native-run-shimmer: rgb(138, 188, 254);
+}
+
+.dsh-native-run-content {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+/* 鲸鱼尾（dsh 用 APNG 蒙版做尾巴摆动；这里用同一 SVG 形状 + 轻微摆动代替，省掉二进制资源）。 */
+.dsh-native-run-whale {
+	display: inline-flex;
+	flex: none;
+	width: 14px;
+	height: 14px;
+	transform-origin: 60% 70%;
+	animation: dsh-native-run-tail 1.8s ease-in-out infinite;
+}
+
+/* 文字高光：复刻 dsh 的 TextShimmer——正文常显，上面叠一层同文案的高光副本，
+   用 105° 的渐变蒙版做「左 → 右」扫光；1.5s 走完、末尾停 0.5s，缓动 steps(48, end) 与 dsh 一致。
+   （旧实现是 background-clip: text + 背景位移：扫光方向相反、每轮首尾还会跳一下，看起来一卡一卡。） */
+.dsh-native-run-text {
+	position: relative;
+	display: inline-grid;
+	width: max-content;
+	max-width: 100%;
+	min-width: 0;
+	vertical-align: top;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.dsh-native-run-text-content {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.dsh-native-run-text-glyph {
+	white-space: nowrap;
+}
+
+.dsh-native-run-text-decoration {
+	position: absolute;
+	inset: 0;
+	overflow: clip;
+	pointer-events: none;
+	user-select: none;
+}
+
+.dsh-native-run-text-sweep {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	color: var(--dsh-native-run-shimmer);
+	-webkit-mask-image: linear-gradient(
+		105deg,
+		transparent 0%,
+		#000 40%,
+		#000 60%,
+		transparent 100%
+	);
+	mask-image: linear-gradient(
+		105deg,
+		transparent 0%,
+		#000 40%,
+		#000 60%,
+		transparent 100%
+	);
+	transform: translateX(-100%);
+	animation: dsh-native-run-shimmer-sweep 1.5s steps(48, end) 0.3s infinite;
+}
+
+.dsh-native-run-text-highlight {
+	width: 100%;
+	height: 100%;
+	transform: translateX(100%);
+	animation: dsh-native-run-shimmer-highlight 1.5s steps(48, end) 0.3s infinite;
+}
+
+/* 高光副本里的文字只继承扫光层的颜色，不跟正文的 base 色走。 */
+.dsh-native-run-text-sweep .dsh-native-run-text-glyph {
+	color: inherit;
+}
+
+/* 屏幕阅读器用的隐藏文本（dsh 的 visuallyHidden 同款）。 */
+.dsh-native-visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+@keyframes dsh-native-run-tail {
+	0%,
+	100% {
+		transform: translateY(0) rotate(0deg);
+	}
+	50% {
+		transform: translateY(-1px) rotate(-7deg);
+	}
+}
+
+/* 扫光轨迹：0 → 66.67% 从 -100% 移到 +100%，之后停到 100%（与 dsh keyframes 一致）。 */
+@keyframes dsh-native-run-shimmer-sweep {
+	0% {
+		transform: translateX(-100%);
+	}
+	66.6667%,
+	100% {
+		transform: translateX(100%);
+	}
+}
+
+/* 高光副本反向平移，抵消扫光层的位移，让文字本身保持不动、只有蒙版扫过。 */
+@keyframes dsh-native-run-shimmer-highlight {
+	0% {
+		transform: translateX(100%);
+	}
+	66.6667%,
+	100% {
+		transform: translateX(-100%);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.dsh-native-run-whale {
+		animation: none;
+	}
+	.dsh-native-run-text-decoration {
+		display: none;
+	}
+	.dsh-native-run-text-sweep,
+	.dsh-native-run-text-highlight {
+		animation: none;
+	}
 }
 
 .dsh-native-input-shell {
@@ -2399,3 +2828,494 @@
 }
 
 
+
+
+/* —— 0041：子智能体（subagent）入口 / 面包屑 / 只读 composer / 目录浮层 —— */
+
+.dsh-native-app .dsh-native-subagent-trigger {
+	position: relative;
+}
+
+.dsh-native-subagent-trigger.has-pending::after {
+	content: '';
+	position: absolute;
+	top: 5px;
+	right: 5px;
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: var(--color-orange);
+}
+
+.dsh-native-subagent-count {
+	position: absolute;
+	top: 2px;
+	right: 2px;
+	min-width: 12px;
+	padding: 0 3px;
+	border-radius: 999px;
+	background: var(--background-modifier-hover);
+	color: var(--text-muted);
+	font-size: calc(var(--font-ui-smaller) * 0.85);
+	line-height: 1.35;
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+}
+
+.dsh-native-subagent-breadcrumb {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 4px 10px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	min-width: 0;
+}
+
+.dsh-native-app .dsh-native-subagent-back {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+	padding: 1px 4px;
+	border: none;
+	background: none;
+	background-color: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+}
+
+.dsh-native-app .dsh-native-subagent-back:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.dsh-native-subagent-back span {
+	overflow: hidden;
+	max-width: 180px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dsh-native-subagent-current {
+	overflow: hidden;
+	color: var(--text-normal);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dsh-native-subagent-mode-label {
+	flex: none;
+	margin-left: auto;
+	padding: 0 5px;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-hover);
+	color: var(--text-faint);
+	font-size: calc(var(--font-ui-smaller) * 0.92);
+	line-height: 1.5;
+}
+
+.dsh-native-composer-readonly {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.45;
+}
+
+.dsh-native-composer-readonly span {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.dsh-native-composer-readonly .dsh-native-send.is-stop {
+	flex: none;
+}
+
+.dsh-native-subagent-panel {
+	width: min(380px, calc(100% - 16px));
+	max-width: 420px;
+	max-height: min(72vh, 640px);
+	padding: 10px 12px 12px;
+	gap: 0;
+	overflow-x: hidden;
+}
+
+.dsh-native-subagent {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	min-width: 0;
+}
+
+.dsh-native-subagent-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.dsh-native-subagent-headline {
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	font-weight: 600;
+}
+
+.dsh-native-subagent-counts {
+	margin-left: auto;
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+}
+
+.dsh-native-subagent-empty {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.5;
+}
+
+.dsh-native-subagent-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.dsh-native-app .dsh-native-subagent-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	width: 100%;
+	min-width: 0;
+	height: auto;
+	padding: 7px 9px;
+	border: none;
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	background-color: var(--background-secondary);
+	box-shadow: none;
+	color: var(--text-normal);
+	text-align: left;
+	white-space: normal;
+	cursor: pointer;
+}
+
+.dsh-native-app .dsh-native-subagent-row:hover {
+	background: var(--background-modifier-hover);
+	background-color: var(--background-modifier-hover);
+}
+
+.dsh-native-app .dsh-native-subagent-row.is-current {
+	box-shadow: inset 2px 0 0 var(--interactive-accent);
+}
+
+.dsh-native-app .dsh-native-subagent-row.has-pending {
+	box-shadow: inset 2px 0 0 var(--color-orange);
+}
+
+.dsh-native-app .dsh-native-subagent-row.has-unread {
+	box-shadow: inset 2px 0 0 var(--color-blue);
+}
+
+.dsh-native-subagent-dot {
+	flex: none;
+	width: 7px;
+	height: 7px;
+	margin-top: 5px;
+	border-radius: 50%;
+	background: var(--text-faint);
+}
+
+.dsh-native-subagent-dot.is-running {
+	background: var(--color-green);
+	animation: dsh-native-blink 1.2s infinite ease-in-out;
+}
+
+.dsh-native-subagent-dot.is-pending {
+	background: var(--color-orange);
+}
+
+.dsh-native-subagent-row-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.dsh-native-subagent-row-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 2px 6px;
+	min-width: 0;
+}
+
+.dsh-native-subagent-label {
+	overflow: hidden;
+	flex: 0 1 auto;
+	min-width: 0;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	font-weight: 500;
+	line-height: 1.35;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dsh-native-subagent-badge {
+	flex: none;
+	padding: 0 4px;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-hover);
+	color: var(--text-faint);
+	font-size: calc(var(--font-ui-smaller) * 0.92);
+	line-height: 1.5;
+}
+
+.dsh-native-subagent-badge.is-current {
+	background: var(--background-modifier-hover);
+	color: var(--text-muted);
+}
+
+.dsh-native-subagent-badge.is-team {
+	background: var(--background-modifier-hover);
+	color: var(--text-accent);
+}
+
+.dsh-native-subagent-badge.is-pending {
+	margin-left: auto;
+	border-radius: 999px;
+	background: var(--background-modifier-error);
+	color: var(--text-error);
+}
+
+.dsh-native-subagent-badge.is-unread {
+	border-radius: 999px;
+	background: var(--background-modifier-hover);
+	color: var(--color-blue);
+}
+
+.dsh-native-subagent-row-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2px 6px;
+	min-width: 0;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.4;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+
+.dsh-native-subagent-mode {
+	flex: none;
+	color: var(--text-muted);
+}
+
+.dsh-native-message.is-subagent .dsh-native-team-message-label {
+	color: var(--text-muted);
+}
+
+/* 0046：本轮只有思考、没有正文/工具调用时的重试提示（与输入卡片左右边界对齐）。 */
+.dsh-native-turn-end-hint {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: none;
+	margin: 0 16px 2px;
+	padding: 4px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.dsh-native-turn-end-hint span {
+	flex: 1 1 auto;
+	overflow-wrap: anywhere;
+}
+
+.dsh-native-turn-end-hint .dsh-native-icon {
+	flex: none;
+	color: var(--text-muted);
+}
+
+.dsh-native-app .dsh-native-turn-end-hint button {
+	flex: none;
+	padding: 2px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.4;
+	cursor: pointer;
+}
+
+.dsh-native-app .dsh-native-turn-end-hint button:hover:not(:disabled) {
+	background: var(--background-modifier-hover);
+}
+
+.dsh-native-app .dsh-native-turn-end-hint button:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+/* 0052：输入框上方的目标条（dsh 官方 GoalBar 的同款悬浮条）。
+   官方值映射到 Obsidian 主题变量：菜单底 --dsw-specific-menu → --background-primary
+   卡片底；层次（圆角 / 浮起阴影 / 描边）用 --radius-m / --shadow-s /
+   --background-modifier-border；文字层级用 --text-normal（标签）/ --text-muted（正文）/
+   --text-faint（图标）/ --text-error（错误）。不做硬编码颜色，跟随主题与配色方案走。
+
+   注意（R-36）：不要在这里用 backdrop-filter / isolation + 负 z-index 伪元素做半透明模糊底。
+   该组合在 Obsidian 窗口里会持续触发整窗重合成，表现为「使用 goal 时 Obsidian 窗口一直闪烁」
+   （官方 dsh 的 GoalBar 在纯浏览器页面里没有这个问题）。卡片底用主题实色 + 描边即可，
+   视觉上仍是一张悬浮卡片。 */
+.dsh-native-goal {
+	position: relative;
+	margin: 0 0 6px;
+}
+
+/* 官方 36px 单行条：图标 + 标签 + 单行省略的目标正文 + 右侧图标动作。 */
+.dsh-native-goal-strip {
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	height: 36px;
+	padding: 4px 5px 4px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary);
+	box-shadow: var(--shadow-s);
+	color: var(--text-normal);
+	font-size: 13px;
+	line-height: 20px;
+}
+
+.dsh-native-goal-glyph {
+	display: inline-flex;
+	flex: none;
+	color: var(--text-faint);
+}
+
+.dsh-native-goal-label {
+	flex: none;
+	font-size: 13px;
+	line-height: 24px;
+	font-weight: 500;
+	color: var(--text-normal);
+}
+
+.dsh-native-goal-objective {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	font-size: 13px;
+	line-height: 20px;
+	color: var(--text-muted);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dsh-native-goal-error {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	color: var(--text-error);
+	font-size: 12px;
+	line-height: 20px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dsh-native-goal-actions {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex: none;
+}
+
+/* 28px 圆形图标动作。Obsidian 的 button:not(.clickable-icon) 带底色 / 内阴影 /
+   固定高度，这里用 .dsh-native-app 前缀提高优先级把按钮重置成透明图标。 */
+.dsh-native-goal-action,
+.dsh-native-app .dsh-native-goal-action {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: none;
+	border-radius: 999px;
+	background: transparent;
+	background-color: transparent;
+	box-shadow: none;
+	color: var(--text-faint);
+	cursor: pointer;
+}
+
+@media (hover: hover) {
+	.dsh-native-goal-action:hover:not(:disabled),
+	.dsh-native-app .dsh-native-goal-action:hover:not(:disabled) {
+		background: var(--background-modifier-hover);
+		color: var(--text-muted);
+	}
+}
+
+.dsh-native-goal-action:disabled,
+.dsh-native-app .dsh-native-goal-action:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+/* 编辑态：条随多行正文长高，动作按钮贴最后一行（官方 editBar 同口径）。 */
+.dsh-native-goal-strip.is-editing {
+	height: auto;
+	min-height: 36px;
+	align-items: flex-end;
+}
+
+/* 内联编辑框：6 行（20px × 6 + 12px 内边距）封顶，再往上框内滚动。
+   Textarea 的底色 / 阴影 / 焦点圈一律去掉，视觉交给外层条。 */
+.dsh-native-goal-editor {
+	flex: 1;
+	min-width: 0;
+	min-height: 24px;
+	max-height: calc(20px * 6 + 12px);
+	resize: none;
+	overflow-y: auto;
+	padding: 2px 4px;
+	border: none;
+	background: transparent;
+	box-shadow: none;
+	font: inherit;
+	font-size: 13px;
+	line-height: 20px;
+	color: var(--text-normal);
+}
+
+/* 与 .dsh-native-input 同一套重置：压掉 Obsidian 全局 textarea 的独立 hover / 焦点态。 */
+.dsh-native-app .dsh-native-goal-editor:hover,
+.dsh-native-app .dsh-native-goal-editor:active,
+.dsh-native-app .dsh-native-goal-editor:focus,
+.dsh-native-app .dsh-native-goal-editor:focus-visible {
+	background: transparent;
+	background-color: transparent;
+	box-shadow: none;
+	outline: none;
+}

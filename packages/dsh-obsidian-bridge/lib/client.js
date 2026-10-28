@@ -16,6 +16,12 @@
  * 插件端不自己解释 /compact 这类宿主命令。
  * v6（0035）：增加 team() —— 读 Lead 会话的 agentTeam 投影（dsh「智能体团队」bundle），
  * 并补上各成员的运行状态 / 等待授权 / 模型标签，供原生面板的只读团队浮层使用。
+ * v7（0041）：增加 subagents() —— 读会话的 subagentCatalog 投影（dsh 子智能体），
+ * 并把 subscribe() 扩成可接受 SubagentAddress，供原生面板列子代理、打开子会话续聊 / Stop。
+ * v8（目标条）：增加 goal() / goalAction() —— 读会话的 goal 投影（目标条：id / revision /
+ * objective / phase / blockedReason / maxGoalRounds / roundsStarted），并通过 remote.goals
+ * 走宿主目标操作（edit / pause / resume / clear）。activation 是进程内状态、不在投影里，
+ * 由 remote.goals.get() 按需读一次 + goal/activation-changed 事件补齐。
  */
 window.__ModuleLoader__.load({
 	id: "dsh-obsidian-bridge",
@@ -24,7 +30,7 @@ window.__ModuleLoader__.load({
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 
-		const VERSION = 6;
+		const VERSION = 8;
 		const GLOBAL_KEY = "__DSH_OBSIDIAN_BRIDGE__";
 		const MAX_DEPTH = 8;
 		const MAX_ARRAY = 300;
@@ -179,6 +185,9 @@ window.__ModuleLoader__.load({
 			let live = null;
 			let liveRevision = 0;
 			let disposed = false;
+			// v8 goal：进程内 activation 缓存（goal 投影里没有 activation），键为 { id, revision }。
+			let activationCache = null;
+			let activationReadKey = null;
 			const waiters = new Set();
 
 			function notify() {
@@ -393,6 +402,8 @@ window.__ModuleLoader__.load({
 				const hadLive = live !== null;
 				active = null;
 				live = null;
+				activationCache = null;
+				activationReadKey = null;
 				for (const unsubscribe of current.unsubs) {
 					try {
 						unsubscribe();
@@ -501,20 +512,92 @@ window.__ModuleLoader__.load({
 						cwd: row?.cwd ?? null,
 						running: row?.running === true,
 						blank: row?.blank === true,
-						updatedAt: row?.updatedAt ?? null
+						updatedAt: row?.updatedAt ?? null,
+						origin: typeof row?.origin === "string" ? row.origin : null,
+						parentId: typeof row?.parentId === "string" ? row.parentId : null
 					};
 				});
 				return { phase: snapshot.phase ?? null, sessions };
 			}
 
-			async function subscribe(sessionId) {
-				if (typeof sessionId !== "string" || sessionId.length === 0) {
-					throw new Error("缺少会话 id");
+			/** 规范 subscribe 参数：string = 普通会话；{ parentSessionId, childSessionId, mode } = 子会话地址。 */
+			function normalizeTarget(target) {
+				if (typeof target === "string" && target.length > 0) {
+					return { sessionId: target, address: null };
 				}
+				if (target !== null && typeof target === "object") {
+					const parentSessionId = typeof target.parentSessionId === "string" ? target.parentSessionId : "";
+					const childSessionId = typeof target.childSessionId === "string" ? target.childSessionId : "";
+					const mode = target.mode;
+					if (
+						parentSessionId !== "" &&
+						childSessionId !== "" &&
+						(mode === "one-shot" || mode === "continuable" || mode === "unknown")
+					) {
+						return {
+							sessionId: childSessionId,
+							address: { parentSessionId, childSessionId, mode }
+						};
+					}
+				}
+				throw new Error("缺少会话 id");
+			}
+
+			/** 当前订阅会话的子代理地址（普通会话为 null）。 */
+			function activeSubagentAddress() {
+				if (active === null) return null;
+				try {
+					const address = active.session.getSnapshot()?.subagent?.address ?? null;
+					return address !== null && typeof address === "object" ? address : null;
+				} catch {
+					return null;
+				}
+			}
+
+			/** 子代理目录的根：普通会话是自己；子会话是它的父会话（这样能列出兄弟）。 */
+			function catalogRootId() {
+				if (active === null) throw new Error("尚未订阅会话");
+				const address = activeSubagentAddress();
+				return address && typeof address.parentSessionId === "string" && address.parentSessionId.length > 0
+					? address.parentSessionId
+					: active.sessionId;
+			}
+
+			/** 读一个会话在列表快照里的 summary 投影值（projectionsBySession 优先，回退 byId 上的投影块）。 */
+			function projectionValuesOf(sessionId) {
+				try {
+					const list = sessionsService().list.getSnapshot();
+					return (
+						list?.projectionsBySession?.[sessionId]?.values ??
+						list?.byId?.[sessionId]?.projectionValues ??
+						null
+					);
+				} catch {
+					return null;
+				}
+			}
+
+			/** 目录摘要：只关心目录根的 subagentCatalog，避免会话列表的任何变化都唤醒原生端。 */
+			function catalogDigest() {
+				try {
+					const values = projectionValuesOf(catalogRootId());
+					const catalog = Array.isArray(values?.subagentCatalog) ? values.subagentCatalog : null;
+					return JSON.stringify(catalog);
+				} catch {
+					return "";
+				}
+			}
+
+			async function subscribe(target) {
+				const normalized = normalizeTarget(target);
+				const sessionId = normalized.sessionId;
+				const address = normalized.address;
 				if (active?.sessionId === sessionId) {
 					return { ok: true, sessionId, revision };
 				}
 				cleanup();
+				activationCache = null;
+				activationReadKey = null;
 				const sessions = sessionsService();
 				let uiSession = safeGet(ctx, "uiSession");
 				for (let attempt = 0; attempt < 50; attempt++) {
@@ -523,7 +606,9 @@ window.__ModuleLoader__.load({
 					uiSession = safeGet(ctx, "uiSession");
 				}
 				if (!uiSession?.adapter?.bindingSource) throw new Error("uiSession 服务不可用");
-				const ref = sessions.retain(sessionId, { source: "obsidianBridge" });
+				const ref = address === null
+					? sessions.retain(sessionId, { source: "obsidianBridge" })
+					: sessions.retain(address, { source: "obsidianBridge" });
 				let binding;
 				try {
 					await ref.ready;
@@ -569,12 +654,35 @@ window.__ModuleLoader__.load({
 				} catch {
 					eventSource = null;
 				}
-				active = { sessionId, ref, chat, session, uiSession, eventSource, unsubs };
+				active = { sessionId, address, ref, chat, session, uiSession, eventSource, unsubs };
+				// 子代理目录可能随会话列表更新（父会话在别处跑出 / 结束子代理）：只在目录变化时唤醒。
+				let catalogKey = catalogDigest();
+				try {
+					unsubs.push(
+						sessionsService().list.subscribe(() => {
+							const next = catalogDigest();
+							if (next === catalogKey) return;
+							catalogKey = next;
+							bump();
+						})
+					);
+				} catch {
+					// 列表订阅失败不阻塞会话订阅
+				}
 				// 上下文占用与标题来自独立投影：用量 / 构成 / 标题变化时也要唤醒原生端。
 				// 投影是可选的，缺少时 context() 会返回 null（原生端显示灰色空环），标题则退回列表里的 displayTitle。
 				try {
 					const projections = sessionFace().projections;
-					for (const key of ["contextPressure", "contextBreakdown", "title", "agentTeam"]) {
+					for (const key of [
+						"contextPressure",
+						"contextBreakdown",
+						"title",
+						"agentTeam",
+						"subagentCatalog",
+						"subagent",
+						"subagentTiming",
+						"goal"
+					]) {
 						const face = projections?.faceOf?.(key);
 						if (face && typeof face.subscribe === "function") {
 							unsubs.push(face.subscribe(bump));
@@ -583,13 +691,44 @@ window.__ModuleLoader__.load({
 				} catch {
 					// 投影尚未就绪：不阻塞订阅。
 				}
+				// v8 goal：durable 投影只有 phase，进程内 activation 要经 remote.goals.get() 读；
+				// 事件只跟随当前会话，cleanup 时随 active.unsubs 一起释放。缺 goal 插件时整段跳过。
+				try {
+					const remote = remotes.remote;
+					if (remote && typeof remote.$on === "function") {
+						const unsubscribeGoal = remote.$on("goal/activation-changed", (event) => {
+							try {
+								if (active === null || event?.sessionId !== active.sessionId) return;
+								const changed = event.goal;
+								const activation = goalActivation(changed?.activation);
+								if (!changed || changed.id === undefined || changed.id === null || activation === null) {
+									activationCache = null;
+								} else {
+									activationCache = {
+										id: String(changed.id),
+										revision: Number(changed.revision),
+										activation
+									};
+								}
+								bump();
+							} catch {
+								// 事件处理失败不影响桥
+							}
+						});
+						if (typeof unsubscribeGoal === "function") unsubs.push(unsubscribeGoal);
+					}
+				} catch {
+					// goal 事件不可用：activation 只靠 goal() 的按需读取
+				}
 				if (eventSource) {
 					seedLive(eventSource.getSnapshot());
 					unsubs.push(eventSource.subscribe(onSessionEvent));
 				}
 				try {
 					const uiWorkspace = safeGet(ctx, "uiWorkspace");
-					if (typeof uiWorkspace?.openSession === "function") uiWorkspace.openSession(sessionId);
+					if (typeof uiWorkspace?.openSession === "function") {
+						uiWorkspace.openSession(address === null ? sessionId : address);
+					}
 				} catch {
 					// 只影响官方页面跟随，不影响数据桥
 				}
@@ -626,7 +765,8 @@ window.__ModuleLoader__.load({
 					nodes,
 					navigation,
 					timeline: sanitize(chat.timeline),
-					pending: projectPending(pendingOf())
+					pending: projectPending(pendingOf()),
+					subagent: sanitize(active.session.getSnapshot()?.subagent ?? null)
 				};
 			}
 
@@ -736,6 +876,280 @@ window.__ModuleLoader__.load({
 					tasks,
 					...(projection.failure === undefined ? {} : { failure: projection.failure })
 				});
+			}
+
+			/**
+			 * 子智能体（v7）：目录根的直接子级 + 模式 / 运行状态 / 等待授权 / 未读 / 耗时 / token / 模型。
+			 *
+			 * 目录来自会话列表快照里的 summary 投影 subagentCatalog（父会话拥有），子行另拼
+			 * subagentTiming / tokenUsage / modelSelection 与 uiSession.sessionStatus；未知 / 冷目录时
+			 * 先 refreshProjections 再读一次。没有子代理时返回空数组，原生端据此隐藏入口。
+			 */
+			async function subagents() {
+				if (active === null) throw new Error("尚未订阅会话");
+				const rootId = catalogRootId();
+				let values = projectionValuesOf(rootId);
+				if (!Array.isArray(values?.subagentCatalog)) {
+					try {
+						await sessionsService().refreshProjections(rootId);
+					} catch {
+						// 目录未注册 / 冷历史：按空目录处理
+					}
+					values = projectionValuesOf(rootId);
+				}
+				const catalog = Array.isArray(values?.subagentCatalog) ? values.subagentCatalog : [];
+				let statuses = null;
+				try {
+					statuses = active.uiSession?.sessionStatus?.getSnapshot?.() ?? null;
+				} catch {
+					statuses = null;
+				}
+				let list = null;
+				try {
+					list = sessionsService().list.getSnapshot();
+				} catch {
+					list = null;
+				}
+				const entries = [];
+				for (const entry of catalog) {
+					if (entry === null || typeof entry !== "object") continue;
+					if (entry.mode === "external") continue;
+					const id = typeof entry.id === "string" ? entry.id : "";
+					if (id === "") continue;
+					const row = list?.byId?.[id] ?? null;
+					const childValues = projectionValuesOf(id);
+					let status = null;
+					try {
+						status = statuses?.get?.(id) ?? null;
+					} catch {
+						status = null;
+					}
+					const timing = childValues?.subagentTiming ?? null;
+					const usage = childValues?.tokenUsage ?? null;
+					const totalTokens =
+						usage === null || typeof usage !== "object"
+							? null
+							: (Number(usage.uncachedInputTokens) || 0) +
+								(Number(usage.outputTokens) || 0) +
+								(Number(usage.cacheReadTokens) || 0) +
+								(Number(usage.cacheWriteTokens) || 0);
+					const model = childValues?.modelSelection?.next?.model;
+					const label = typeof entry.label === "string" && entry.label !== ""
+						? entry.label
+						: typeof row?.displayTitle === "string" && row.displayTitle !== ""
+							? row.displayTitle
+							: id;
+					entries.push({
+						id,
+						label,
+						title: typeof row?.displayTitle === "string" ? row.displayTitle : null,
+						mode: entry.mode === "one-shot" || entry.mode === "continuable" ? entry.mode : "unknown",
+						createdAt: typeof entry.createdAt === "number" ? entry.createdAt : null,
+						running: typeof status?.running === "boolean" ? status.running : row?.running === true,
+						pendingInteraction:
+							status?.pendingInteraction !== undefined && status?.pendingInteraction !== null,
+						unread: status?.completionUnread === true,
+						settledMs:
+							typeof timing?.settledMs === "number" && timing.settledMs >= 0
+								? timing.settledMs
+								: null,
+						activeSince:
+							typeof timing?.active?.since === "number" ? timing.active.since : null,
+						totalTokens,
+						model: typeof model === "string" ? model : null,
+						current: id === active.sessionId
+					});
+				}
+				return sanitize({
+					rootSessionId: rootId,
+					currentSessionId: active.sessionId,
+					entries
+				});
+			}
+
+			/* ---- v8：目标条数据面（goal 投影 + remote.goals 目标操作） ---- */
+
+			/** 目标 phase 的合法值；未知值按 active 处理，避免原生端丢目标条。 */
+			function goalPhase(value) {
+				return value === "paused" || value === "blocked" || value === "complete" ? value : "active";
+			}
+
+			/** 进程内 activation 的合法值；未知值视为尚未读到。 */
+			function goalActivation(value) {
+				return value === "armed" || value === "disarmed" ? value : null;
+			}
+
+			/** 数字字段兜底：Number() 后非有限值回退到 fallback。 */
+			function goalCount(value, fallback) {
+				const count = Number(value);
+				return Number.isFinite(count) ? count : fallback;
+			}
+
+			/** 当前会话 goal 投影里的 durable goal；投影未注册 / 当前无目标时 null。 */
+			function currentGoal() {
+				if (active === null) return null;
+				const projection = projectionValue("goal");
+				const value = projection?.goal;
+				if (value === null || typeof value !== "object") return null;
+				if (value.id === undefined || value.id === null) return null;
+				return value;
+			}
+
+			/** activation 缓存按 { id, revision } 精确匹配；未命中返回 null。 */
+			function cachedActivation(id, revision) {
+				if (activationCache === null) return null;
+				if (activationCache.id !== id || activationCache.revision !== revision) return null;
+				return activationCache.activation;
+			}
+
+			/**
+			 * activation 不在 durable 投影里（进程内状态），只能按需向宿主读一次。
+			 * 同一 { id, revision } 只允许一个并发读；读失败保持静默，下次目标变化再试。
+			 */
+			function refreshActivation(value) {
+				if (active === null) return;
+				const service = remotes.goals;
+				if (!service || typeof service.get !== "function") return;
+				const id = String(value.id);
+				const revision = Number(value.revision);
+				const key = id + "\u0000" + revision;
+				if (activationReadKey === key) return;
+				activationReadKey = key;
+				const sessionId = active.sessionId;
+				Promise.resolve()
+					.then(() => service.get(sessionId))
+					.then((response) => {
+						const result = response?.result ?? response;
+						if (!result || result.ok !== true) return;
+						const view = result.value;
+						if (!view || typeof view !== "object") return;
+						if (active === null || active.sessionId !== sessionId) return;
+						const current = currentGoal();
+						if (current === null) return;
+						if (String(current.id) !== id || Number(current.revision) !== revision) return;
+						const activation = goalActivation(view.activation);
+						if (activation === null) return;
+						activationCache = { id, revision, activation };
+						bump();
+					})
+					.catch(() => {
+						// 读失败保持静默：目标条只显示 durable phase
+					})
+					.finally(() => {
+						if (activationReadKey === key) activationReadKey = null;
+					});
+			}
+
+			/**
+			 * 目标条（v8）：当前会话的 goal 投影 + 按需 activation。
+			 * 没有目标 / goal 投影未注册时返回 null；activation 未知时不带该字段。
+			 */
+			function goal() {
+				if (active === null) throw new Error("尚未订阅会话");
+				const projection = projectionValue("goal");
+				if (!projection || typeof projection !== "object") return null;
+				const value = projection.goal;
+				if (!value || typeof value !== "object") return null;
+				const id = String(value.id ?? "");
+				if (id === "") return null;
+				const revision = Number(value.revision);
+				const phase = goalPhase(value.phase);
+				const result = {
+					id,
+					revision,
+					objective: typeof value.objective === "string" ? value.objective : "",
+					phase,
+					maxGoalRounds: goalCount(value.maxGoalRounds, 0),
+					roundsStarted: goalCount(projection.roundsStarted, 0)
+				};
+				if (phase === "blocked" && value.blockedReason && typeof value.blockedReason === "object") {
+					result.blockedReason = {
+						code: typeof value.blockedReason.code === "string" ? value.blockedReason.code : "",
+						message:
+							typeof value.blockedReason.message === "string" ? value.blockedReason.message : ""
+					};
+				}
+				if (phase === "active") {
+					const cached = cachedActivation(id, revision);
+					if (cached !== null) {
+						result.activation = cached;
+					} else {
+						refreshActivation(value);
+					}
+				}
+				return result;
+			}
+
+			const GOAL_ACTIONS = ["edit", "pause", "resume", "clear"];
+
+			function goalError(code, message) {
+				return { ok: false, error: { code, message } };
+			}
+
+			function goalUnavailable(detail) {
+				const suffix = typeof detail === "string" && detail !== "" ? "：" + detail : "";
+				return goalError(
+					"goal-unavailable",
+					"目标服务不可用（需要 dsh 0.2.x 的 goal 插件）" + suffix
+				);
+			}
+
+			/**
+			 * 目标操作（v8）：edit / pause / resume / clear，ref 取当前投影的 { id, revision }。
+			 * 业务错误与远端失败都以 { ok: false, error } 返回，不抛错（原生端直接展示）。
+			 */
+			async function goalAction(action, value) {
+				if (GOAL_ACTIONS.indexOf(action) < 0) {
+					return goalError("invalid-action", "未知目标操作：" + String(action));
+				}
+				if (active === null) return goalError("no-current-goal", "当前没有目标");
+				const sessionId = active.sessionId;
+				const current = currentGoal();
+				if (current === null) return goalError("no-current-goal", "当前没有目标");
+				const ref = { id: current.id, revision: Number(current.revision) };
+				let objective = "";
+				if (action === "edit") {
+					objective = typeof value === "string" ? value.trim() : "";
+					if (objective === "") return goalError("invalid-objective", "目标内容不能为空");
+				}
+				const service = remotes.goals;
+				if (!service || typeof service[action] !== "function") return goalUnavailable();
+				let response;
+				try {
+					response =
+						action === "edit"
+							? await service.edit(sessionId, ref, { objective })
+							: await service[action](sessionId, ref);
+				} catch (error) {
+					return goalUnavailable(typeof error?.message === "string" ? error.message : "");
+				}
+				const result = response?.result ?? response;
+				if (!result || result.ok !== true) {
+					return {
+						ok: false,
+						error: {
+							code: typeof result?.error?.code === "string" ? result.error.code : "goal-failed",
+							message:
+								typeof result?.error?.message === "string"
+									? result.error.message
+									: "目标操作失败"
+						}
+					};
+				}
+				const view = result.value;
+				// 期间可能已切会话：只在仍是同一会话时刷新缓存，避免把旧结果写进新会话。
+				if (view && typeof view === "object" && active !== null && active.sessionId === sessionId) {
+					const activation = goalActivation(view.activation);
+					if (activation !== null) {
+						activationCache = {
+							id: String(view.id ?? ref.id),
+							revision: Number(view.revision ?? ref.revision),
+							activation
+						};
+					}
+				}
+				bump();
+				return { ok: true };
 			}
 
 			function nextEvent(cursor, timeoutMs, liveCursor) {
@@ -1121,6 +1535,9 @@ window.__ModuleLoader__.load({
 				questionAnswer,
 				context,
 				team,
+				subagents,
+				goal,
+				goalAction,
 				commands,
 				skills,
 				executeCommand,
@@ -1129,8 +1546,8 @@ window.__ModuleLoader__.load({
 		}
 
 		function apply(ctx) {
-			/** v5 的 remote 命名空间（命令目录 / 技能目录），由 ctx.inject 子 fiber 填充。 */
-			const remotes = { commands: null, skills: null };
+			/** v5 / v8 的 remote 命名空间（命令目录 / 技能目录 / 目标），由 ctx.inject 子 fiber 填充。 */
+			const remotes = { commands: null, skills: null, goals: null, remote: null };
 			const native = nativeApi(ctx, remotes);
 			ctx.inject(["remote", "remote.commands"], (scope) => {
 				remotes.commands = scope.remote.commands;
@@ -1142,6 +1559,15 @@ window.__ModuleLoader__.load({
 				remotes.skills = scope.remote.skills;
 				return () => {
 					remotes.skills = null;
+				};
+			});
+			// v8 goal：goals 命名空间负责目标操作，remote 本体负责 goal/activation-changed 事件。
+			ctx.inject(["remote", "remote.goals"], (scope) => {
+				remotes.goals = scope.remote.goals;
+				remotes.remote = scope.remote;
+				return () => {
+					remotes.goals = null;
+					remotes.remote = null;
 				};
 			});
 			const bridge = {
@@ -1158,6 +1584,9 @@ window.__ModuleLoader__.load({
 						"liveStream",
 						"context",
 						"team",
+						"subagents",
+						"goal",
+						"goalAction",
 						"commands",
 						"skills",
 						"executeCommand"
@@ -1165,8 +1594,8 @@ window.__ModuleLoader__.load({
 				}),
 				listSessions: () => native.listSessions(),
 				createSession: (cwd) => native.createSession(cwd),
-				openSession: (id) => native.openSession(id),
-				subscribe: (id) => native.subscribe(id),
+				openSession: (target) => native.openSession(target),
+				subscribe: (target) => native.subscribe(target),
 				unsubscribe: () => native.unsubscribe(),
 				snapshot: () => native.snapshot(),
 				diagnose: () => native.diagnose(),
@@ -1183,6 +1612,9 @@ window.__ModuleLoader__.load({
 				questionAnswer: (answer) => native.questionAnswer(answer),
 				context: () => native.context(),
 				team: () => native.team(),
+				subagents: () => native.subagents(),
+				goal: () => native.goal(),
+				goalAction: (action, value) => native.goalAction(action, value),
 				commands: () => native.commands(),
 				skills: () => native.skills(),
 				executeCommand: (line) => native.executeCommand(line)

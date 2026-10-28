@@ -4,6 +4,7 @@ import type {
 	NativeChatLive,
 	NativeChatSnapshot,
 	NativeContextUsage,
+	NativeGoal,
 	NativeModelSelection,
 	NativeModels,
 	NativeNote,
@@ -11,6 +12,9 @@ import type {
 	NativePermissions,
 	NativeQuestionAnswer,
 	NativeSessionSummary,
+	NativeSubagentAddress,
+	NativeSubagentEntry,
+	NativeSubagentList,
 	NativeTeamProjection,
 } from '../../../shared/native-types';
 import { sleep } from '../../../shared/async';
@@ -18,7 +22,9 @@ import { errorText } from '../../../shared/errors';
 import { projectPathWithin, vaultPath } from '../../../shared/host';
 import {
 	streamRefreshMs,
+	type CommandScope,
 	type MentionScope,
+	type RunStatusPlacement,
 	type SkillScope,
 	type StreamRefreshMode,
 } from '../../../settings/schema';
@@ -30,18 +36,46 @@ import { filterMentionEntries } from '../mention-scope';
 import type { NoteTracker } from '../note-tracker';
 import { Composer } from './composer';
 import { ContextDetails } from './context-meter';
+import { GoalBar } from './goal-bar';
 import { Icon } from './icon';
 import { ModelMenu } from './model-menu';
 import { PermissionMenu } from './permission-menu';
 import { RenameSessionModal, SessionMenu } from './session-menu';
 import { PendingCard } from './pending';
 import { SessionPicker } from './session-picker';
+import { SubagentPanel } from './subagent-panel';
 import { TeamPanel } from './team-panel';
+import { RunStatus } from './run-status';
 import { Timeline } from './timeline';
+import { detectSilentTurnEnd } from './turn-end';
+import { TurnEndHint } from './turn-end-hint';
 
 type Phase = 'booting' | 'ready' | 'error';
 
 const NEW_SESSION_TITLE = '新会话';
+
+const SUBAGENT_MODE_TEXT: Record<'one-shot' | 'continuable' | 'unknown', string> = {
+	continuable: '可继续',
+	'one-shot': '一次性',
+	unknown: '未知类型',
+};
+
+/**
+ * 0052：目标条的渲染数据是否与上一份相同。
+ * 快照每次刷新都会重渲染整棵面板，目标条没必要跟着重挂；数据没变就复用旧对象。
+ */
+function sameGoal(left: NativeGoal | null, right: NativeGoal | null): boolean {
+	if (left === null || right === null) return left === right;
+	return (
+		left.id === right.id &&
+		left.revision === right.revision &&
+		left.objective === right.objective &&
+		left.phase === right.phase &&
+		left.activation === right.activation &&
+		(left.blockedReason?.code ?? null) === (right.blockedReason?.code ?? null) &&
+		(left.blockedReason?.message ?? null) === (right.blockedReason?.message ?? null)
+	);
+}
 
 /**
  * DSH 会用工作目录名（或空串）给还没有标题的新会话兜底；展示时统一换成「新会话」。
@@ -68,10 +102,14 @@ export interface NativeChatRootProps {
 	onRestartService: () => Promise<void>;
 	/** 设置页的流式刷新节奏（0021）；每次轮询读取，切换后即时生效。 */
 	getStreamRefresh: () => StreamRefreshMode;
+	/** 设置页的运行提示位置（0048）；每次渲染读取，运行中切换即时生效。 */
+	getRunStatusPlacement: () => RunStatusPlacement;
 	/** 设置页的「@」引用范围（0030）；每次打开菜单时读取。 */
 	getMentionScope: () => MentionScope;
 	/** 设置页的「/」技能范围（0037）；每次打开 / 菜单时读取，只影响菜单显示。 */
 	getSkillScope: () => SkillScope;
+	/** 设置页的「/」命令范围（0050）；每次打开 / 菜单时读取，只影响菜单显示。 */
+	getCommandScope: () => CommandScope;
 }
 
 export function NativeChatRoot({
@@ -82,8 +120,10 @@ export function NativeChatRoot({
 	onExplainSettings,
 	onRestartService,
 	getStreamRefresh,
+	getRunStatusPlacement,
 	getMentionScope,
 	getSkillScope,
+	getCommandScope,
 }: NativeChatRootProps) {
 	const [phase, setPhase] = useState<Phase>('booting');
 	const [bootError, setBootError] = useState<string | null>(null);
@@ -99,13 +139,22 @@ export function NativeChatRoot({
 	const [busy, setBusy] = useState(false);
 	const [loadingOlder, setLoadingOlder] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	/** 0046：已点过「重试」的静默结束轮次，避免提示条在被点到后立刻重现。 */
+	const [dismissedSilentTurn, setDismissedSilentTurn] = useState<number | null>(null);
 	const [pickerOpen, setPickerOpen] = useState(false);
 	const [menu, setMenu] = useState<{
-		kind: 'model' | 'permission' | 'more' | 'context' | 'team';
+		kind: 'model' | 'permission' | 'more' | 'context' | 'team' | 'subagents';
 		anchor: DOMRect;
 	} | null>(null);
 	const [context, setContext] = useState<NativeContextUsage | null>(null);
 	const [team, setTeam] = useState<NativeTeamProjection | null>(null);
+	const [subagents, setSubagents] = useState<NativeSubagentList | null>(null);
+	/** 0052：当前会话目标（dsh goal 投影）；无目标 / 旧桥为 null。 */
+	const [goal, setGoal] = useState<NativeGoal | null>(null);
+	/** 目标操作（暂停 / 恢复 / 编辑 / 清除）进行中：按钮置灰，避免重复 CAS。 */
+	const [goalPending, setGoalPending] = useState(false);
+	/** 目标操作的错误文案：显示在目标条里，下一次操作 / 切换会话时清空。 */
+	const [goalError, setGoalError] = useState<string | null>(null);
 
 	const mountedRef = useRef(true);
 	const tokenRef = useRef(0);
@@ -119,6 +168,10 @@ export function NativeChatRoot({
 	const contextRequestRef = useRef(0);
 	/** 团队投影请求序号（0035），与上下文同样的「只接受最新一次」策略。 */
 	const teamRequestRef = useRef(0);
+	/** 子智能体目录请求序号（0041），与团队同样的「只接受最新一次」策略。 */
+	const subagentRequestRef = useRef(0);
+	/** 目标投影请求序号（0052），与上下文同样的「只接受最新一次」策略。 */
+	const goalRequestRef = useRef(0);
 	/** 同一帧内的多个 live 包只保留最后一个。 */
 	const pendingLiveRef = useRef<NativeChatLive | null>(null);
 	const liveRafRef = useRef<number | null>(null);
@@ -148,6 +201,7 @@ export function NativeChatRoot({
 		if (mountedRef.current) {
 			setSessions(
 				list.sessions
+					.filter((entry) => entry.origin !== 'subagent')
 					.filter((entry) => projectPathWithin(entry.cwd, vault))
 					.map((entry) => ({ ...entry, title: sessionTitle(entry) })),
 			);
@@ -208,6 +262,62 @@ export function NativeChatRoot({
 		}
 	};
 
+	const refreshSubagents = async (id: string): Promise<void> => {
+		if (!bridge.supportsSubagents()) {
+			if (mountedRef.current && id === sessionIdRef.current) setSubagents(null);
+			return;
+		}
+		const request = ++subagentRequestRef.current;
+		try {
+			const next = await bridge.subagents();
+			if (
+				mountedRef.current &&
+				id === sessionIdRef.current &&
+				request === subagentRequestRef.current
+			) {
+				setSubagents(next);
+			}
+		} catch {
+			// 子智能体只是辅助信息：目录缺失 / 旧桥时隐藏入口，不阻塞消息流。
+			if (
+				mountedRef.current &&
+				id === sessionIdRef.current &&
+				request === subagentRequestRef.current
+			) {
+				setSubagents(null);
+			}
+		}
+	};
+
+	/** 0052：读当前会话目标（dsh goal 投影）；旧桥 / 无目标时清空目标条。 */
+	const refreshGoal = async (id: string): Promise<void> => {
+		if (!bridge.supportsGoal()) {
+			if (mountedRef.current && id === sessionIdRef.current) setGoal(null);
+			return;
+		}
+		const request = ++goalRequestRef.current;
+		try {
+			const next = await bridge.goal();
+			if (
+				mountedRef.current &&
+				id === sessionIdRef.current &&
+				request === goalRequestRef.current
+			) {
+				// 索引相同就复用旧对象：快照每次刷新都会重渲染，目标条不必跟着重挂。
+				setGoal((previous) => (sameGoal(previous, next) ? previous : next));
+			}
+		} catch {
+			// 目标只是辅助信息：投影缺失 / 旧桥时隐藏目标条，不阻塞消息流。
+			if (
+				mountedRef.current &&
+				id === sessionIdRef.current &&
+				request === goalRequestRef.current
+			) {
+				setGoal(null);
+			}
+		}
+	};
+
 	const refreshSnapshot = async (): Promise<void> => {
 		const next = await bridge.snapshot();
 		if (!mountedRef.current || next.sessionId !== sessionIdRef.current) return;
@@ -219,6 +329,8 @@ export function NativeChatRoot({
 		if (previousTitle !== null && previousTitle !== next.title) void refreshSessions();
 		void refreshContext(next.sessionId);
 		void refreshTeam(next.sessionId);
+		void refreshSubagents(next.sessionId);
+		void refreshGoal(next.sessionId);
 		try {
 			const nextPermissions = await bridge.permissions();
 			if (mountedRef.current && next.sessionId === sessionIdRef.current) {
@@ -316,8 +428,9 @@ export function NativeChatRoot({
 		})();
 	};
 
-	const attachSession = async (id: string): Promise<void> => {
-		await bridge.subscribe(id);
+	const attachSession = async (target: string | NativeSubagentAddress): Promise<void> => {
+		const id = typeof target === 'string' ? target : target.childSessionId;
+		await bridge.subscribe(target);
 		const next = await bridge.snapshot();
 		if (!mountedRef.current) return;
 		const token = ++tokenRef.current;
@@ -332,14 +445,28 @@ export function NativeChatRoot({
 		setSnapshot(next);
 		contextRequestRef.current += 1;
 		teamRequestRef.current += 1;
+		subagentRequestRef.current += 1;
+		goalRequestRef.current += 1;
 		setContext(null);
 		setTeam(null);
+		setSubagents(null);
+		setGoal(null);
+		setGoalError(null);
 		setPickerOpen(false);
 		setMenu(null);
 		setError(null);
-		await Promise.all([loadModels(), loadPermissions()]);
+		setDismissedSilentTurn(null);
+		// 子会话没有独立的模型目录：拿到模型列表失败会把错误条钉在面板上，所以子会话不请求。
+		if (next.subagent == null) {
+			await Promise.all([loadModels(), loadPermissions()]);
+		} else {
+			setModels(null);
+			void loadPermissions();
+		}
 		void refreshContext(id);
 		void refreshTeam(id);
+		void refreshSubagents(id);
+		void refreshGoal(id);
 		poll(token);
 	};
 
@@ -366,6 +493,7 @@ export function NativeChatRoot({
 			const vault = vaultPath(app);
 			setSessions(
 				list.sessions
+					.filter((entry) => entry.origin !== 'subagent')
 					.filter((entry) => projectPathWithin(entry.cwd, vault))
 					.map((entry) => ({ ...entry, title: sessionTitle(entry) })),
 			);
@@ -388,7 +516,7 @@ export function NativeChatRoot({
 	};
 
 	const toggleMenu = (
-		kind: 'model' | 'permission' | 'more' | 'context' | 'team',
+		kind: 'model' | 'permission' | 'more' | 'context' | 'team' | 'subagents',
 		anchor: DOMRect,
 	): void => {
 		setMenu((value) => (value?.kind === kind ? null : { kind, anchor }));
@@ -405,6 +533,34 @@ export function NativeChatRoot({
 		} finally {
 			if (mountedRef.current) setBusy(false);
 		}
+	};
+
+	/** 打开子会话：把目录里的 mode 一起带过去，桥按 SubagentAddress retain。 */
+	const openSubagent = async (entry: NativeSubagentEntry): Promise<void> => {
+		if (busy || subagents === null) return;
+		setBusy(true);
+		setError(null);
+		const target: NativeSubagentAddress = {
+			parentSessionId: subagents.rootSessionId,
+			childSessionId: entry.id,
+			mode: entry.mode,
+		};
+		try {
+			await attachSession(target);
+		} catch (failure) {
+			if (mountedRef.current) {
+				setError('打开子智能体会话失败：' + describeNativeBridgeError(failure));
+			}
+		} finally {
+			if (mountedRef.current) setBusy(false);
+		}
+	};
+
+	/** 从子会话返回父会话。 */
+	const backToParent = async (): Promise<void> => {
+		const info = snapshot?.subagent ?? null;
+		if (info === null) return;
+		await openSession(info.address.parentSessionId);
 	};
 
 	const createSession = async (): Promise<boolean> => {
@@ -467,7 +623,7 @@ export function NativeChatRoot({
 		}
 	};
 
-	/** "/" 菜单里的宿主命令（/compact）：结果由时间线节点呈现，失败进错误条。 */
+	/** "/" 菜单里的 dsh 命令：结果由时间线节点呈现，失败进错误条（0050 起也用于手敲命令）。 */
 	const runCommand = async (line: string): Promise<void> => {
 		setError(null);
 		try {
@@ -481,6 +637,30 @@ export function NativeChatRoot({
 			}
 		} catch (failure) {
 			setError('命令执行失败：' + describeNativeBridgeError(failure));
+		}
+	};
+
+	/** 0052：目标操作（暂停 / 恢复 / 编辑 / 清除）：结果回填目标条，失败也在条内显示。 */
+	const goalAction = async (
+		action: 'edit' | 'pause' | 'resume' | 'clear',
+		value?: string,
+	): Promise<void> => {
+		if (goalPending) return;
+		setGoalPending(true);
+		setGoalError(null);
+		try {
+			const result = await bridge.goalAction(action, value);
+			if (!result.ok) {
+				if (mountedRef.current) setGoalError(result.error?.message ?? '目标操作失败');
+				return;
+			}
+			await refreshSnapshot();
+		} catch (failure) {
+			if (mountedRef.current) {
+				setGoalError('目标操作失败：' + describeNativeBridgeError(failure));
+			}
+		} finally {
+			if (mountedRef.current) setGoalPending(false);
 		}
 	};
 
@@ -593,6 +773,85 @@ export function NativeChatRoot({
 		return current?.title ?? '选择会话';
 	})();
 	const running = snapshot?.session.running === true;
+	/** 0047 / 0048：本轮开始时间放在根组件，切换显示位置（组件重挂载）时计时不归零。 */
+	const [runStartedAt, setRunStartedAt] = useState<number | null>(null);
+	useEffect(() => {
+		setRunStartedAt((prev) => (running ? (prev ?? Date.now()) : null));
+	}, [running, sessionId]);
+
+	/**
+	 * 0048：运行提示放在输入框上方还是消息流最下方。
+	 * 设置页没有「设置变更」事件，而工具调用期间快照可能很久不刷新；运行中每 500ms 对一次，
+	 * 切换后最多半秒生效（空闲时下一次运行读取最新值）。
+	 */
+	const [runStatusPlacement, setRunStatusPlacement] = useState<RunStatusPlacement>(() =>
+		getRunStatusPlacement(),
+	);
+	const placementGetterRef = useRef(getRunStatusPlacement);
+	placementGetterRef.current = getRunStatusPlacement;
+	useEffect(() => {
+		const sync = (): void => {
+			const next = placementGetterRef.current();
+			setRunStatusPlacement((prev) => (prev === next ? prev : next));
+		};
+		sync();
+		if (!running) return;
+		const timer = window.setInterval(sync, 500);
+		return () => window.clearInterval(timer);
+	}, [running]);
+	/** 当前会话是子会话时的地址元数据（桥 v7；旧桥 / 普通会话为 null）。 */
+	const subagent = snapshot?.subagent ?? null;
+	/** 子会话 composer 的只读原因：一次性 / 类型未知 / 父会话不可用。 */
+	const readOnlyReason = ((): string | null => {
+		if (subagent === null) return null;
+		if (subagent.address.mode === 'one-shot') return '一次性子智能体：只能查看，不能继续发消息。';
+		if (subagent.address.mode === 'unknown') return '无法确认子智能体的类型：只能查看。';
+		if (subagent.parentAvailable === false) {
+			return running ? '父会话暂不可用：可以停止，但不能发消息。' : '父会话不可用：只能查看。';
+		}
+		return null;
+	})();
+	/** 0046：本轮静默结束（只有思考、没有正文/工具调用）时给一行重试提示。 */
+	const silentTurnEnd = snapshot === null ? null : detectSilentTurnEnd(snapshot);
+	const showTurnEndHint =
+		silentTurnEnd !== null &&
+		readOnlyReason === null &&
+		dismissedSilentTurn !== silentTurnEnd.turn;
+
+	/** 0046：重试 = 发「继续」让模型接着完成本轮；失败时把提示条放回来。 */
+	const retrySilentTurn = async (): Promise<void> => {
+		if (busy || sessionId === null || silentTurnEnd === null) return;
+		setDismissedSilentTurn(silentTurnEnd.turn);
+		setBusy(true);
+		setError(null);
+		try {
+			await bridge.send('继续');
+			if (!mountedRef.current) return;
+			await refreshSnapshot();
+		} catch (failure) {
+			if (!mountedRef.current) return;
+			setDismissedSilentTurn(null);
+			setError('重试失败：' + describeNativeBridgeError(failure));
+		} finally {
+			if (mountedRef.current) setBusy(false);
+		}
+	};
+
+	/** 目录里的团队队友会话 id（团队投影可用时才有）：列表里给这些行加「团队」徽标。 */
+	const teammateIds = new Set(
+		(team?.members ?? []).filter((member) => member.role === 'teammate').map((member) => member.id),
+	);
+	const subagentParentId = subagent?.address.parentSessionId ?? null;
+	const subagentParentTitle =
+		subagentParentId === null
+			? ''
+			: (sessions.find((entry) => entry.id === subagentParentId)?.title ?? subagentParentId);
+	const subagentLabel =
+		subagents?.entries.find((entry) => entry.id === sessionId)?.label ?? title;
+	const subagentRunning =
+		subagents?.entries.filter((entry) => entry.running).length ?? 0;
+	const subagentAttn =
+		subagents?.entries.some((entry) => entry.pendingInteraction || entry.unread) ?? false;
 	const ready = phase === 'ready' && sessionId !== null;
 	const pending: NativePending | null = snapshot?.pending ?? null;
 	const agentError =
@@ -607,7 +866,7 @@ export function NativeChatRoot({
 					<span>{title}</span>
 					<Icon name="chevron-down" />
 				</button>
-				{team === null ? null : (
+				{subagent === null && team !== null ? (
 					<button
 						className={
 							'dsh-native-icon-button dsh-native-team-trigger' +
@@ -625,7 +884,33 @@ export function NativeChatRoot({
 					>
 						<Icon name="users" />
 					</button>
-				)}
+				) : null}
+				{subagent === null && subagents !== null && subagents.entries.length > 0 ? (
+					<button
+						className={
+							'dsh-native-icon-button dsh-native-subagent-trigger' +
+							(subagentAttn ? ' has-pending' : '')
+						}
+						title={
+							'子智能体（' +
+							subagents.entries.length +
+							' 个' +
+							(subagentRunning > 0 ? '，' + subagentRunning + ' 个运行中' : '') +
+							'）'
+						}
+						aria-label="子智能体"
+						aria-haspopup="dialog"
+						aria-expanded={menu?.kind === 'subagents'}
+						onClick={(event) =>
+							toggleMenu('subagents', event.currentTarget.getBoundingClientRect())
+						}
+					>
+						<Icon name="bot" />
+						{subagentRunning > 0 ? (
+							<span className="dsh-native-subagent-count">{subagentRunning}</span>
+						) : null}
+					</button>
+				) : null}
 				{running ? <span className="dsh-native-running-dot" title="运行中" /> : null}
 				<span className="dsh-native-spacer" />
 				<button className="dsh-native-icon-button" title="新建会话" onClick={() => void createSession()}>
@@ -650,6 +935,26 @@ export function NativeChatRoot({
 					/>
 				) : null}
 			</header>
+
+			{subagent === null ? null : (
+				<div className="dsh-native-subagent-breadcrumb">
+					<button
+						className="dsh-native-subagent-back"
+						title="返回父会话"
+						onClick={() => void backToParent()}
+					>
+						<Icon name="arrow-left" size={12} />
+						<span>{subagentParentTitle}</span>
+					</button>
+					<Icon name="chevron-right" size={12} />
+					<span className="dsh-native-subagent-current" title={subagentLabel}>
+						{subagentLabel}
+					</span>
+					<span className="dsh-native-subagent-mode-label">
+						{SUBAGENT_MODE_TEXT[subagent.address.mode]}
+					</span>
+				</div>
+			)}
 
 			{error !== null ? (
 				<div className="dsh-native-error-banner">
@@ -714,11 +1019,20 @@ export function NativeChatRoot({
 							sourcePath={note?.path ?? ''}
 							loadingOlder={loadingOlder}
 							onLoadOlder={() => void loadOlder()}
+							runningStatus={
+								runStatusPlacement === 'flow' ? (
+									<RunStatus running={running} startedAt={runStartedAt} variant="flow" />
+								) : null
+							}
 						/>
 					) : (
 						<div className="dsh-native-status-screen">加载会话…</div>
 					)}
+					{showTurnEndHint ? (
+						<TurnEndHint busy={busy} onRetry={() => void retrySilentTurn()} />
+					) : null}
 					<Composer
+						readOnly={readOnlyReason}
 						currentNote={note}
 						listEntries={listMentionEntries}
 						models={models}
@@ -726,6 +1040,8 @@ export function NativeChatRoot({
 						context={context}
 						contextOpen={menu?.kind === 'context'}
 						onContext={(anchor) => toggleMenu('context', anchor)}
+						showRunStatus={runStatusPlacement === 'composer'}
+						runStartedAt={runStartedAt}
 						running={running}
 						busy={busy}
 						ready={ready}
@@ -740,10 +1056,23 @@ export function NativeChatRoot({
 						}}
 						onExplainSettings={onExplainSettings}
 						commandsAvailable={bridge.supportsCommands()}
+						showCommands={(snapshot?.subagent ?? null) === null}
 						onNewSession={() => void createSession()}
-						onCompact={() => runCommand('/compact')}
+						loadCommands={() => bridge.commands()}
+						onRunCommand={(line) => runCommand(line)}
 						loadSkills={() => bridge.skills()}
 						getSkillScope={getSkillScope}
+						getCommandScope={getCommandScope}
+						goalBar={
+							goal !== null ? (
+								<GoalBar
+									goal={goal}
+									pending={goalPending}
+									error={goalError}
+									onAction={(action, value) => void goalAction(action, value)}
+								/>
+							) : null
+						}
 						pending={
 							pending !== null ? (
 								<PendingCard
@@ -787,6 +1116,15 @@ export function NativeChatRoot({
 				<TeamPanel
 					team={team}
 					anchor={menu.anchor}
+					onClose={() => setMenu(null)}
+				/>
+			) : null}
+			{menu?.kind === 'subagents' && subagents !== null ? (
+				<SubagentPanel
+					list={subagents}
+					teammateIds={teammateIds}
+					anchor={menu.anchor}
+					onOpen={(entry) => void openSubagent(entry)}
 					onClose={() => setMenu(null)}
 				/>
 			) : null}

@@ -1,12 +1,15 @@
 import { Setting, SuggestModal, TFolder, setIcon, type App } from 'obsidian';
 import type { SettingsRenderContext } from '../context';
 import {
+	normalizeCommandName,
 	normalizeScopeName,
 	normalizeScopePath,
+	runStatusPlacementOf,
 	type ScopeMode,
 	type StreamRefreshMode,
 } from '../schema';
 import {
+	listCommandCandidates,
 	listPathCandidates,
 	listSkillCandidates,
 	type ScopeCandidate,
@@ -14,11 +17,37 @@ import {
 } from '../scope-candidates';
 import { errorText } from '../../shared/errors';
 
-/** 聊天模块：流式刷新（0021）+「@」引用范围（0030）+「/」技能范围（0037）+ 名单「选取」（0038）。 */
+/**
+ * 聊天模块：流式刷新（0021）+「@」引用范围（0030）+「/」技能范围（0037）
+ * + 名单「选取」（0038）+「/」命令范围（0050）。
+ */
 export function renderChatSection(containerEl: HTMLElement, context: SettingsRenderContext): void {
+	renderRunStatusPlacement(containerEl, context);
 	renderStreamRefresh(containerEl, context);
 	renderMentionScope(containerEl, context);
 	renderSkillScope(containerEl, context);
+	renderCommandScope(containerEl, context);
+}
+
+/** 运行提示位置（0048）：输入框上方（默认）/ 消息流最下方。 */
+function renderRunStatusPlacement(containerEl: HTMLElement, context: SettingsRenderContext): void {
+	const { host } = context;
+
+	new Setting(containerEl)
+		.setName('运行提示位置')
+		.setDesc(
+			'dsh 同款「深度求索中，用时 …」显示在哪：输入框上方（默认），或消息流最下方（随对话滚动，dsh 原生位置）。运行中的面板切换后即时生效。',
+		)
+		.addDropdown((dropdown) => {
+			dropdown
+				.addOption('composer', '输入框上方（默认）')
+				.addOption('flow', '输出最下方（随对话滚动）')
+				.setValue(runStatusPlacementOf(host.settings.runStatusPlacement))
+				.onChange(async (value) => {
+					host.settings.runStatusPlacement = runStatusPlacementOf(value);
+					await host.saveSettings();
+				});
+		});
 }
 
 /** 流式正文的刷新节奏。 */
@@ -89,6 +118,23 @@ const SKILL_BLACKLIST_TEXT: ScopeText = {
 	pickEmpty: '没有可选取的技能名（本地技能目录为空，或都已加入名单）；可直接输入技能名添加。',
 };
 
+const COMMAND_WHITELIST_TEXT: ScopeText = {
+	title: '白名单',
+	empty: '还没有命令名：/ 菜单里的 dsh 命令行全部隐藏。',
+	addPlaceholder: '添加白名单：命令名，如 compact',
+	hint: '写 dsh 命令名即可（精确匹配，如 compact / goal / permission）；留空时 / 菜单不显示 dsh 命令行。',
+	invalid: '命令名无效：只能以小写字母开头，可含数字、下划线、连字符（如 compact、goal）。',
+	pickEmpty: '没有可选取的命令名（需要先打开原生聊天面板读取当前会话命令目录，或都已加入名单）；可直接输入命令名添加。',
+};
+const COMMAND_BLACKLIST_TEXT: ScopeText = {
+	title: '黑名单',
+	empty: '还没有命令名：/ 菜单显示全部 dsh 命令。',
+	addPlaceholder: '添加黑名单：命令名，如 goal',
+	hint: '写 dsh 命令名即可（精确匹配）；例如添加 goal 后 /goal 不再出现在菜单里。',
+	invalid: '命令名无效：只能以小写字母开头，可含数字、下划线、连字符（如 compact、goal）。',
+	pickEmpty: '没有可选取的命令名（需要先打开原生聊天面板读取当前会话命令目录，或都已加入名单）；可直接输入命令名添加。',
+};
+
 /** 范围面板的渲染参数：条目归一化 +（可选）缺失标记 + 缓存候选来源。 */
 interface ScopePanelOptions {
 	text: ScopeText;
@@ -98,10 +144,10 @@ interface ScopePanelOptions {
 	normalize: (raw: string) => string | null;
 	/** 可选：条目不存在时置灰并标注（@ 的 vault 路径用；技能名没有可校验的来源）。 */
 	missing?: (value: string) => boolean;
-	/** 「选取」按钮的候选来源：@ = vault 路径，/ = 本地技能目录。 */
-	pickKind: 'path' | 'skill';
+	/** 「选取」按钮的候选来源：@ = vault 路径，/ = 本地技能目录 / dsh 命令目录；不传则不渲染「选取」。 */
+	pickKind?: 'path' | 'skill' | 'command';
 	/** 现取候选（已排除名单里已有 / 被覆盖的条目；失败时抛错由面板兜底）。 */
-	pick: () => Promise<ScopeCandidate[]>;
+	pick?: () => Promise<ScopeCandidate[]>;
 }
 
 /** 范围设置卡片的渲染参数（0039）：徽标 + 标题 + 模式下拉 + 说明，启用时再挂名单详情。 */
@@ -211,6 +257,42 @@ function renderSkillScope(containerEl: HTMLElement, context: SettingsRenderConte
 	});
 }
 
+/** 「/」命令范围（0050）：dsh 命令名精确匹配；没有「选取」候选源，只能手动输入。 */
+function renderCommandScope(containerEl: HTMLElement, context: SettingsRenderContext): void {
+	const { host } = context;
+	const mode = host.settings.commandScope;
+	const bodyEl = renderScopeCard(containerEl, {
+		glyph: '⌘',
+		title: '命令范围',
+		desc: '限制输入框 / 菜单里显示的 dsh 命令（来自当前会话的命令目录）：白名单只显示列出的命令，黑名单隐藏列出的命令。只影响菜单显示，命令执行与技能加载 / 调用不受影响。',
+		mode,
+		onChange: async (next) => {
+			host.settings.commandScope = next;
+			await host.saveSettings();
+			context.refresh();
+		},
+	});
+	if (bodyEl === null) return;
+	const isWhitelist = mode === 'whitelist';
+	const values = isWhitelist ? host.settings.commandWhitelist : host.settings.commandBlacklist;
+	renderScopePanel(bodyEl, context, {
+		text: isWhitelist ? COMMAND_WHITELIST_TEXT : COMMAND_BLACKLIST_TEXT,
+		values,
+		normalize: normalizeCommandName,
+		pickKind: 'command',
+		pick: async () => {
+			const names = await host.getCommandCandidates();
+			const normalized = names
+				.map((name) => normalizeCommandName(name))
+				.filter((name): name is string => name !== null);
+			return listCommandCandidates(normalized, values).map((name) => ({
+				value: name,
+				kind: 'command' as const,
+			}));
+		},
+	});
+}
+
 /** 模式下方的作用范围块：标题 / 列表（空提示）/ 选取 + 添加栏 / 提示行。 */
 function renderScopePanel(
 	containerEl: HTMLElement,
@@ -234,14 +316,29 @@ function renderScopePanel(
 	}
 
 	// 0038：行首「选取」按钮 —— 自动获取符合条件的候选，点选后只回填输入框（不直接提交）。
+	// 0050：命令范围没有现成候选源（dsh 命令目录只在面板打开时经桥可得），不传 pick 就不渲染按钮。
 	const addEl = scopeEl.createDiv({ cls: 'dsh-settings-scope-add' });
-	const pickEl = addEl.createEl('button', { cls: 'dsh-settings-scope-button' });
-	pickEl.addClass('dsh-settings-scope-pick');
-	pickEl.setAttr('type', 'button');
-	pickEl.setAttr('title', options.pickKind === 'path' ? '从 vault 选取路径' : '从本地技能目录选取技能名');
-	pickEl.setAttr('aria-label', pickEl.getAttr('title') ?? '选取');
-	setIcon(pickEl, 'search');
-	pickEl.createSpan({ cls: 'dsh-settings-scope-pick-label', text: '选取' });
+	const pick = options.pick;
+	const pickKind = options.pickKind;
+	const pickEl =
+		pick === undefined
+			? null
+			: addEl.createEl('button', { cls: 'dsh-settings-scope-button' });
+	if (pickEl !== null && pickKind !== undefined) {
+		pickEl.addClass('dsh-settings-scope-pick');
+		pickEl.setAttr('type', 'button');
+		pickEl.setAttr(
+			'title',
+			pickKind === 'path'
+				? '从 vault 选取路径'
+				: pickKind === 'skill'
+					? '从本地技能目录选取技能名'
+					: '从当前会话的 dsh 命令目录选取命令名（需原生聊天面板已打开）',
+		);
+		pickEl.setAttr('aria-label', pickEl.getAttr('title') ?? '选取');
+		setIcon(pickEl, 'search');
+		pickEl.createSpan({ cls: 'dsh-settings-scope-pick-label', text: '选取' });
+	}
 
 	const inputEl = addEl.createEl('input', { cls: 'dsh-settings-scope-input', type: 'text' });
 	inputEl.placeholder = text.addPlaceholder;
@@ -293,19 +390,21 @@ function renderScopePanel(
 	};
 
 	const openPicker = async (): Promise<void> => {
+		if (pickEl === null || pick === undefined || pickKind === undefined) return;
 		if (pickEl.disabled) return;
 		pickEl.disabled = true;
 		resetHint();
-		if (options.pickKind === 'skill') hintEl.setText('正在读取本地技能目录…');
+		if (pickKind === 'skill') hintEl.setText('正在读取本地技能目录…');
+		if (pickKind === 'command') hintEl.setText('正在读取 dsh 命令目录…');
 		try {
-			const items = await options.pick();
+			const items = await pick();
 			if (context.isStale() || !pickEl.isConnected) return;
 			if (items.length === 0) {
 				hintEl.setText(text.pickEmpty);
 				return;
 			}
 			resetHint();
-			new ScopePickerModal(context.app, items, options.pickKind, fillInput).open();
+			new ScopePickerModal(context.app, items, pickKind, fillInput).open();
 		} catch (error) {
 			if (context.isStale() || !pickEl.isConnected) return;
 			hintEl.setText('读取候选失败：' + errorText(error) + '；可直接输入。');
@@ -315,9 +414,11 @@ function renderScopePanel(
 		}
 	};
 
-	pickEl.onclick = () => {
-		void openPicker();
-	};
+	if (pickEl !== null) {
+		pickEl.onclick = () => {
+			void openPicker();
+		};
+	}
 }
 
 /** 单条条目：值（路径不存在时置灰并标注）+ 移除按钮，@ 与 / 共用。 */
@@ -367,15 +468,22 @@ class ScopePickerModal extends SuggestModal<ScopeCandidate> {
 	constructor(
 		app: App,
 		items: readonly ScopeCandidate[],
-		kind: 'path' | 'skill',
+		kind: 'path' | 'skill' | 'command',
 		onChoose: (value: string) => void,
 	) {
 		super(app);
 		this.items = items;
 		this.onChoose = onChoose;
 		this.limit = 50;
-		this.setPlaceholder(kind === 'path' ? '搜索 vault 路径…' : '搜索技能名（来自本地技能目录）…');
-		this.emptyStateText = kind === 'path' ? '没有匹配的路径' : '没有匹配的技能名';
+		this.setPlaceholder(
+			kind === 'path'
+				? '搜索 vault 路径…'
+				: kind === 'skill'
+					? '搜索技能名（来自本地技能目录）…'
+					: '搜索命令名（来自当前会话的 dsh 命令目录）…',
+		);
+		this.emptyStateText =
+			kind === 'path' ? '没有匹配的路径' : kind === 'skill' ? '没有匹配的技能名' : '没有匹配的命令名';
 	}
 
 	getSuggestions(query: string): ScopeCandidate[] {
@@ -395,11 +503,27 @@ class ScopePickerModal extends SuggestModal<ScopeCandidate> {
 	renderSuggestion(item: ScopeCandidate, el: HTMLElement): void {
 		el.addClass('dsh-settings-scope-suggestion');
 		const iconEl = el.createDiv({ cls: 'dsh-settings-scope-suggestion-icon' });
-		setIcon(iconEl, item.kind === 'directory' ? 'folder' : item.kind === 'file' ? 'file-text' : 'sparkles');
+		setIcon(
+			iconEl,
+			item.kind === 'directory'
+				? 'folder'
+				: item.kind === 'file'
+					? 'file-text'
+					: item.kind === 'command'
+						? 'terminal'
+						: 'sparkles',
+		);
 		el.createDiv({ cls: 'dsh-settings-scope-suggestion-value', text: item.value });
 		el.createDiv({
 			cls: 'dsh-settings-scope-suggestion-kind',
-			text: item.kind === 'directory' ? '文件夹' : item.kind === 'file' ? '文件' : '技能',
+			text:
+				item.kind === 'directory'
+					? '文件夹'
+					: item.kind === 'file'
+						? '文件'
+						: item.kind === 'command'
+							? '命令'
+							: '技能',
 		});
 	}
 

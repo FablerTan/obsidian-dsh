@@ -9,7 +9,7 @@
 - **平台**：macOS + zsh（Windows / Linux 未验证）；插件 `isDesktopOnly: true`，**移动端不可用**。
 - **只管安装**：开发环境、构建细节、手动回归见 [development.md](development.md)；出问题先看第 11 节，再查 [troubleshooting.md](troubleshooting.md)。
 - **事实来源**：默认值取自 `src/settings/schema.ts` 的 `DEFAULT_SETTINGS`，清单取自 `manifest.json`，进程与可执行文件解析取自 `src/service/`；文档与代码冲突时以代码为准。
-- **本机已核对**（2026-10-27）：插件 0.5.0、桥 0.4.0（API v6）、dsh 0.2.1-rc.3、Obsidian 1.14.4。
+- **本机已核对**（2026-10-28）：插件 0.6.7、桥 0.5.0（API v8）、dsh 0.2.1-rc.3、Obsidian 1.14.4。
 
 > **铁律**：任何一步的成功判据不满足，就停下按第 11 节处理；**不要**跳过、不要靠换端口掩盖、不要手改产物。
 
@@ -39,7 +39,7 @@ export DSH_HOME_DIR="${DSH_HOME:-$HOME/.dsh}"       # 与 dsh 一致：环境变
 export PROFILE="$DSH_HOME_DIR/profiles/obsidian"
 export PORT=3081                                   # 默认端口；data.json 改过就以实际值为准
 
-export VERSION="v0.5.0"                            # 仅 A：要装的插件版本（= Release tag）
+export VERSION="v0.6.7"                            # 仅 A：要装的插件版本（= Release tag）
 export BRIDGE_DIR="$HOME/.local/share/obsidian-dsh/bridge-$VERSION"   # 仅 A：桥解压位置
 export REPO="$HOME/path/to/obsidian-dsh"           # 仅 B：仓库 checkout
 ```
@@ -214,13 +214,13 @@ for f in main.js manifest.json styles.css versions.json; do
   curl -fL --retry 3 --retry-delay 2 "$BASE/$f" -o "$PLUGIN_DIR/$f"
 done
 ls -l "$PLUGIN_DIR"
-grep -m1 "version" "$PLUGIN_DIR/manifest.json"     # 期望 "0.5.0"
+grep -m1 "version" "$PLUGIN_DIR/manifest.json"     # 期望 "0.6.7"
 ```
 
 **成功判据**：
 
 - 三个文件都存在且非空（`main.js` 约 300 KB，`styles.css` 约 50 KB）；
-- `manifest.json` 里 `"id": "obsidian-dsh"`、`"version": "0.5.0"`、`"isDesktopOnly": true`；
+- `manifest.json` 里 `"id": "obsidian-dsh"`、`"version": "0.6.7"`、`"isDesktopOnly": true`；
 - `PLUGIN_DIR` 就是 `<vault>/.obsidian/plugins/obsidian-dsh`（目录名与插件 id 一致，避免多版本混淆）。
 
 > 不想用 Release 时，可用同版本的 tag 直接取文件（等价的兜底）：
@@ -269,7 +269,7 @@ cp "$REPO/versions.json" "$PLUGIN_DIR"/          # 可选
 
 ## 7. 安装 dsh 侧桥 dsh-obsidian-bridge
 
-桥是 dsh 侧的客户端插件（本仓库 `packages/dsh-obsidian-bridge/`，API v6），负责给原生面板提供会话 / 流式 / 上下文 / 命令 / 团队数据。**装插件不装桥，面板会提示「未检测到 dsh-obsidian-bridge」**。
+桥是 dsh 侧的客户端插件（本仓库 `packages/dsh-obsidian-bridge/`，API v8），负责给原生面板提供会话 / 流式 / 上下文 / 命令 / 团队 / 子智能体 / 目标条数据。**装插件不装桥，面板会提示「未检测到 dsh-obsidian-bridge」**。
 
 ### 7A 从 Release 解压（配合 6A）
 
@@ -339,7 +339,7 @@ dsh --profile obsidian --dump-config | grep -x "# == dsh-obsidian-bridge"   # �
    ```
 4. 控制台（`Cmd+Opt+I`）有 `[obsidian-dsh] dsh 版本: 0.2.x（<路径>）`、`[obsidian-dsh] 面板承载方式: webview（persist:dsh-obsidian）`；`[dsh]` 日志里 token 显示为 `token=***`（不应出现明文）。
 5. 设置 →「服务」：端口 / Profile `obsidian` / 自动启动开；「dsh 版本」→「运行环境」显示当前路径与版本（与服务在跑时一致）。
-6. 设置 →「集成」→「桥接状态」点「重新检测」→ `已连接（v6）`（需原生面板已打开）。
+6. 设置 →「集成」→「桥接状态」点「重新检测」→ `已连接（v8）`（需原生面板已打开）。
 7. 面板出现会话列表或空态，右上 ＋ 能新建会话（cwd = vault）。
 8. 重启服务后：Notice `DSH 服务已重启`，状态栏回到 `DSH: 运行中`，已打开的面板自动用新 token 重载（没重载就关掉面板再打开）。
 
@@ -352,7 +352,7 @@ dsh --profile obsidian --dump-config | grep -x "# == dsh-obsidian-bridge"   # �
 | 3 | 进程与端口 | `lsof -nP -iTCP:$PORT -sTCP:LISTEN` 只有一条；裸 URL 返回 401 |
 | 4 | dsh 版本 | 控制台 `[obsidian-dsh] dsh 版本: 0.2.x（…）` |
 | 5 | 承载方式 | 控制台 `面板承载方式: webview（persist:dsh-obsidian）` |
-| 6 | 桥 | 设置 →「集成」→ 桥接状态 `已连接（v6）` |
+| 6 | 桥 | 设置 →「集成」→ 桥接状态 `已连接（v8）` |
 | 7 | 会话 | 面板能列会话 / 空态，＋ 新建后可直接输入；会话 cwd 是 vault |
 | 8 | 流式 | 发送后用户消息立即出现，Assistant 正文 / 思考**流式**更新；停止有效 |
 | 9 | 上下文占用 | 发送按钮左侧出现上下文占用圆环（hover 显示百分比） |
@@ -392,7 +392,7 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:$PORT/"
 | 面板空白 / 一直「正在连接 DSH…」 | 隐藏 core 停在错误页 / 旧 token | 关掉面板再打开；确认端口可 `curl`；设置页「重启服务」 | [troubleshooting](troubleshooting.md#原生面板空白--一直正在连接-dsh) |
 | 面板提示「不支持 webview」 | Obsidian 内核没开 `webviewTag` | 升级 Obsidian（1.14.4 已验证），没有 iframe 回退 | [troubleshooting](troubleshooting.md#原生聊天提示不支持-webview-仍-401) |
 | 设置页桥接状态「未检测到 dsh-obsidian-bridge」 | 桥没装 / 装完没重启 / 面板没打开 | 第 7 节重新 link → 「重启服务」→ 打开面板 →「重新检测」 | [troubleshooting](troubleshooting.md#新建-dsh-会话提示未检测到-dsh-obsidian-bridge) |
-| 回复不流式（正文整段出现） | 桥版本过旧（< v3） | 重新 link 仓库里的桥并重启服务；桥接状态应为 v6 | [troubleshooting](troubleshooting.md#回复不是流式运行中不出现正文--思考) |
+| 回复不流式（正文整段出现） | 桥版本过旧（< v3） | 重新 link 仓库里的桥并重启服务；桥接状态应为 v8 | [troubleshooting](troubleshooting.md#回复不是流式运行中不出现正文--思考) |
 | 发送报 `Authentication Fails` / 模型与桌面端不一致 | profile 还在用 base 默认的 `deepseek-official` | 按第 5 节对齐 `llm-pi-ai` + `agent-default-model` + 禁用 `llm-deepseek`，重启 | [troubleshooting](troubleshooting.md#模型报-authentication-fails--模型和桌面端不一致) |
 | 模型菜单是空的 | profile 没有可用 provider | 同上一行；原生 UI 不能填 API key | [troubleshooting](troubleshooting.md#模型菜单是空的--权限菜单只有三条) |
 | 「插件」tab 读不出清单 / 启停没生效 | dsh 不可执行、profile 不存在或不可写；启停后没重启 | 先在「dsh 版本」确认 dsh，再检查目录权限；改动后「重启服务」 | [troubleshooting](troubleshooting.md#插件tab-读不出清单--启停没生效) |

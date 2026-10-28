@@ -3,29 +3,35 @@
 Obsidian 嵌入专用（纯客户端）DSH 插件。与 [obsidian-dsh](https://github.com/FablerTan/obsidian-dsh) 同仓库维护
 （`packages/dsh-obsidian-bridge/`），作为插件原生聊天视图的数据源：
 
-- **v6 原生数据桥**：会话列表、ChatSnapshot、会话动作、审批 / 提问答案、liveStream 流式
-  正文 / 思考 / 工具参数、上下文占用（contextPressure / contextBreakdown 投影）、输入框命令 / 技能目录，
-  以及 Agent Teams 团队投影（`agentTeam` + 成员运行状态 / 模型），供 Obsidian 原生 UI 渲染。
+- **v8 原生数据桥**：会话列表、ChatSnapshot、会话动作、审批 / 提问答案、liveStream 流式
+  正文 / 思考 / 工具参数、上下文占用（contextPressure / contextBreakdown 投影）、输入框命令 / 技能目录、
+  Agent Teams 团队投影（`agentTeam` + 成员运行状态 / 模型）、子智能体目录（父会话 `subagentCatalog`
+  + 子会话状态 / 耗时 / token / 模型）与 addressed 订阅（按 `SubagentAddress` 打开子会话），
+  以及目标条数据（`goal` 投影 + `edit` / `pause` / `resume` / `clear` 目标操作），供 Obsidian 原生 UI 渲染。
 
 > **只支持 DSH 0.2.x**。0.1.x、iframe 回退、非 token 鉴权实例都不在支持范围。
 >
-> API 版本为 **6**；原生视图要求 v2+，其中流式需要 v3（缺 `liveStream` 时面板软降级为整段出现并提示一次），
+> API 版本为 **8**（包版本 0.5.0）；原生视图要求 v2+，其中流式需要 v3（缺 `liveStream` 时面板软降级为整段出现并提示一次），
 > 上下文占用需要 v4（缺 `context` 时原生输入栏显示灰色空环），命令 / 技能菜单需要 v5，
-> Agent Teams 团队入口需要 v6（缺 `team` 时不显示团队图标，其它功能不受影响）。
+> Agent Teams 团队入口需要 v6（缺 `team` 时不显示团队图标，其它功能不受影响），
+> 子智能体入口与子会话导航需要 v7（缺 `subagents` 方法时不显示入口，其它功能不受影响），
+> 目标条需要 v8（缺 `goal` / `goalAction` 方法时不显示目标条，其它功能不受影响）。
 > 0008 的 native-only 面板删除了 v1 布局方法，0011 已把对应代码从包里移除。
 
 ## 对外 API（页面全局）
 
 ```js
 window.__DSH_OBSIDIAN_BRIDGE__ = {
-  version: 6,
-  ping(),                                  // -> { version, native, methods }（methods 含 liveStream / context / commands / team）
+  version: 8,
+  ping(),                                  // -> { version, native, methods }（methods 含 liveStream / context / team / subagents / goal / goalAction / commands）
 
-  listSessions(),                          // -> { phase, sessions: [{ id, title, cwd, running, blank, updatedAt }] }
+  listSessions(),                          // -> { phase, sessions: [{ id, title, cwd, running, blank, updatedAt, origin, parentId }] }
+                                           //    origin='subagent' 的子会话行由原生面板过滤（不进会话选择器）
   createSession(cwd?),                     // 新建会话并订阅 -> { ok, sessionId }
-  subscribe(sessionId),                    // -> { ok, sessionId, revision }
+  subscribe(sessionId | { parentSessionId, childSessionId, mode }), // -> { ok, sessionId, revision }（后者 retain 子会话）
   unsubscribe(),                           // -> { ok }
-  snapshot(),                              // -> { revision, sessionId, title, session, order, nodes, navigation, timeline, pending }
+  snapshot(),                              // -> { revision, sessionId, title, session, subagent, order, nodes, navigation, timeline, pending }
+                                           //    subagent: { address: { parentSessionId, childSessionId, mode }, parentAvailable? } | null
   nextEvent(cursor, timeoutMs, liveCursor?), // 长轮询：结构变化 / live 更新都会返回
                                             // -> { cursor, changed, liveCursor, live: { turn, step, attemptId, blocks } | null }
   send(text),                              // -> { ok }
@@ -45,6 +51,16 @@ window.__DSH_OBSIDIAN_BRIDGE__ = {
                                            //      tasks: [{ id, revision, subject, description, status, blockedBy,
                                            //                writeScopes, ownerName?, ready, writeScopeWarnings }],
                                            //      failure? } | null（未启用「智能体团队」时为 null）
+  subagents(),                             // -> { rootSessionId, currentSessionId, entries: [{ id, label, title, mode,
+                                           //      createdAt, running, pendingInteraction, unread, settledMs, activeSince,
+                                           //      totalTokens, model, current }] }
+                                           //    目录来自父会话 subagentCatalog（只含直接子级、过滤 external）
+  goal(),                                  // -> { id, revision, objective, phase, blockedReason?, maxGoalRounds,
+                                           //      roundsStarted, activation? } | null（当前会话没有目标时 null）
+                                           //    phase: active | paused | blocked | complete；activation: armed | disarmed
+  goalAction(action, value?),              // 'edit' | 'pause' | 'resume' | 'clear'
+                                           // -> { ok: true } | { ok: false, error: { code, message } }
+                                           //    edit 需要非空 objective；ref 取当前投影的 { id, revision }
 };
 ```
 
@@ -92,6 +108,26 @@ dsh plugin --profile obsidian add link:<repo>/packages/dsh-obsidian-bridge
   （`uiSession.sessionStatus`，与 Web 面板同源）、`pendingInteraction` 与 `model`
   （`sessions.list.projectionsBySession[...].modelSelection`）。订阅键表加入 `agentTeam`，
   团队变化会唤醒 `nextEvent`。未启用 bundle 时投影不存在，返回 `null`，原生端隐藏入口。
+- 子智能体（v7 / 0041）：
+  - `subagents()`：目录根 = 当前会话；当前是子会话时取它的父会话（这样能列出兄弟）。条目来自会话列表快照里的
+    summary 投影 `subagentCatalog`，逐行拼 `subagentTiming`（耗时）、`tokenUsage`（token 四桶之和）、
+    `modelSelection.next.model` 与 `uiSession.sessionStatus`（`running` / `pendingInteraction` / `completionUnread`）。
+    只列**直接子级**并跳过 `external`；目录缺失时先 `refreshProjections` 再读一次，仍没有就返回空数组（原生端隐藏入口）。
+  - `subscribe(address)`：接受 `SessionId` 或 `{ parentSessionId, childSessionId, mode }`；后者走 `sessions.retain(address)`
+    并按地址调 `uiWorkspace.openSession()` 让隐藏 core 跟随。dsh 侧 `prompt` / `cancel` 对子会话自动路由
+    （`subagents/prompt` / `subagents/interruptByParent`），所以续聊与 Stop 不需要新协议。
+  - `snapshot().subagent` 透传 `session.subagent`（地址 + `parentAvailable`），供原生端做面包屑与只读判定。
+  - 订阅键表补 `subagentCatalog` / `subagent` / `subagentTiming`；另外只对**目录根**的 `subagentCatalog` 做摘要订阅，
+    目录变化才唤醒原生端，避免会话列表的任何变化都触发刷新。
+- 目标条（v8）：
+  - `goal()` 读会话的 `goal` 投影（`goal` 快照 + `roundsStarted`），返回目标条需要的
+    `id / revision / objective / phase / blockedReason / maxGoalRounds / roundsStarted`；没有目标或投影未注册时返回 `null`。
+  - `activation` 是进程内状态、**不在 durable 投影里**：phase 为 `active` 且缓存未命中时，
+    后台调一次 `remote.goals.get(sessionId)`（同一 `{ id, revision }` 并发去重），读到后缓存并 `bump()`；
+    同时订阅 `remote.$on('goal/activation-changed')`，事件只跟随当前会话，随订阅一起释放。
+    读失败保持静默（目标条只显示 durable phase，不显示激活状态）。
+  - `goalAction()` 用投影里的 `{ id, revision }` 作 CAS ref，走 `remote.goals.edit / pause / resume / clear`；
+    业务错误与远端失败都返回 `{ ok: false, error: { code, message } }`，不向原生端抛异常。
 - 变更通过 revision（结构）+ liveRevision（流式）+ 长轮询推送；不新增 HTTP/SSE 通道。
 
 ## 限制
@@ -103,3 +139,9 @@ dsh plugin --profile obsidian add link:<repo>/packages/dsh-obsidian-bridge
 - `context` 是 v4 的增量方法：v3 桥没有时原生输入栏显示灰色空环，不影响聊天。
 - `team` 是 v6 的增量方法：旧桥没有时原生面板不显示团队入口（工具行与消息照常）；
   团队面板只读，不提供创建 / 中断 / 删除，也不能从桥打开队友会话。
+- `subagents` 是 v7 的增量方法：旧桥（v6）没有时原生面板不显示子智能体入口，`subscribe` 也只接受 `SessionId`，
+  其它功能不受影响；新桥 + 旧插件等同于没有新增能力，行为与 v6 一致。
+- `goal` / `goalAction` 是 v8 的增量方法：旧桥（v7）没有时原生面板不显示目标条，其它功能不受影响。
+  需要 profile 装有 dsh 的 goal 插件（`remote.goals`），否则 `goalAction()` 返回
+  `{ code: 'goal-unavailable' }`；`goal()` 仍可用，只是不带 `activation`。
+- 子智能体目录只读取一层直接子级（深层子代理留给后续）。`listSessions()` 会返回子会话行（dsh 0.2.1-rc.3 的列表快照把子会话也放进 `ids`，行上带 `origin: 'subagent'` / `parentId`）；原生面板按 `origin` 过滤，因此子会话不进入会话选择器。

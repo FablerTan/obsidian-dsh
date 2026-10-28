@@ -163,13 +163,13 @@ dsh 0.2.x 的会话 cookie 是 `SameSite=Strict`，只有 webview 的独立顶�
 1. 确认 profile 已安装：`cat ~/.dsh/profiles/obsidian/package.json` 的 `dsh.profile.bundles` 里应有 `dsh-obsidian-bridge`；
 2. 没有就装：`dsh plugin --profile obsidian add link:<repo>/packages/dsh-obsidian-bridge`（旧外部路径先 remove）；
 3. **重启 DSH 服务**（插件设置 → 重启服务），再重开面板（旧页面不会自己换 bundle）；
-4. 设置页「桥接状态」点「重新检测」应显示「已连接（v6）」。
+4. 设置页「桥接状态」点「重新检测」应显示「已连接（v8）」。
 
 ## 回复不是流式（运行中不出现正文 / 思考）
 
 0017 起桥 v3 直接订阅会话事件流（`liveStream`），流式不再依赖隐藏 core 的 rAF。若仍看不到增量：
 
-1. 设置页「桥接状态」应显示「已连接（v6）」；仍是 v2 / 「版本过旧」→ profile 里 link 的还是旧 bridge：
+1. 设置页「桥接状态」应显示「已连接（v8）」；仍是 v2 / 「版本过旧」→ profile 里 link 的还是旧 bridge：
    `dsh plugin --profile obsidian add link:<repo>/packages/dsh-obsidian-bridge`，然后**重启 DSH 服务**；
 2. 面板顶部若出现“dsh-obsidian-bridge 需要更新……”的 Notice，同第 1 条处理（旧桥会软降级，不流式但不报错）；
 3. 隐藏 core 被 Chromium 节流只影响官方节点（正文 / 思考的 live 已由事件流提供），
@@ -178,7 +178,7 @@ dsh 0.2.x 的会话 cookie 是 `SameSite=Strict`，只有 webview 的独立顶�
 
 ## 单栏 / 官方 GUI 设置已移除
 
-0008 删除了可见官方面板；`dsh-obsidian-bridge` v1 的单栏 / 工作区代码已随 0011 从包里删除，插件只走原生数据桥（当前 v6：快照 / liveStream / context / 命令技能目录 / team）；
+0008 删除了可见官方面板；`dsh-obsidian-bridge` v1 的单栏 / 工作区代码已随 0011 从包里删除，插件只走原生数据桥（当前 v8：快照 / liveStream / context / 命令技能目录 / team / subagents / goal）；
 Obsidian 里不再需要恢复侧栏或调整官方 GUI 布局。`dsh-ui-obsidian-layout` 等外部客户端插件
 只会影响隐藏 core，正常使用时看不到。
 
@@ -195,7 +195,7 @@ dsh 默认只信任 loopback Host。通过樱花等隧道暴露时，在 dsh 侧
 原生聊天是唯一入口，内部需要一个**隐藏的官方 DSH webview** 和 bridge **v2+（流式需要 v3）**：
 
 1. 确认 profile 已 link 到本仓库新路径，并重启 DSH 服务；
-2. 设置页「桥接状态」应显示「已连接（v6）」；显示「版本过旧」说明 profile 里 link 的还是旧 bridge；
+2. 设置页「桥接状态」应显示「已连接（v8）」；显示「版本过旧」说明 profile 里 link 的还是旧 bridge；
 3. 状态「桥版本过旧」→ 更新 `packages/dsh-obsidian-bridge` 后重启服务；
 4. 状态一直停在「正在连接 DSH…」→ 看控制台隐藏 core 是否加载、端口是否被另一个 0.2.x 实例占用；
    命令「重启 DSH 服务」后会自动重载；
@@ -214,8 +214,9 @@ Phase 0 的隐藏客户端如果订阅了正在别处使用的会话，`session.
 处理：点「＋」新建会话让这个客户端自己创建并持有会话；或先关闭占用该会话的客户端/回合再重试。
 这不是桥的 bug；官方面板已删除，正常只有原生面板的隐藏客户端这一个写者。
 
-审批 / 提问固定在输入框上方；审批卡片「允许一次 / 拒绝」直接提交，提问卡片选选项或填自定义答案后
-「提交答案」。plan-review 暂未在原生面板完整支持；需要时请用桌面 DSH。
+审批 / 提问固定在输入框上方；审批卡片「允许一次 / 拒绝」直接提交。提问卡片一屏一题：底部 `‹ n/N ›` 翻页
+（草稿跨页保留，可回改），单选点选项自动前进，自填答案与单选项互斥；`跳过` 把该题按空选择提交，
+`提交` 会先校验整批（有未答且未跳过的题时跳回该题并提示）。plan-review 暂未在原生面板完整支持；需要时请用桌面 DSH。
 
 ### 模型报 `Authentication Fails` / 模型和桌面端不一致
 
@@ -288,7 +289,7 @@ Phase 0 的隐藏客户端如果订阅了正在别处使用的会话，`session.
   `title-llm-request`。出现 `source.kind === "user"` 说明标题被显式重命名钉住（手动改名 / 旧版 0013 行为），
   DSH 对 user 标题不再自动修订，只有显式 refresh 能解钉；旧会话可手动改名，或按 0033 的非目标暂不处理。
 - 「随对话更新的标题」需要：在「插件」tab 启用 → 点「重启服务」。它只替换 provider，**不会覆盖用户固定标题**。
-- 面板列表不跟随：确认桥已重启（桥额外订阅了 `title` 投影）；设置页「桥接状态」应显示 v6+。
+- 面板列表不跟随：确认桥已重启（桥额外订阅了 `title` 投影）；设置页「桥接状态」应显示 v8+。
 
 ## 启用「智能体团队」后没有团队入口 / 面板是空的
 
@@ -300,6 +301,38 @@ Phase 0 的隐藏客户端如果订阅了正在别处使用的会话，`session.
 4. 面板为空 / 一直「加载中」：看控制台 `[obsidian-dsh]` 与隐藏 core 的报错；确认 profile 里「智能体团队」patch 已生效（`dsh --profile obsidian --dump-config` 应出现 `agent-team` / `tool-agent-team` / `ui-agent-team`）。
 5. **只读面板不能导航**：点成员不会打开其会话；队友等待授权时只能看到「等待授权」标记，处理请到 dsh 桌面端 / Web（需要面板内导航见提案 0035 的路径 C，尚未实现）。
 6. 团队工具在过程行里显示中文标题（创建队友 / 发送消息 / 等待子智能体 / 团队任务 …）；如果只看到「运行代码」，说明当前会话预设走 PTC 模式，团队工具是在 `run_code` 里调用的，不是桥或渲染的问题。
+
+## 子智能体入口不出现 / 子会话打不开
+
+0041 起原生面板支持 dsh 的**子智能体**（subagent）；它与 0035 的「智能体团队」是两套能力，可以并存
+（团队队友也会以 continuable 子项出现在目录里，用「团队」徽标标出）。入口是会话标题右侧的 bot 图标，
+数据来自桥 v7 起的 `subagents()`；用法与回归步骤见 [development.md](development.md#现状与手动回归)。
+
+**入口不出现**
+
+1. 当前会话确实没有子代理：目录为空时按设计隐藏入口（模型用 `subagent` / `subagent_fork` 委派后才会出现）。
+2. 桥还是 v6：设置页「桥接状态」显示「已连接（v6）」说明 profile 里 link 的是旧桥。重新 link
+   `packages/dsh-obsidian-bridge` 后**重启 DSH 服务**，再重开面板。旧桥按能力探测（`ping().methods`
+   里没有 `subagents`）隐藏入口，其它功能不受影响。
+3. 改了桥却没重启服务：桥是 dsh 侧插件，改完必须重启服务；只「重新加载插件」不会换桥。
+4. 看错了会话：子会话里不显示入口（用顶部面包屑返回父会话）；入口只反映**当前会话**的直接子级。
+
+**打不开子会话**
+
+- 报 `session/writer-held`：该子会话正被桌面端 / 另一个 Obsidian 窗口持有，先结束那边的回合或关闭客户端再点。
+- 错误条「打开子智能体会话失败：…」：目录冷读或地址尚未就绪；桥会先 `refreshProjections` 再读，稍后重试；
+  仍失败就确认 dsh 是 0.2.x 并重启服务。失败时停留在父会话，不会串台。
+- 父会话不可用：子会话仍可查看，但 composer 按只读处理（见下）。
+- 深层子代理：首版只列**一层**直接子级，子代理的子代理不会出现在目录里（留后续）。
+
+**composer 只读提示的三类原因**
+
+1. **一次性子智能体**：`mode: one-shot`，只能看历史，不能继续发消息。
+2. **类型未知**：catalog 没给出 `mode`（`unknown`），按只读处理，避免误发。
+3. **父会话不可用**：`parentAvailable === false`；子会话未运行 → 只能查看，子会话仍在跑 → 输入禁用但保留 **Stop**
+   （停止由 dsh 路由到 `subagents/interruptByParent`）。
+
+> 只读只影响输入框：正文 / 流式 / 工具行照常，返回父会话后输入与模型菜单恢复。
 
 ## 仍然不行
 

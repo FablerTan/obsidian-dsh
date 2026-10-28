@@ -7,6 +7,8 @@ import {
 	type NativeCommandResult,
 	type NativeContextUsage,
 	type NativeEvent,
+	type NativeGoal,
+	type NativeGoalActionResult,
 	type NativeModels,
 	type NativeModelSelection,
 	type NativePending,
@@ -15,6 +17,8 @@ import {
 	type NativeSessionList,
 	type NativeSessionSummary,
 	type NativeSkill,
+	type NativeSubagentAddress,
+	type NativeSubagentList,
 	type NativeTeamProjection,
 } from '../../shared/native-types';
 
@@ -82,6 +86,10 @@ export class NativeCoreBridge {
 	private commandCapability = false;
 	/** 桥 v6 能力：team（Agent Teams 投影，只读团队面板）。 */
 	private teamCapability = false;
+	/** 桥 v7 能力：subagents（子智能体目录 + addressed 订阅）。 */
+	private subagentCapability = false;
+	/** 桥 v8 能力：goal / goalAction（会话目标投影与目标操作）。 */
+	private goalCapability = false;
 
 	constructor(private readonly run: <T>(code: string) => Promise<T>) {}
 
@@ -96,6 +104,8 @@ export class NativeCoreBridge {
 			methods.includes('skills') &&
 			methods.includes('executeCommand');
 		this.teamCapability = methods.includes('team');
+		this.subagentCapability = methods.includes('subagents');
+		this.goalCapability = methods.includes('goal') && methods.includes('goalAction');
 		return {
 			version: pong.version,
 			methods,
@@ -120,6 +130,16 @@ export class NativeCoreBridge {
 	/** 桥是否支持 v6 的团队投影；不支持时不显示团队入口。 */
 	supportsTeam(): boolean {
 		return this.teamCapability;
+	}
+
+	/** 桥是否支持 v7 的子智能体目录与 addressed 订阅；不支持时不显示子智能体入口。 */
+	supportsSubagents(): boolean {
+		return this.subagentCapability;
+	}
+
+	/** 桥是否支持 v8 的会话目标；不支持（旧桥未重启）时不显示目标条。 */
+	supportsGoal(): boolean {
+		return this.goalCapability;
 	}
 
 	/** 等页面加载出 bridge v2+；页面未加载完时 executeJavaScript 会失败，直接重试。 */
@@ -160,8 +180,10 @@ export class NativeCoreBridge {
 		return this.call('createSession', [cwd]);
 	}
 
-	async subscribe(sessionId: string): Promise<{ ok: boolean; sessionId: string; revision: number }> {
-		return this.call('subscribe', [sessionId]);
+	async subscribe(
+		target: string | NativeSubagentAddress,
+	): Promise<{ ok: boolean; sessionId: string; revision: number }> {
+		return this.call('subscribe', [target]);
 	}
 
 	async unsubscribe(): Promise<{ ok: boolean }> {
@@ -215,6 +237,25 @@ export class NativeCoreBridge {
 	/** Lead 会话的 Agent Teams 投影；未启用团队时返回 null。 */
 	async team(): Promise<NativeTeamProjection | null> {
 		return this.call<NativeTeamProjection | null>('team');
+	}
+
+	/** 当前会话（或当前子会话的父会话）的直接子代理目录；桥 v7。 */
+	async subagents(): Promise<NativeSubagentList> {
+		return this.call<NativeSubagentList>('subagents');
+	}
+
+	/** 当前会话的目标（dsh goal 投影）；没有目标或投影不可用时为 null。桥 v8。 */
+	async goal(): Promise<NativeGoal | null> {
+		return this.call<NativeGoal | null>('goal');
+	}
+
+	/** 目标操作：暂停 / 恢复 / 编辑（value = 新目标）/ 清除。桥 v8。 */
+	async goalAction(
+		action: 'edit' | 'pause' | 'resume' | 'clear',
+		value?: string,
+	): Promise<NativeGoalActionResult> {
+		const args = value === undefined ? [action] : [action, value];
+		return this.call<NativeGoalActionResult>('goalAction', args);
 	}
 
 	/** 宿主命令目录（"/" 菜单从这里判断 new / compact / skills 是否真的存在）。 */

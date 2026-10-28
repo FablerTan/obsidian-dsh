@@ -16,6 +16,7 @@ export type ProcessCategory =
 	| 'plan'
 	| 'questions'
 	| 'team'
+	| 'agentControl'
 	| 'tools';
 
 export interface ThinkingEntry {
@@ -61,15 +62,17 @@ const TOOL_CATEGORIES: Record<string, ProcessCategory> = {
 	web_search: 'webSearch',
 	web_fetch: 'webFetch',
 	subagent: 'subagents',
+	subagent_fork: 'subagents',
 	task: 'subagents',
 	update_plan: 'plan',
 	plan: 'plan',
 	ask_user_question: 'questions',
 	spawn_teammate: 'team',
-	send_message: 'team',
-	list_agents: 'team',
 	wait_agent: 'team',
-	interrupt_agent: 'team',
+	// 子智能体控制工具在团队与非团队场景都会出现，与 team 分开，避免过程行误说「协调团队」。
+	send_message: 'agentControl',
+	list_agents: 'agentControl',
+	interrupt_agent: 'agentControl',
 	team_task_create: 'team',
 	team_task_list: 'team',
 	team_task_get: 'team',

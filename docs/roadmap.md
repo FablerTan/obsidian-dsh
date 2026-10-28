@@ -1,6 +1,6 @@
 # 路线图
 
-> 当前版本 **0.5.0**（以 [manifest.json](../manifest.json) 为准）· 方案 B 已可用 · 最后更新 2026-10-27
+> 当前版本 **0.6.7**（以 [manifest.json](../manifest.json) 为准）· 方案 B 已可用 · 最后更新 2026-10-28
 
 ## 现状一句话
 
@@ -47,6 +47,20 @@ dsh 版本选择（[0003](changes/0003-dsh-version-selection-and-token-auth.md)�
 | R-21 | 设置页白 / 黑名单添加栏：在「添加」按钮左侧加「选取」按钮，自动获取符合条件的候选（vault 路径 / 技能名）并点选填入 | ✅ 已完成（2026-10-27；build/check + 纯函数/服务冒烟 + CDP 实测） | [0038](changes/0038-scope-picker.md) |
 | R-22 | 设置页「聊天」tab：@ 与 / 的范围设置与其白 / 黑名单详情各收进一张带徽标的卡片，一眼看出名单归属 | ✅ 已完成（2026-10-27；build/check + CDP 实测 + 截图） | [0039](changes/0039-scope-settings-cards.md) |
 | R-23 | 范围卡片标题去掉与徽标重复的「@」「/」：只留「引用范围」「技能范围」 | ✅ 已完成（2026-10-27；build/check + CDP 实测 + 截图） | [0040](changes/0040-scope-card-title.md) |
+| R-24 | 原生面板支持 dsh「子智能体（subagent）」：子代理列表 / 树与状态、打开子会话看正文、可继续子代理续聊与 Stop | ✅ 已完成（2026-10-27；build/check + CDP 实测） | [0041](changes/0041-subagent-support.md) |
+| R-25 | 子智能体浮层显示优化：纵向随内容变高（上限 72% 视口），长模型名换行、去掉横向滚动条 | ✅ 已完成（2026-10-27；build/check + CDP 实测 + 截图） | [0042](changes/0042-subagent-panel-layout.md) |
+| R-26 | 提问卡片对齐官方：单题一屏 + 底部左右翻页（`‹ n/N ›`）、翻页保留草稿可回改、`跳过` / `提交` 与未答校验；字号 / 间距 / 复选框 /「推荐」徽标按官方重排 | ✅ 已完成（2026-10-27；build/check + CDP 端到端实测） | [0043](changes/0043-question-card-pager.md) |
+| R-27 | 把 dsh 侧栏插件入口迁移到 Obsidian：ribbon / 命令列出全局面板，点击在中栏用可见 webview 渲染 dsh 插件页面（桥 v8 的 panels / openPanel） | 等你选路 | [0044](changes/0044-dsh-plugin-panels-in-obsidian.md) |
+| R-28 | 提问工具在消息流里的渲染修复：上下文类卡片被上下文圆环的 24×24 规则压扁（JSON 逐字竖排）、`question-reply` 节点退化成原始 JSON | ✅ 已完成（2026-10-28；build/check + CDP 实测） | [0045](changes/0045-timeline-context-render.md) |
+| R-29 | 原生面板对「模型只返回思考、没有正文/工具调用」的静默结束做兜底：提示本轮未产出内容 + 一键重试（发送「继续」；不改 dsh 源码） | ✅ 已完成（2026-10-28；build/check + 12 项纯函数冒烟 + CDP 端到端） | [0046](changes/0046-silent-turn-end-hint.md) |
+| R-30 | 输入框上方左对齐加 dsh 同款运行提示：鲸鱼尾 +「深度求索中，用时 N秒 ···」，逐秒刷新、浅深主题配色 | ✅ 已完成（2026-10-28；build/check + 纯函数冒烟 + CDP 实测） | [0047](changes/0047-dsh-run-status.md) |
+| R-31 | 运行提示位置可设置：默认输入框上方，可改为一直在输出最下方（左对齐、随对话滚动） | ✅ 已完成（2026-10-28；build/check + 归一化冒烟 + CDP 实测） | [0048](changes/0048-run-status-placement.md) |
+| R-32 | 运行提示文字微光方向反了、循环卡顿：改成 dsh 同款的「高光左 → 右」遮罩扫光 | ✅ 已完成（2026-10-28；build/check + CDP 动画采样） | [0049](changes/0049-run-status-shimmer-sweep.md) |
+| R-33 | 「/」菜单命令改为透传 dsh 自身命令目录（commands），并加与技能同款三档白 / 黑名单（只影响菜单显示） | ✅ 已完成（2026-10-28；build/check + 40 项纯函数冒烟 + CDP 实测） | [0050](changes/0050-dsh-command-passthrough.md) |
+| R-34 | 命令范围补「选取」按钮：从当前会话 dsh 命令目录取候选（需原生面板打开），点选填入添加栏 | ✅ 已完成（2026-10-28；build/check + 7 项纯函数冒烟 + CDP 实测） | [0051](changes/0051-command-scope-picker.md) |
+| R-35 | 为 goal 命令加一个悬浮窗口放在输入框上方，样式参考 dsh 官方（目标条：阶段标签 / 单行目标 / 暂停 / 恢复 / 编辑 / 清除，桥 v8） | ✅ 已完成（2026-10-28；build/check + CDP 实测） | [0052](changes/0052-goal-bar.md) |
+| R-36 | 使用 goal 后目标条在 Obsidian 里持续闪烁 / 出现残影（半透明模糊底 + 每轮运行提示位移导致窗口反复重合成） | ✅ 已完成（2026-10-28；build/check + 用户确认无闪烁） | [0053](changes/0053-goal-bar-flicker.md) |
+| R-37 | 目标条要始终显示在运行提示（深度求索中）下方、紧贴输入框，避免被每轮运行提示顶动 | ✅ 已完成（2026-10-28；build/check + CDP 实测） | [0054](changes/0054-goal-bar-below-run-status.md) |
 
 > 新需求往下追加，编号连续（R-2、R-3…），不要删旧行。状态取值：`待调研` → `等你选路` → `执行中` → `✅ 已完成` / `⏸ 暂缓`。
 

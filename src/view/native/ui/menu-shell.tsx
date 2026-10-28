@@ -19,8 +19,12 @@ function clamp(value: number, min: number, max: number): number {
 	return Math.min(Math.max(value, min), Math.max(min, max));
 }
 
-/** 浮层自己的定位：贴着锚点展开，空间不足时换边 / 内收。 */
-function useMenuStyle(anchor: MenuAnchor): {
+/**
+ * 浮层自己的定位：贴着锚点展开，空间不足时换边 / 内收。
+ * `grow` = 允许浮层随内容变高（高度上限取锚点下方可用空间，而不是首次测量的内容高度）：
+ * 列表类浮层（子智能体目录）用它，避免内容加载 / 行高变化后被锁死在一个很矮的高度里。
+ */
+function useMenuStyle(anchor: MenuAnchor, grow: boolean): {
 	panelRef: RefObject<HTMLDivElement>;
 	style: CSSProperties;
 } {
@@ -52,7 +56,10 @@ function useMenuStyle(anchor: MenuAnchor): {
 		if (side === 'above' && aboveRoom < 120 && belowRoom > aboveRoom) side = 'below';
 		if (side === 'below' && belowRoom < 120 && aboveRoom > belowRoom) side = 'above';
 		const room = side === 'above' ? aboveRoom : belowRoom;
-		const maxHeight = Math.max(1, Math.min(naturalHeight, room));
+		// 列表类浮层：上限取「可用空间」，列表变长时跟着长高（不锁在首帧内容高度）。
+		const maxHeight = grow
+			? Math.max(1, Math.min(room, Math.round(hostHeight * 0.72)))
+			: Math.max(1, Math.min(naturalHeight, room));
 		const left = clamp(anchorLeft, MARGIN, hostWidth - width - MARGIN);
 		const top =
 			side === 'above'
@@ -66,6 +73,8 @@ function useMenuStyle(anchor: MenuAnchor): {
 interface MenuShellProps {
 	anchor: MenuAnchor;
 	className?: string;
+	/** 允许浮层随内容变高（最多约 72% 视口 / 锚点下方空间）；默认按首帧内容高度。 */
+	grow?: boolean;
 	onClose: () => void;
 	onMouseEnter?: () => void;
 	onMouseLeave?: () => void;
@@ -76,12 +85,13 @@ interface MenuShellProps {
 export function MenuShell({
 	anchor,
 	className,
+	grow = false,
 	onClose,
 	onMouseEnter,
 	onMouseLeave,
 	children,
 }: MenuShellProps) {
-	const { panelRef, style } = useMenuStyle(anchor);
+	const { panelRef, style } = useMenuStyle(anchor, grow);
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent): void => {

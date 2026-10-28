@@ -7,7 +7,7 @@
 
 ## 项目是什么
 
-Obsidian 插件（56 个源文件、约 9200 行 TS/TSX，按职责域分层：`src/service` / `src/view` / `src/settings` / `src/shared`，`src/main.ts` 是组合根）：在 Obsidian 右侧面板提供**原生 React 聊天 UI**（`src/view/native/`），内部用离屏的官方 core webview + `dsh-obsidian-bridge` v6 取数据（v3 含 liveStream 流式，v4 含上下文占用，v5 含 “/” 命令与技能目录，v6 含 Agent Teams 团队投影）；不再提供可见的官方 Web GUI 面板（0008）。插件托管一个独立的 dsh 服务（profile `obsidian`、默认端口 3081、cwd = vault，只支持 dsh 0.2.x）。
+Obsidian 插件（56 个源文件、约 9200 行 TS/TSX，按职责域分层：`src/service` / `src/view` / `src/settings` / `src/shared`，`src/main.ts` 是组合根）：在 Obsidian 右侧面板提供**原生 React 聊天 UI**（`src/view/native/`），内部用离屏的官方 core webview + `dsh-obsidian-bridge` v8 取数据（v3 含 liveStream 流式，v4 含上下文占用，v5 含 “/” 命令与技能目录，v6 含 Agent Teams 团队投影，v7 含子智能体目录与子会话导航，v8 含输入框上方的目标条：goal 投影 + 暂停 / 恢复 / 编辑 / 清除）；不再提供可见的官方 Web GUI 面板（0008）。插件托管一个独立的 dsh 服务（profile `obsidian`、默认端口 3081、cwd = vault，只支持 dsh 0.2.x）。
 
 ## 目录约定
 
@@ -28,7 +28,7 @@ Obsidian 插件（56 个源文件、约 9200 行 TS/TSX，按职责域分层：`
 | `skills/<name>/data/` | 可重建的索引 / 缓存 | 不提交缓存与不可复现产物 |
 | `.dsh/skills/<name>` | 指向 `../../skills/<name>` 的符号链接 | 不放真实文件 |
 | `scripts/` | 开发工具：`check.mjs`（提交前检查）、`install-hooks.sh` / `githooks/pre-commit`（安装钩子） | 不放运行时逻辑 |
-| `packages/dsh-obsidian-bridge/` | dsh 侧客户端插件（独立包，纯 JS）：v6 原生数据桥（v1 布局代码已在 0011 删除；v3 增加 liveStream，v4 增加 context，v5 增加 commands / skills / executeCommand，v6 增加 team / agentTeam 团队投影） | 不被打进 `main.js`；改完需重新 link 到 profile 并重启服务 |
+| `packages/dsh-obsidian-bridge/` | dsh 侧客户端插件（独立包，纯 JS）：v8 原生数据桥（v1 布局代码已在 0011 删除；v3 增加 liveStream，v4 增加 context，v5 增加 commands / skills / executeCommand，v6 增加 team / agentTeam 团队投影，v7 增加 subagents / addressed subscribe / snapshot.subagent，v8 增加 goal / goalAction 目标条） | 不被打进 `main.js`；改完需重新 link 到 profile 并重启服务 |
 | `data.json` | Obsidian 运行时设置（开发期因符号链接安装落在仓库根） | **不要当源码改、不要删** |
 | `node_modules/` / `.DS_Store` | — | 不入版本库 |
 
@@ -69,7 +69,7 @@ node --check skills/obsidian-docs/scripts/obsdocs.mjs   # 仅在改了技能脚�
 `npm install` 的 `postinstall` 会把 `scripts/githooks/pre-commit` 装到 `.git/hooks/`；改了检查逻辑后重跑 `npm run hooks:install`。
 
 手动回归（当前无单测/CI，清单见 [docs/development.md](docs/development.md#现状与手动回归)）：
-重新加载插件 → 状态栏 `DSH: 运行中` → 原生聊天面板能打开并连接（桥 v6）→ 发消息能看到流式正文、输入栏出现上下文占用圆环 → 启用「智能体团队」后标题右侧出现团队图标、面板能看 roster / 任务板 → 「重启 DSH 服务」成功 → 禁用插件后端口释放。
+重新加载插件 → 状态栏 `DSH: 运行中` → 原生聊天面板能打开并连接（桥 v8）→ 发消息能看到流式正文、输入栏出现上下文占用圆环 → 启用「智能体团队」后标题右侧出现团队图标、面板能看 roster / 任务板 → 有子代理的会话标题右侧出现 bot 图标，能打开子会话并返回 → 「重启 DSH 服务」成功 → 禁用插件后端口释放。
 
 ## 外部依赖（不在本仓库）
 

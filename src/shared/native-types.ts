@@ -7,6 +7,10 @@ export interface NativeSessionSummary {
 	running: boolean;
 	blank: boolean;
 	updatedAt: number | null;
+	/** 桥 v7：会话行的来源（'subagent' = 子会话）；旧桥不返回。 */
+	origin?: string | null;
+	/** 桥 v7：子会话的父会话 id；旧桥不返回。 */
+	parentId?: string | null;
 }
 
 export interface NativeSessionList {
@@ -73,6 +77,8 @@ export interface NativeChatSnapshot {
 	navigation: unknown[];
 	timeline: unknown;
 	pending: NativePending | null;
+	/** 桥 v7：当前会话是子会话时的地址与父可用性；旧桥不返回（undefined）。 */
+	subagent?: NativeSubagentInfo | null;
 }
 
 export interface NativeModelSelection {
@@ -133,27 +139,6 @@ export interface NativeNote {
 	/** vault 相对路径。 */
 	path: string;
 	name: string;
-}
-
-/** 桥 v5：宿主命令目录的一项（"/" 菜单里对照的命令）。 */
-export interface NativeCommand {
-	name: string;
-	description: string;
-}
-
-/** 桥 v5：当前会话可见的人类可调用技能（"/skills" 二级列表）。 */
-export interface NativeSkill {
-	name: string;
-	description: string;
-	/** false = 只给用户调用（不进模型技能目录）。 */
-	modelInvocable: boolean;
-}
-
-/** 桥 v5：一条命令行的执行结果（宿主 CommandResult 的投影）。 */
-export interface NativeCommandResult {
-	kind: 'success' | 'error';
-	/** 宿主的提示文本；成功且无文本时为 null。 */
-	text: string | null;
 }
 
 /** 桥 v5：宿主命令目录的一项（"/" 菜单里对照的命令）。 */
@@ -253,6 +238,91 @@ export interface NativeTeamProjection {
 	members: NativeTeamMember[];
 	tasks: NativeTeamTask[];
 	failure?: string;
+}
+
+/** 桥 v7：子会话地址（dsh 的 SubagentAddress；mode 未知时按只读处理）。 */
+export interface NativeSubagentAddress {
+	parentSessionId: string;
+	childSessionId: string;
+	mode: 'one-shot' | 'continuable' | 'unknown';
+}
+
+/** 桥 v7：子会话在快照里的元数据；普通会话为 null。 */
+export interface NativeSubagentInfo {
+	address: NativeSubagentAddress;
+	/** continuable 子会话的父会话是否仍可用（缺省 = 未确认）。 */
+	parentAvailable?: boolean;
+}
+
+/** 桥 v7：目录里的一项（subagentCatalog + 子会话状态 / 耗时 / token / 模型拼合）。 */
+export interface NativeSubagentEntry {
+	id: string;
+	label: string;
+	title: string | null;
+	mode: 'one-shot' | 'continuable' | 'unknown';
+	createdAt: number | null;
+	running: boolean;
+	/** 是否有等待处理的授权 / 提问；原生面板只提示，处理需打开该子会话。 */
+	pendingInteraction: boolean;
+	/** 该子代理完成但未读（dsh 的 completionUnread）。 */
+	unread: boolean;
+	/** 最近一轮结束耗时（ms）；运行中或未结算时为 null。 */
+	settledMs: number | null;
+	/** 当前激活轮开始时间（ms）；未运行时为 null。 */
+	activeSince: number | null;
+	/** 累计 token（provider 用量四桶之和）；冷缓存时缺失。 */
+	totalTokens: number | null;
+	model: string | null;
+	/** 是否是当前面板正在看的会话。 */
+	current: boolean;
+}
+
+/** 桥 v7：当前会话（或当前子会话的父会话）的直接子代理目录。 */
+export interface NativeSubagentList {
+	rootSessionId: string;
+	currentSessionId: string;
+	entries: NativeSubagentEntry[];
+}
+
+/** 桥 v8：目标的持久阶段（dsh GoalPhase）。 */
+export type NativeGoalPhase = 'active' | 'paused' | 'blocked' | 'complete';
+
+/** 桥 v8：目标受阻的原因（dsh GoalBlockReason）。 */
+export interface NativeGoalBlockedReason {
+	code: string;
+	message: string;
+}
+
+/**
+ * 桥 v8：当前会话的目标（dsh `goal` 会话投影 + 进程内激活状态）。
+ *
+ * 投影只有持久字段；`activation` 是进程内状态（重启后 active 目标会变成 disarmed），
+ * 桥拿到时才带上，拿不到时缺省，UI 按官方口径隐藏暂停 / 恢复入口。
+ */
+export interface NativeGoal {
+	id: string;
+	revision: number;
+	objective: string;
+	phase: NativeGoalPhase;
+	/** 仅 phase = blocked 时存在。 */
+	blockedReason?: NativeGoalBlockedReason | null;
+	maxGoalRounds: number;
+	/** 已准入的目标轮数（投影里的 roundsStarted）。 */
+	roundsStarted: number;
+	/** 进程内是否允许自动续跑；桥未确认时缺省。 */
+	activation?: 'armed' | 'disarmed';
+}
+
+/** 桥 v8：目标操作的失败原因（与 dsh RemoteResult 的错误同形）。 */
+export interface NativeGoalError {
+	code: string;
+	message: string;
+}
+
+/** 桥 v8：目标操作（暂停 / 恢复 / 编辑 / 清除）的结果。 */
+export interface NativeGoalActionResult {
+	ok: boolean;
+	error?: NativeGoalError;
 }
 
 export type NativeBridgeErrorReason =

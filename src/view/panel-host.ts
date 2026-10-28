@@ -1,4 +1,10 @@
-import type { MentionScope, SkillScope, StreamRefreshMode } from '../settings/schema';
+import type {
+	CommandScope,
+	MentionScope,
+	RunStatusPlacement,
+	SkillScope,
+	StreamRefreshMode,
+} from '../settings/schema';
 
 /**
  * 原生聊天面板需要的最小宿主能力（由插件实现）。
@@ -19,8 +25,12 @@ export interface DshPanelHost {
 	restartService(): Promise<void>;
 	/** 当前设置里的流式刷新节奏（0021）；面板打开期间切换需即时生效。 */
 	getStreamRefresh(): StreamRefreshMode;
+	/** 当前设置里的运行提示位置（0048）；面板每次渲染读取，运行中切换即时生效。 */
+	getRunStatusPlacement(): RunStatusPlacement;
 	/** 当前设置里的「@」引用范围（0030）；每次打开 @ 菜单时读取，切设置后下一次打开生效。 */
 	getMentionScope(): MentionScope;
 	/** 当前设置里的「/」技能范围（0037）；只影响菜单显示，每次打开 / 菜单时读取。 */
 	getSkillScope(): SkillScope;
+	/** 当前设置里的「/」命令范围（0050）；只影响菜单显示，每次打开 / 菜单时读取。 */
+	getCommandScope(): CommandScope;
 }

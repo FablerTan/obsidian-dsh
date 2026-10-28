@@ -13,8 +13,11 @@ import {
 import { togglePluginEnabled } from './service/plugin-patch';
 import {
 	mergeSettings,
+	runStatusPlacementOf,
+	type CommandScope,
 	type DshPluginSettings,
 	type MentionScope,
+	type RunStatusPlacement,
 	type SkillScope,
 	type StreamRefreshMode,
 } from './settings/schema';
@@ -213,6 +216,11 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 		return this.settings.streamRefresh;
 	}
 
+	/** DshPanelHost：运行提示位置（0048），面板每次渲染读取，运行中切换即时生效。 */
+	getRunStatusPlacement(): RunStatusPlacement {
+		return runStatusPlacementOf(this.settings.runStatusPlacement);
+	}
+
 	/** DshPanelHost：「@」引用范围（0030），每次打开 @ 菜单时读取。 */
 	getMentionScope(): MentionScope {
 		return {
@@ -231,9 +239,25 @@ export default class DshInObsidianPlugin extends Plugin implements DshPanelHost,
 		};
 	}
 
+	/** DshPanelHost：「/」命令范围（0050），每次打开 / 菜单时读取；只影响菜单显示。 */
+	getCommandScope(): CommandScope {
+		return {
+			mode: this.settings.commandScope,
+			allow: this.settings.commandWhitelist,
+			deny: this.settings.commandBlacklist,
+		};
+	}
+
 	/** SettingsHost：本地技能目录里的技能名（0038，设置页「/」技能范围的「选取」按钮）。 */
 	getSkillCandidates(): Promise<string[]> {
 		return listLocalSkillNames(vaultPath(this.app));
+	}
+
+	/** SettingsHost：「/」命令范围的候选（0051，从原生面板的桥取当前会话命令目录）。 */
+	async getCommandCandidates(): Promise<string[]> {
+		const view = findNativeChat(this.app);
+		if (view === null) return [];
+		return view.listCommandNames();
 	}
 
 	/** SettingsHost：原生聊天隐藏 core 的页面桥状态。 */

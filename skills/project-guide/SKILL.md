@@ -97,7 +97,7 @@ Obsidian 自身 API（Plugin / ItemView / Vault / requestUrl…）**不要读类
 | `docs/changes/` | 改代码前的提案（draft → approved → done） | 未批准前直接改代码 |
 | `skills/<name>/` | 给 agent 的技能：`SKILL.md` + 可选 `scripts/` / `references/` / `data/` | 项目文档、不可复现的产物 |
 | `.dsh/skills/<name>` | 指向 `../../skills/<name>` 的符号链接 | 放真实文件 |
-| `packages/dsh-obsidian-bridge/` | dsh 侧客户端插件：`lib/client.js`（v6 数据桥：快照 / liveStream / context / commands / team；v1 已删）、`cordis.patch.yml`、独立 `package.json` | import `src/`、被打进 `main.js` |
+| `packages/dsh-obsidian-bridge/` | dsh 侧客户端插件：`lib/client.js`（v7 数据桥：快照 / liveStream / context / commands / team / subagents；v1 已删）、`cordis.patch.yml`、独立 `package.json` | import `src/`、被打进 `main.js` |
 | 根目录 | 插件运行必需文件 + 构建配置 + `README.md` / `AGENTS.md` + `docs/`、`skills/`、`packages/`、`.dsh/` | 任何临时代码、脚本、备份 |
 
 ## 4. src 分层（单向依赖）

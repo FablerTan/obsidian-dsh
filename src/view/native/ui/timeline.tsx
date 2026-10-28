@@ -1,5 +1,6 @@
 import type { App } from 'obsidian';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { NativeChatLive, NativeChatSnapshot } from '../../../shared/native-types';
 import { Icon } from './icon';
 import { buildTimeline } from './timeline-model';
@@ -15,6 +16,7 @@ export function Timeline({
 	sourcePath,
 	loadingOlder,
 	onLoadOlder,
+	runningStatus,
 }: {
 	app: App;
 	snapshot: NativeChatSnapshot;
@@ -25,6 +27,8 @@ export function Timeline({
 	sourcePath: string;
 	loadingOlder: boolean;
 	onLoadOlder: () => void;
+	/** 0048：运行提示放在消息流最下方时由根组件传入（随内容滚动）。 */
+	runningStatus?: ReactNode;
 }) {
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const [atBottom, setAtBottom] = useState(true);
@@ -87,6 +91,7 @@ export function Timeline({
 						<NodeView key={key} app={app} node={item.node} sourcePath={sourcePath} />
 					);
 				})}
+				{runningStatus}
 			</div>
 			{!atBottom ? (
 				<button className="dsh-native-jump-bottom" onClick={scrollToBottom}>

@@ -31,15 +31,18 @@ flowchart LR
 | 就绪探测（四态判定 + Obsidian 实现注入） | 插件 | `src/shared/host.ts`（requestUrl 版）；service 只消费注入的探测 |
 | 原生聊天视图（React UI） | 插件 | `src/view/native/native-chat-view.tsx` + `ui/` |
 | 隐藏 core 承载（Electron webview + 专用分区） | 插件 | `src/view/surface.ts`；分区由 `src/main.ts` 提供 |
-| 页面桥 v6（会话 / 快照 / 动作 / 审批提问 / 模型权限 / 流式 live / 上下文占用 / 命令与技能目录 / 团队投影） | 插件 + dsh 客户端插件 | `src/view/native/core-bridge.ts` + `src/main.ts`；dsh 侧 `packages/dsh-obsidian-bridge/lib/client.js` |
+| 页面桥 v8（会话 / 快照 / 动作 / 审批提问 / 模型权限 / 流式 live / 上下文占用 / 命令与技能目录 / 团队投影 / 子智能体目录与子会话 / 目标投影与目标操作） | 插件 + dsh 客户端插件 | `src/view/native/core-bridge.ts` + `src/main.ts`；dsh 侧 `packages/dsh-obsidian-bridge/lib/client.js` |
 | 流式输出（live tail） | 插件 + dsh 客户端插件 | 桥同步订阅 `SessionBinding.eventSource`，`nextEvent` 同时返回结构游标与 `liveCursor/live`；原生端在 `timeline-model.ts` 合成运行中的 assistant-step |
 | 宿主接口（地址 / 分区 / 服务生命周期 / 设置读取） | 插件 | `src/view/panel-host.ts` |
 | 「@」引用范围（白名单 / 黑名单，0030） | 插件设置 | `src/settings/schema.ts` + `src/settings/sections/chat.ts` + `src/view/native/mention-scope.ts`（纯函数过滤）+ `src/view/panel-host.ts` / `src/main.ts`（`getMentionScope`）+ `src/view/native/ui/native-chat-root.tsx` |
 | 「/」菜单技能范围（白名单 / 黑名单，0037） | 插件设置 | `src/settings/schema.ts`（`ScopeMode` + `skillScope` / `skillWhitelist` / `skillBlacklist`）+ `src/settings/sections/chat.ts` + `src/view/native/skill-scope.ts`（纯函数过滤）+ `src/view/panel-host.ts` / `src/main.ts`（`getSkillScope`）+ `src/view/native/ui/native-chat-root.tsx` / `composer.tsx` |
+| 「/」菜单命令透传 + 命令范围（0050） | 插件设置 | `src/settings/schema.ts`（`commandScope` / `commandWhitelist` / `commandBlacklist` + 命令名归一化）+ `src/settings/sections/chat.ts`（命令范围卡片）+ `src/view/native/command-scope.ts`（纯函数：范围过滤 / 隐藏 /export / 同名技能隐藏 / leading 命令识别）+ `src/view/native/slash.ts`（`commands()` → 菜单行 + 中文标签）+ `composer.tsx`（命令目录 / Enter 路由）+ `native-chat-root.tsx`（`runCommand`）+ `panel-host.ts` / `main.ts`（`getCommandScope`） |
 | 白 / 黑名单添加栏的「选取」（0038） | 插件设置 | `src/settings/sections/chat.ts`（分组卡片 + 行首按钮 + `SuggestModal`）+ `src/settings/scope-candidates.ts`（候选构造：排除已有 / 被覆盖 / 隐藏）+ `src/service/skill-catalog.ts`（扫描本地技能目录取技能名）+ `src/settings/context.ts` / `src/main.ts`（`getSkillCandidates`） |
+| 命令范围的「选取」（0051） | 插件设置 + 面板桥 | `src/settings/context.ts` / `src/main.ts`（`getCommandCandidates` → `findNativeChat`）+ `src/view/native/native-chat-view.tsx`（`listCommandNames()` → 桥 `commands()`，过滤 `/export`）+ `src/settings/scope-candidates.ts`（`listCommandCandidates`）+ `src/settings/sections/chat.ts`（命令卡片 `pickKind: 'command'`）；面板未打开时返回空数组，手动输入兜底 |
 | dsh 插件清单与组件行启停（设置页「插件」tab，0031） | 插件设置 + 插件 | `src/service/plugin-inventory.ts`（`dsh --dump-config` 解析 + 版本 + 缓存）+ `src/service/plugin-patch.ts`（写 profile 用户层 `cordis.patch.yml`：备份 / 原子写 / 复验回滚）+ `src/settings/sections/plugins.ts` + `src/settings/context.ts` / `src/main.ts` |
 | 可选 / 实验性插件（启用 / 停用 bundle，0032） | 插件设置 + 插件 | `src/service/plugin-catalog.ts`（读 `@deepseek-ai/dsh-official-bundles` 目录 + 版本 / 中文标题）+ `src/service/plugin-bundles.ts`（写 profile `package.json` 的 `dsh.profile.bundles`：备份 / 原子写 / 复验回滚）+ `src/settings/sections/plugins.ts` + `src/main.ts`（白名单校验） |
 | Agent Teams 只读团队面板（0035） | 插件 + dsh 客户端插件 | `src/view/native/ui/team-panel.tsx` + `src/view/native/ui/native-chat-root.tsx`（标题右侧入口）+ `src/shared/native-types.ts`；桥 `team()` 读 Lead 的 `agentTeam` 投影并拼运行状态 / 模型 |
+| 子智能体目录与子会话导航（0041） | 插件 + dsh 客户端插件 | `src/view/native/ui/subagent-panel.tsx` + `native-chat-root.tsx`（入口 / 面包屑 / 只读判定）+ `src/shared/native-types.ts`；桥 `subagents()` 读父会话 `subagentCatalog` 投影并拼子会话状态 / 耗时 / token / 模型，`subscribe(address)` 打开子会话 |
 | 旧 `dsh-web` leaf 迁移 | 插件 | `src/main.ts` 的 `migrateLegacyPanel` |
 | 打开 / 聚焦面板 | 插件 | `src/view/open.ts` |
 | 端口 / profile / 自动启动 | 插件设置 | `src/settings/schema.ts` + `src/settings/sections/service.ts` |
@@ -147,15 +150,27 @@ shared/ ──► 无内部依赖
   设置）；不可用时返回 `null`，view 显示错误并提示升级 Obsidian，**不回退 iframe**（0007）。
 - 自愈：`DshNativeChatView.ensureReady()` 合并并发 reload，服务就绪后用带 token 地址重新导航；
   命令重启服务时 `main.restartService()` 调 `reloadAfterRestart()`，不需要手动重开面板。
-- 页面桥：`core-bridge.ts` 通过 `executeJavaScript` 调用页面里的 `window.__DSH_OBSIDIAN_BRIDGE__`（v6）：
+- 页面桥：`core-bridge.ts` 通过 `executeJavaScript` 调用页面里的 `window.__DSH_OBSIDIAN_BRIDGE__`（v8）：
   会话列表、`subscribe`、`snapshot`、`nextEvent` 长轮询、发送/停止/加载更早、审批/提问、模型目录、
   权限投影、上下文占用（`contextPressure` / `contextBreakdown`）与标题（`title`，0033：标题一变就 bump，
   面板标题与会话列表即时跟随），输入框 “/” 菜单要用的
   宿主命令目录（`commands`）、技能目录（`skills`）与命令行提交（`executeCommand`），
-  以及 Agent Teams 团队投影（`team`，0035：读 Lead 的 `agentTeam` 投影，补成员运行状态 / 等待授权 / 模型）。
+  Agent Teams 团队投影（`team`，0035：读 Lead 的 `agentTeam` 投影，补成员运行状态 / 等待授权 / 模型），
+  以及子智能体目录（`subagents()`，0041：父会话 `subagentCatalog` + 子会话 `subagent` / `subagentTiming` /
+  `tokenUsage` / `modelSelection` 与 `uiSession.sessionStatus`）。
+  桥 v8 增加会话目标（0052）：`goal()` 读会话 `goal` 投影（id / revision / objective / phase /
+  blockedReason / maxGoalRounds / roundsStarted），并按需 `remote.goals.get()` 补进程内 `activation`
+  （同一 `{ id, revision }` 并发去重，`goal/activation-changed` 事件只跟随当前会话）；`goalAction()` 以
+  `{ id, revision }` 为 CAS ref 走 `remote.goals` 的 edit / pause / resume / clear，业务失败以 `{ ok:false, error }` 返回。
   桥 v5 起用 `ctx.inject(['remote', 'remote.commands' | 'remote.skills'])` 取宿主命名空间：
   cordis 会拒绝未注入的 `remote.*`；profile 缺 commands / skills 插件时只让这两项报错，桥照常加载。
   桥 v6 把 `agentTeam` 加进 `subscribe` 的投影订阅键表，团队状态变化直接唤醒 `nextEvent`，面板无需刷新。
+  桥 v7 起 `subscribe` 也接受 `{ parentSessionId, childSessionId, mode }`：桥用 `sessions.retain(address)` 拿子会话 ref，
+  再用现有快照 / 流式管线（`prompt` / `cancel` 由 dsh 自动路由到 `subagents/prompt` / `subagents/interruptByParent`），
+  因此续聊与 Stop 不需要新协议；`snapshot()` 透传 `session.subagent`（地址 + `parentAvailable`）供面包屑与只读判定。
+  约束：dsh 的列表快照会把子会话行也放进 `ids`（本机 0.2.1-rc.3 实测，行上带 `origin: 'subagent'` 与 `parentId`），
+  所以桥 v7 起在 `listSessions()` 里额外透出 `origin` / `parentId`，原生面板按 `origin !== 'subagent'` 过滤——
+  子会话**不进入会话选择器**，只能从子智能体入口打开；目录只列直接子级并过滤 `external`，深层嵌套留后续。
 - 流式输出（0017）：桥 v3 同步订阅 `SessionBinding.eventSource`，把 `assistant/live-chunk` 累积成
   `blocks`（正文 / 思考 / 工具参数）；`nextEvent` 同时返回结构 `cursor/changed` 与 `liveCursor/live`。
   原生端在 `timeline-model.ts` 合成一条 `live:<turn>:<step>` 的 assistant-step，settle 后由正式节点接管。
@@ -166,10 +181,12 @@ shared/ ──► 无内部依赖
   `.dsh-native-live-text`，settle 后一次性 Markdown 排版，避免每帧重排整段 Markdown。
   `native-chat-view.tsx` 把 React 的 `createSession` 注册为 `NativeChatActions`（命令入口用），`probeBridge()`
   供设置页检测。
-- `ui/` 是 React 18 UI：标题/会话浮层、消息与工具卡、输入框（@ 引用下拉：当前笔记 + 项目文件；目录行箭头下钻）、模型/权限浮层、只读团队浮层（`team-panel.tsx`）；
+- `ui/` 是 React 18 UI：标题/会话浮层、消息与工具卡、输入框（@ 引用下拉：当前笔记 + 项目文件；目录行箭头下钻）、模型/权限浮层、只读团队浮层（`team-panel.tsx`）、只读子智能体目录（`subagent-panel.tsx`，入口 / 面包屑在 `native-chat-root.tsx`）；
   `note-tracker.ts` 记住最后一次激活的 Markdown 笔记，`mention.ts` 负责 @ token、候选排序与插入文本（对齐 dsh 的 `@` 补全：Enter 采纳 / Tab 下钻），`folder-reveal.ts` 把消息里的文件夹 chip 点击落到左侧文件列表。原生视图只允许右栏一个实例。
   「@」菜单的检索范围来自设置项 `mentionScope` / `mentionWhitelist` / `mentionBlacklist`：`native-chat-root.tsx` 在打开菜单取 vault 快照时读 `getMentionScope()`（`main.ts` 从 settings 组装）并交给 `mention-scope.ts` 的 `filterMentionEntries()` 裁剪——白名单只留条目内（含子目录）候选并保留祖先文件夹以便下钻，黑名单排除条目内候选；「当前笔记」首行不受范围影响。因为每次打开菜单才读设置，改完设置**下一次打开 @ 菜单**即生效，无需重启。
-- 「/」菜单的技能行范围来自设置项 `skillScope` / `skillWhitelist` / `skillBlacklist`（0037）：`composer.tsx` 每次打开 `/` 菜单时读一次 `getSkillScope()`（`main.ts` 从 settings 组装，`panel-host.ts` 暴露），技能目录返回后在渲染前交给 `skill-scope.ts` 的 `filterSlashSkills()` 裁剪——白名单只留命中技能名、空白名单隐藏全部技能行，黑名单排除命中技能名；条目按技能名前缀语义匹配（`office` 覆盖 `office` 与 `office-*`）。过滤只作用于菜单里「技能」分组要显示的行：`bridge.skills()` 的目录、`/name` 插入、技能加载与执行都不受影响；技能行全被挡掉时菜单显示一行说明（命令 `new` / `compact` 不受影响）。改完设置**下一次打开 / 菜单**即生效，无需重启。
+- 「/」菜单的技能行范围来自设置项 `skillScope` / `skillWhitelist` / `skillBlacklist`（0037）：`composer.tsx` 每次打开 `/` 菜单时读一次 `getSkillScope()`（`main.ts` 从 settings 组装，`panel-host.ts` 暴露），技能目录返回后在渲染前交给 `skill-scope.ts` 的 `filterSlashSkills()` 裁剪——白名单只留命中技能名、空白名单隐藏全部技能行，黑名单排除命中技能名；条目按技能名前缀语义匹配（`office` 覆盖 `office` 与 `office-*`）。过滤只作用于菜单里「技能」分组要显示的行：`bridge.skills()` 的目录、`/name` 插入、技能加载与执行都不受影响；技能行全被挡掉时菜单显示一行说明（本地 `/new` 不受影响）。改完设置**下一次打开 / 菜单**即生效，无需重启。
+- 「/」菜单的命令行从 0050 起不再写死：`composer.tsx` 打开菜单 / 会话就绪时调用桥 `commands()` 取当前会话的 dsh 命令目录（按会话 / 预设变化），`slash.ts` 转成菜单行（六个 first-party 命令按 name 映射中文标签，第三方命令回退 dsh 英文描述），预置的 `/export` 因桥直连执行不触发 Web 下载而隐藏；选中命令只把 `/name ` 插入草稿，Enter 时若草稿**开头**是命令目录里的名字，`native-chat-root.tsx` 的 `runCommand` 走 `bridge.executeCommand()`（不是 `send()`），结果由时间线 command / manual-compaction 节点呈现。技能仍走 `send()`（宿主 pre-step 注入正文）；同名技能行隐藏（命令优先）；subagent 子会话按官方行为不显示命令组。
+- 命令范围来自设置项 `commandScope` / `commandWhitelist` / `commandBlacklist`（0050）：打开菜单时快照一次，交给 `command-scope.ts` 的 `filterSlashCommands()` 精确匹配裁剪（命令是扁平命名空间，不走 `-` 前缀）；只影响菜单显示，命令目录与执行不变；白名单为空时命令行全部隐藏并显示说明行。命令范围的「选取」（0051）经 `SettingsHost.getCommandCandidates()` → `findNativeChat(app)` → `DshNativeChatView.listCommandNames()` → 桥 `commands()` 取当前会话命令名（过滤 `/export`）；面板未打开 / 未订阅会话时返回空数组，设置页提示手动输入。
 - 原生聊天不重写 DSH core：ChatSnapshot / 会话动作 / 待处理交互都来自官方页面；模型选择只选已配置
   provider/model，不提供 provider / API key 表单。
 - 模型/权限来源（0.2.1-rc.3 实测）：模型目录优先走 `ctx.modelDirectories.directoryFor(sessionId)`
@@ -198,8 +215,11 @@ shared/ ──► 无内部依赖
 | `skillScope` | off | 同上 | 「/」菜单技能范围：off(不启用) / whitelist(白名单) / blacklist(黑名单)；下一次打开 / 菜单生效，只过滤技能行、不影响技能加载 |
 | `skillWhitelist` | [] | 同上 | 白名单技能名（小写字母 / 数字 / 点 / 下划线 / 连字符）；读取时归一化、去重；`office` 覆盖 `office` 与所有 `office-*` |
 | `skillBlacklist` | [] | 同上 | 黑名单技能名（同上） |
+| `commandScope` | off | 同上 | 「/」命令范围：off(不启用) / whitelist(白名单) / blacklist(黑名单)；下一次打开 / 菜单生效，只过滤命令行、不影响命令目录与执行 |
+| `commandWhitelist` | [] | 同上 | 白名单命令名（dsh 命令名规则 `^[a-z][a-z0-9_-]*$`，精确匹配）；读取时归一化、去重 |
+| `commandBlacklist` | [] | 同上 | 黑名单命令名（同上） |
 
-- 白 / 黑名单添加栏的「选取」只读候选、不写配置（0038）：@ 取 vault 快照（`app.vault.getAllLoadedFiles()`），/ 取本地技能目录扫描结果（15s 缓存）；选中只回填输入框，写回仍走原有「添加」与归一化 / 校验。
+- 白 / 黑名单添加栏的「选取」只读候选、不写配置（0038 / 0051）：@ 取 vault 快照（`app.vault.getAllLoadedFiles()`），/ 的技能取本地技能目录扫描结果（15s 缓存）、命令取原生面板桥的当前会话 `commands()`（面板未打开时为空）；选中只回填输入框，写回仍走原有「添加」与归一化 / 校验。
 - **默认值**写在 `DEFAULT_SETTINGS`；用户值由 Obsidian 持久化到插件目录的 `data.json`。开发期用符号链接安装，所以 `data.json` 落在本仓库根目录 —— 它是**运行时数据**，不要当源码改。
 - 服务地址由 `service/manager.ts` 内联构造（`http://127.0.0.1:<port>`，探测与启动日志用）；原生面板不展示 URL。改端口后需重启服务，成功时 `main.restartService()` 会重载隐藏 core。
 
@@ -211,7 +231,7 @@ shared/ ──► 无内部依赖
 - cwd = vault 带来的行为：dsh 的 workspace、会话分组、`AGENTS.md`、`skills/` 发现都落在笔记库上 —— 这是本方案的核心收益。
 `dsh-obsidian-bridge` 已迁入本仓库 `packages/dsh-obsidian-bridge/`（0007）；
   `dsh-obsidian-mentions`、`dsh-ui-obsidian-layout` 仍在外部仓库维护，细节见根 README。
-  当前 obsidian profile 实际安装的是 **`dsh-obsidian-bridge`**（v0.4.0，桥 VERSION=6）：0008 后插件只调用原生数据桥；
+  当前 obsidian profile 实际安装的是 **`dsh-obsidian-bridge`**（v0.5.0，桥 VERSION=8）：0008 后插件只调用原生数据桥；
   v1 的单栏、`newSession()`、vault 工作区解析已随 0011 从包里删除（不再有调用方）。
   0017 起桥同步订阅 `SessionBinding.eventSource`，把 `assistant/live-chunk` 累积成 live tail，
   由 `nextEvent(cursor, timeoutMs, liveCursor)` 一并返回；这样不依赖官方 UI 的 rAF 发布。

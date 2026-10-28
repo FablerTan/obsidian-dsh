@@ -13,6 +13,14 @@ export function streamRefreshMs(mode: StreamRefreshMode): number {
 	return STREAM_REFRESH_MS[mode] ?? STREAM_REFRESH_MS.frame;
 }
 
+/** 运行提示（0047）的位置（0048）：输入框上方 / 消息流最下方。 */
+export type RunStatusPlacement = 'composer' | 'flow';
+
+/** 位置值校验：非法 / 旧值一律回落「输入框上方」（0048）。 */
+export function runStatusPlacementOf(value: unknown): RunStatusPlacement {
+	return value === 'flow' ? 'flow' : 'composer';
+}
+
 /** 输入框候选范围模式（0030 @ 路径、0037 / 技能名）：不启用 / 白名单 / 黑名单。 */
 export type ScopeMode = 'off' | 'whitelist' | 'blacklist';
 
@@ -34,6 +42,18 @@ export interface SkillScope {
 	/** 白名单：技能名或其前缀（office 覆盖 office 本身与 office-* 子项）。 */
 	allow: readonly string[];
 	/** 黑名单：技能名或其前缀（同上）。 */
+	deny: readonly string[];
+}
+
+/**
+ * 「/」菜单命令行范围（0050）：按 dsh 命令名过滤，只影响菜单里出现哪些命令行，
+ * 不改变命令目录读取（commands()）与 executeCommand 执行。
+ */
+export interface CommandScope {
+	mode: ScopeMode;
+	/** 白名单：命令名精确匹配（命令是扁平命名空间，没有子项）。 */
+	allow: readonly string[];
+	/** 黑名单：命令名精确匹配。 */
 	deny: readonly string[];
 }
 
@@ -72,6 +92,29 @@ export function normalizeScopeName(value: string): string | null {
 	return normalized;
 }
 
+/**
+ * 命令名归一化（0050）：去首尾空白并转小写。
+ * 只接受 dsh 的命令名规则 `^[a-z][a-z0-9_-]*$`（见 dsh-commands 的 COMMAND_NAME）；
+ * 空串、含 `/` / 点号 / 空白等非法字符返回 null。
+ */
+export function normalizeCommandName(value: string): string | null {
+	const normalized = value.trim().toLowerCase();
+	if (normalized === '' || !/^[a-z][a-z0-9_-]*$/u.test(normalized)) return null;
+	return normalized;
+}
+
+/** 合并保存的命令名列表：归一化、去重、丢掉非法项（0050）。 */
+export function normalizeCommandNames(value: unknown): string[] {
+	if (!Array.isArray(value)) return [];
+	const result: string[] = [];
+	for (const item of value) {
+		if (typeof item !== 'string') continue;
+		const name = normalizeCommandName(item);
+		if (name !== null && !result.includes(name)) result.push(name);
+	}
+	return result;
+}
+
 /** 合并保存的技能名列表：归一化、去重、丢掉非法项（0037）。 */
 export function normalizeScopeNames(value: unknown): string[] {
 	if (!Array.isArray(value)) return [];
@@ -96,6 +139,8 @@ export interface DshPluginSettings {
 	dshPath: string | null;
 	/** 流式正文的刷新节奏（0021，默认每帧）。 */
 	streamRefresh: StreamRefreshMode;
+	/** 运行提示（0047）显示在哪（0048，默认输入框上方）。 */
+	runStatusPlacement: RunStatusPlacement;
 	/** 「@」引用范围模式（0030，默认不启用）。 */
 	mentionScope: ScopeMode;
 	/** 白名单路径（vault 相对路径：文件夹含子目录 / 单个文件）。 */
@@ -108,6 +153,12 @@ export interface DshPluginSettings {
 	skillWhitelist: string[];
 	/** 黑名单技能名（0037；条目是名字前缀，office 覆盖 office-*）。 */
 	skillBlacklist: string[];
+	/** 「/」命令范围模式（0050，默认不启用）：只影响 / 菜单里的 dsh 命令行。 */
+	commandScope: ScopeMode;
+	/** 白名单命令名（0050；精确匹配，dsh 命令名规则）。 */
+	commandWhitelist: string[];
+	/** 黑名单命令名（0050；精确匹配）。 */
+	commandBlacklist: string[];
 }
 
 export const DEFAULT_SETTINGS: DshPluginSettings = {
@@ -116,12 +167,16 @@ export const DEFAULT_SETTINGS: DshPluginSettings = {
 	autoStart: true,
 	dshPath: null,
 	streamRefresh: 'frame',
+	runStatusPlacement: 'composer',
 	mentionScope: 'off',
 	mentionWhitelist: [],
 	mentionBlacklist: [],
 	skillScope: 'off',
 	skillWhitelist: [],
 	skillBlacklist: [],
+	commandScope: 'off',
+	commandWhitelist: [],
+	commandBlacklist: [],
 };
 
 /** 合并已保存的设置与默认值（缺失 / 旧版本字段自动回落到默认）。 */
@@ -133,11 +188,15 @@ export function mergeSettings(saved: unknown): DshPluginSettings {
 	// 未知模式一律回落默认值（手改 data.json / 旧版本值也能吃下）。
 	merged.mentionScope = scopeModeOf(merged.mentionScope, DEFAULT_SETTINGS.mentionScope);
 	merged.skillScope = scopeModeOf(merged.skillScope, DEFAULT_SETTINGS.skillScope);
+	merged.commandScope = scopeModeOf(merged.commandScope, DEFAULT_SETTINGS.commandScope);
 	// 归一化同时复制数组：避免合并结果与 DEFAULT_SETTINGS 共享同一个可变数组。
 	merged.mentionWhitelist = normalizeScopePaths(merged.mentionWhitelist);
 	merged.mentionBlacklist = normalizeScopePaths(merged.mentionBlacklist);
 	merged.skillWhitelist = normalizeScopeNames(merged.skillWhitelist);
 	merged.skillBlacklist = normalizeScopeNames(merged.skillBlacklist);
+	merged.commandWhitelist = normalizeCommandNames(merged.commandWhitelist);
+	merged.commandBlacklist = normalizeCommandNames(merged.commandBlacklist);
+	merged.runStatusPlacement = runStatusPlacementOf(merged.runStatusPlacement);
 	return merged;
 }
 

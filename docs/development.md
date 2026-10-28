@@ -80,25 +80,26 @@ obsidian profile 的模型配置是独立的：base 默认走 `deepseek-official
 | [src/service/plugin-bundles.ts](../src/service/plugin-bundles.ts) | bundle 级启停（0032）：改 profile `package.json` 的 `dsh.profile.bundles`（JSON），备份 / 原子写 / 复验失败回滚 |
 | [src/view/panel-host.ts](../src/view/panel-host.ts) | `DshPanelHost` 接口：原生视图需要的地址 / 分区 / 服务生命周期 / 设置读取（流式刷新、@ 引用范围、/ 技能范围） |
 | [src/view/surface.ts](../src/view/surface.ts) | 隐藏 core 的 Electron webview：创建、换源、重载、销毁、`executeJavaScript` |
-| [src/view/native/core-bridge.ts](../src/view/native/core-bridge.ts) | 原生聊天数据桥（v2–v6）：executeJavaScript 调用、探测、等待就绪、结构 + live 长轮询、上下文占用、命令 / 技能目录、Agent Teams 团队投影、错误归因 |
+| [src/view/native/core-bridge.ts](../src/view/native/core-bridge.ts) | 原生聊天数据桥（v2–v8）：executeJavaScript 调用、探测、等待就绪、结构 + live 长轮询、上下文占用、命令 / 技能目录、Agent Teams 团队投影、子智能体目录与 addressed 订阅（`supportsSubagents` / `subagents()`）、目标投影与目标操作（`supportsGoal` / `goal()` / `goalAction()`）、错误归因 |
 | [src/view/native/native-chat-view.tsx](../src/view/native/native-chat-view.tsx) | 原生聊天视图：隐藏 core + React root + probe / 重启重载 |
 | [src/view/native/note-tracker.ts](../src/view/native/note-tracker.ts) | 记住最后一次激活的 Markdown 笔记（@ 菜单的「当前笔记」候选） |
-| [src/view/native/slash.ts](../src/view/native/slash.ts) | “/” 命令菜单纯逻辑：行首 token 检测（`/` 独占行首、含空格/斜杠不触发）、命令表（new / compact）、名字过滤排序（完全 > 前缀 > 包含 > 子序列）、技能行模型（「技能」分组）与 `/name ` 插入格式化 |
+| [src/view/native/slash.ts](../src/view/native/slash.ts) | “/” 命令菜单纯逻辑：行首 token 检测（`/` 独占行首、含空格/斜杠不触发）、本地命令表（仅 new，0050 起 dsh 命令来自 `commands()`）、名字过滤排序（完全 > 前缀 > 包含 > 子序列）、命令 / 技能行模型与 `/name ` 插入格式化；first-party 命令按 name 映射中文标签（compact / export / feedback / goal / permission / plan），未知命令回退 dsh 英文描述 |
 | [src/view/native/mention.ts](../src/view/native/mention.ts) | @ 引用纯逻辑：token 检测（起点/空白后、`@"…` 引号、词内邮箱不触发）、候选排序（对齐 dsh）、目录直列、`@path` 插入格式化（目录 drill 保留打开引号 / 采纳时 `completeMention` 补齐）、20 条上限 |
 | [src/view/native/mention-scope.ts](../src/view/native/mention-scope.ts) | @ 菜单候选范围过滤（0030，纯函数）：`filterMentionEntries(entries, scope)` —— 白名单保留条目内候选并补上祖先文件夹（保证从根目录能下钻）、黑名单排除条目内候选；「当前笔记」首行由菜单自己维护，不经过它 |
-| [src/settings/scope-candidates.ts](../src/settings/scope-candidates.ts) | 设置页白 / 黑名单「选取」的候选构造（0038，纯函数）：`listPathCandidates(entries, existing)` / `listSkillCandidates(names, existing)` —— 排除隐藏段与 `.git` / `node_modules`、名单里已有条目、被名单条目覆盖的冗余项；文件夹排前、按路径 / 名字排序 |
+| [src/settings/scope-candidates.ts](../src/settings/scope-candidates.ts) | 设置页白 / 黑名单「选取」的候选构造（0038 / 0051，纯函数）：`listPathCandidates(entries, existing)` / `listSkillCandidates(names, existing)` / `listCommandCandidates(names, existing)` —— 排除隐藏段与 `.git` / `node_modules`、名单里已有条目、被名单条目覆盖的冗余项；技能按 `-` 前缀覆盖、命令按精确匹配；文件夹排前、按路径 / 名字排序 |
 | [src/service/skill-catalog.ts](../src/service/skill-catalog.ts) | 本地技能目录扫描（0038）：vault `.dsh/skills`、`.agents/skills`、`$DSH_HOME/skills`、`~/.agents/skills`；目录取 `SKILL.md` frontmatter `name`、单文件取 `*.md`；跟随符号链接；15s 缓存；失败返回空数组 |
 | [src/view/native/skill-scope.ts](../src/view/native/skill-scope.ts) | 「/」菜单技能行范围过滤（0037，纯函数）：`filterSlashSkills(skills, scope)` —— 白名单只留命中技能名（空白名单返回空）、黑名单排除命中技能名；条目按技能名前缀语义匹配（`office` 覆盖 `office` 与所有 `office-*`）；只影响菜单显示，不碰技能目录 / 加载 / 执行 |
+| [src/view/native/command-scope.ts](../src/view/native/command-scope.ts) | 「/」菜单命令行范围与降级过滤（0050，纯函数）：`filterSlashCommands(commands, scope)` 精确匹配（命令是扁平命名空间，不走 `-` 前缀）、`filterUnsupportedCommands()`（隐藏 `/export`：桥直连 execute 不触发 Web 下载）、`hideCommandNamedSkills()`（同名时命令优先）、`leadingCommandLine()`（草稿开头命令识别，供 Enter 路由）；只影响菜单显示与发送路由，不碰命令目录 / 执行 |
 | [src/view/native/note-links.ts](../src/view/native/note-links.ts) | `applyNoteLinks` / `noteLinkOf` / `isLinkSafe` / `folderChipOf`：消息里的 `@vault/路径.md` → 短链接；带结尾斜杠的 `@文件夹/` → 可点击文件夹 chip（跳过代码块 / 行内代码 / 已有 `[[…]]` / 邮箱；按 vault 存在性校验） |
 | [src/view/native/folder-reveal.ts](../src/view/native/folder-reveal.ts) | `revealFolderInExplorer`：点击文件夹 chip 时展开左侧栏、逐级展开祖先、选中并滚动到文件列表里的该文件夹（内部 API 全部按存在性调用，缺视图时用 `file-explorer:open` 兜底） |
 | [src/view/native/ui/markdown-text.tsx](../src/view/native/ui/markdown-text.tsx) | `MarkdownText`：消息 markdown 渲染 + 引用转换 + `a.internal-link` 点击在**主区新标签**打开（聊天面板保留）+ 文件夹 chip 点击在左侧文件列表展开选中 |
-| [src/view/native/ui/](../src/view/native/ui) | React 18 UI：浮层骨架 `menu-shell.tsx`（定位/背板/二级浮层）、`mention-menu.tsx`（@ 引用下拉：当前笔记 + 文件与文件夹分组、键盘高亮、目录行「进入目录」箭头）、`slash-menu.tsx`（“/” 命令下拉：命令组 + 「技能」分组，同一个列表、没有二级菜单）、`model-menu.tsx` / `permission-menu.tsx` / `session-menu.tsx` / `context-meter.tsx`（上下文占用圆环与详情）、`timeline.tsx`（滚动外壳）+ `timeline-model.ts`（折叠过程：按正文分界分段，0036）+ `timeline-process.tsx`（过程行 / 思考行）+ `tool-row.tsx`（工具行）+ `timeline-nodes.tsx`（其余节点）+ `markdown-text.tsx`（消息排版与引用链接）+ `team-panel.tsx`（Agent Teams 只读团队浮层）、输入框、审批/提问卡片；品牌与权限图标在 `model-brand.tsx` / `permission-icon.tsx` |
-| [src/shared/native-types.ts](../src/shared/native-types.ts) | 原生聊天 DTO（会话/节点/模型/权限/笔记/团队）与桥错误类型 |
+| [src/view/native/ui/](../src/view/native/ui) | React 18 UI：浮层骨架 `menu-shell.tsx`（定位/背板/二级浮层）、`mention-menu.tsx`（@ 引用下拉：当前笔记 + 文件与文件夹分组、键盘高亮、目录行「进入目录」箭头）、`slash-menu.tsx`（“/” 命令下拉：本地命令 + dsh 命令组 + 「技能」分组，同一个列表、没有二级菜单，命令组 / 技能组各有说明行）、`model-menu.tsx` / `permission-menu.tsx` / `session-menu.tsx` / `context-meter.tsx`（上下文占用圆环与详情）、`timeline.tsx`（滚动外壳）+ `timeline-model.ts`（折叠过程：按正文分界分段，0036）+ `timeline-process.tsx`（过程行 / 思考行）+ `tool-row.tsx`（工具行）+ `timeline-nodes.tsx`（其余节点）+ `markdown-text.tsx`（消息排版与引用链接）+ `team-panel.tsx`（Agent Teams 只读团队浮层）+ `subagent-panel.tsx`（只读子智能体目录：模式 / 状态 / 耗时 / token / 模型 / 团队徽标）、输入框、`pending.tsx`（审批 / 提问卡片：提问单题一屏 + 底部翻页与草稿）、`run-status.tsx`（输入框上方的运行提示：dsh 同款鲸鱼 + 逐秒计时，0047）、`goal-bar.tsx`（输入框上方的目标条：目标图标 / 阶段标签 / 单行目标 / 暂停 / 恢复 / 内联编辑 / 清除，0052）；品牌与权限图标在 `model-brand.tsx` / `permission-icon.tsx` |
+| [src/shared/native-types.ts](../src/shared/native-types.ts) | 原生聊天 DTO（会话/节点/模型/权限/笔记/团队/子智能体）与桥错误类型 |
 | [src/view/open.ts](../src/view/open.ts) | `openNativeChat()` / `findNativeChat()`：复用或新建右侧 leaf |
 | [src/settings/schema.ts](../src/settings/schema.ts) | 设置类型、默认值（含 `dshPath`）、端口校验 |
 | [src/settings/context.ts](../src/settings/context.ts) | `SettingsHost` 接口 + `SettingsRenderContext`（模块渲染上下文：host / app / `isStale()` / `refresh()`） |
 | [src/settings/tab.ts](../src/settings/tab.ts) | `DshSettingTab`：顶部 5 个模块 tab（服务 / dsh 版本 / 聊天 / 集成 / 插件）+ 内容区调度 |
-| [src/settings/sections/](../src/settings/sections) | 各模块渲染函数：`service.ts`（端口 / Profile / 自动启动 / 重启）、`runtime.ts`（版本选择 + 运行环境）、`chat.ts`（流式刷新 / @ 引用范围 / 「/」技能范围 / 名单「选取」）、`integration.ts`（项目目录 / 桥接状态 / 安装提示）、`plugins.ts`（dsh 插件清单 / 组件行启停 / 可选·实验性插件，0031 + 0032） |
+| [src/settings/sections/](../src/settings/sections) | 各模块渲染函数：`service.ts`（端口 / Profile / 自动启动 / 重启）、`runtime.ts`（版本选择 + 运行环境）、`chat.ts`（流式刷新 / @ 引用范围 / 「/」技能范围 / 「/」命令范围 / 名单「选取」）、`integration.ts`（项目目录 / 桥接状态 / 安装提示）、`plugins.ts`（dsh 插件清单 / 组件行启停 / 可选·实验性插件，0031 + 0032） |
 | [src/shared/](../src/shared) | 视图常量与 `isDshPage()`、四态类型、`sleep`、`errorText()`、日志约定（含 token 打码）、vault 路径、`createDshProbe()`、DSH 鲸鱼图标（`brand.ts`） |
 
 | 想改 | 看哪里 |
@@ -114,8 +115,11 @@ obsidian profile 的模型配置是独立的：base 默认走 `deepseek-official
 | 流式正文 / 思考 / 工具参数（live tail） | `packages/dsh-obsidian-bridge/lib/client.js`（eventSource 累加 + `nextEvent`）+ `src/view/native/ui/native-chat-root.tsx` + `timeline-model.ts` |
 | 流式刷新节奏（逐字 / 每帧 / 平衡 / 省电） | `settings/schema.ts` + `settings/sections/chat.ts` + `view/panel-host.ts` + `view/native/ui/native-chat-root.tsx`（rAF 合帧）；桥只负责每个 chunk 唤醒 |
 | 输入栏上下文占用圆环 / 详情 | `view/native/ui/context-meter.tsx` + `composer.tsx` + `native-chat-root.tsx`；桥 `context()` + `contextPressure` / `contextBreakdown` 投影 |
+| 输入框上方的目标条（0052） | `view/native/ui/goal-bar.tsx`（官方 artwork 图标 + `goalLabel` 阶段文案 + 单行省略正文 + 28px 圆形动作 + 内联 textarea：Enter 保存 / Shift+Enter 换行 / Esc 取消 / IME 安全，6 行封顶；complete 返回 null）+ `composer.tsx`（`goalBar` 槽，**0054：目标条位于运行提示（深度求索中）下方**，顺序 `RunStatus` → `goalBar` → 输入卡）+ `native-chat-root.tsx`（`goal` / `goalPending` / `goalError`、`refreshGoal` 请求序号、`goalAction` 成功后 `refreshSnapshot`）+ `core-bridge.ts`（`supportsGoal()` / `goal()` / `goalAction()`）+ `shared/native-types.ts`（`NativeGoal*`）+ `styles.css`（`.dsh-native-goal-*`；**0053：主题实色卡片**——去掉 `backdrop-filter` / `isolation` 伪元素底，避免 Obsidian 窗口闪烁）；桥 `goal()` / `goalAction()` + `goal` 投影与 `goal/activation-changed` 订阅；`native-chat-root.tsx` 的 `sameGoal()` 深度比较（目标没变不重渲染） |
+| 运行提示（0047 / 位置 0048 / 扫光 0049） | `view/native/ui/run-status.tsx`（`formatRunDuration` 纯函数 + 每秒刷新的 `RunStatus`，`variant` 区分输入框上方 / 输出最下方）+ `composer.tsx`（`showRunStatus`）+ `timeline.tsx`（`runningStatus` 挂在列表末尾）+ `settings/schema.ts` / `settings/sections/chat.ts`（`runStatusPlacement`）+ `panel-host.ts` / `main.ts`（`getRunStatusPlacement`）+ `styles.css`（`.dsh-native-run-*`，dsh 配色与 12px / 22px 节奏） |
 | Agent Teams 团队入口 / 只读面板 / 团队工具行 / 队友消息 | `view/native/ui/team-panel.tsx`（roster + 任务板）+ `native-chat-root.tsx`（标题右侧图标 / 状态刷新）+ `chat-node-data.ts` / `tool-row.tsx`（team 类目与九个工具标题摘要）+ `timeline-nodes.tsx`（`team-message` 卡片）；桥 `team()` + `agentTeam` 投影订阅 |
-| 输入框 “/” 命令菜单（new / compact + 技能列表） | `view/native/slash.ts`（纯逻辑：命令 + 技能分组）+ `view/native/ui/slash-menu.tsx` + `composer.tsx`（键盘 / 替换 / 打开时拉一次技能目录 / 压缩过程提示）+ `native-chat-root.tsx`（`onNewSession` / `onCompact` / `loadSkills`）；桥 `commands()` / `skills()` / `executeCommand()` |
+| 子智能体入口 / 只读目录 / 子会话导航 / 只读 composer（0041） | `view/native/ui/subagent-panel.tsx`（目录浮层）+ `native-chat-root.tsx`（bot 图标 / 面包屑 / `readOnlyReason` / `refreshSubagents` / `openSubagent`）+ `composer.tsx`（`readOnly` 提示，运行中仍可 Stop）+ `core-bridge.ts`（`supportsSubagents()` / `subagents()` / addressed `subscribe`）+ `shared/native-types.ts`（`NativeSubagentAddress` / `Info` / `Entry` / `List`）；桥 `subagents()` + `subagentCatalog` / `subagent` / `subagentTiming` 投影 |
+| 输入框 “/” 命令菜单（本地 new + dsh 命令目录 + 技能列表，0050） | `view/native/slash.ts`（纯逻辑：本地命令 + dsh 命令映射 + 技能分组）+ `view/native/command-scope.ts`（范围 / 降级 / 发送路由判断）+ `view/native/ui/slash-menu.tsx` + `composer.tsx`（键盘 / 替换 / 打开时刷新命令与技能目录 / Enter 路由 / 压缩过程提示）+ `native-chat-root.tsx`（`onNewSession` / `loadCommands` / `onRunCommand` / `loadSkills`）；桥 `commands()` / `skills()` / `executeCommand()` |
 | 新建会话（面板内 ＋ / 空态 / 会话选择器） | `view/native/ui/native-chat-root.tsx` + `view/native/core-bridge.ts`；dsh 侧 `packages/dsh-obsidian-bridge/` |
 | 消息里的引用渲染 / `[[…]]` 点击打开 | `view/native/note-links.ts` + `view/native/ui/markdown-text.tsx`；`@` 插入在 `view/native/ui/composer.tsx`（发送不再自动拼前缀） |
 | 文件夹 chip 点击定位（左侧文件列表展开选中） | `view/native/folder-reveal.ts` + `view/native/ui/markdown-text.tsx`（事件委托）+ `view/native/note-links.ts`（chip HTML） |
@@ -128,6 +132,8 @@ obsidian profile 的模型配置是独立的：base 默认走 `deepseek-official
 | 输入框 @ 引用（触发 / 候选 / 排序 / 插入） | `view/native/mention.ts`（纯函数）+ `view/native/ui/mention-menu.tsx` + `composer.tsx`；候选来自 `app.vault.getAllLoadedFiles()`，范围裁剪见下一行 |
 | @ 菜单的检索范围（白名单 / 黑名单） | `settings/schema.ts`（`mentionScope` / `mentionWhitelist` / `mentionBlacklist` + 路径归一化）+ `settings/sections/chat.ts`（三档下拉与添加栏）+ `view/panel-host.ts` / `main.ts`（`getMentionScope`）+ `view/native/mention-scope.ts`（纯函数过滤）+ `native-chat-root.tsx`（打开菜单取快照时套用） |
 | 「/」菜单的技能行范围（白名单 / 黑名单） | `settings/schema.ts`（`ScopeMode` 泛化 + `skillScope` / `skillWhitelist` / `skillBlacklist` + 技能名归一化）+ `settings/sections/chat.ts`（三档下拉与添加栏）+ `view/panel-host.ts` / `main.ts`（`getSkillScope`）+ `view/native/skill-scope.ts`（纯函数过滤）+ `composer.tsx`（打开菜单拉技能目录时套用；过滤为空说明行） |
+| 「/」菜单命令透传 + 命令范围（0050） | `settings/schema.ts`（`commandScope` / `commandWhitelist` / `commandBlacklist` + `normalizeCommandName(s)`）+ `settings/sections/chat.ts`（「命令范围」卡片）+ `view/panel-host.ts` / `main.ts`（`getCommandScope`）+ `view/native/command-scope.ts`（范围过滤 / 隐藏 export / 同名技能 / leading 识别）+ `composer.tsx`（命令目录、Enter 路由、说明行）+ `native-chat-root.tsx`（`runCommand` / `showCommands`） |
+| 命令范围的「选取」（0051） | `settings/context.ts` / `main.ts`（`getCommandCandidates` → `findNativeChat`）+ `view/native/native-chat-view.tsx`（`listCommandNames()` → 桥 `commands()`，过滤 `/export`）+ `settings/scope-candidates.ts`（`listCommandCandidates`）+ `settings/sections/chat.ts`（命令卡片 `pickKind: 'command'`；弹窗类型「命令」）；面板未打开时手动输入兜底 |
 | 设置页范围设置分组卡片（@ / 各一张卡，0039） | `settings/sections/chat.ts`（`renderScopeCard`：徽标 + 标题 + 模式下拉 + body）+ `styles.css`（`.dsh-settings-scope-card*`） |
 | 白 / 黑名单添加栏的「选取」（候选自动获取 + 点选填入，0038） | `settings/sections/chat.ts`（行首按钮 + `SuggestModal` + 回填输入框）+ `settings/scope-candidates.ts`（纯函数候选构造）+ `service/skill-catalog.ts`（技能名来源）+ `settings/context.ts` / `main.ts`（`getSkillCandidates`）+ `styles.css`（`.dsh-settings-scope-pick` / `.dsh-settings-scope-suggestion`） |
 | dsh 插件清单 / 组件行启停（设置页「插件」tab） | `service/plugin-inventory.ts`（`--dump-config` 解析 + 版本 + 缓存）+ `service/plugin-patch.ts`（写 profile 用户层 `cordis.patch.yml`：备份 / 原子写 / 复验回滚）+ `settings/sections/plugins.ts`（UI）+ `settings/context.ts` / `main.ts`（`getPluginInventory` / `setPluginEnabled`） |
@@ -149,14 +155,16 @@ node --input-type=module -e "import('/tmp/locator.mjs').then(async (m) => { cons
 - 源码在本仓库，profile 用 `dsh plugin --profile obsidian add link:<repo>/packages/dsh-obsidian-bridge` 安装；
   旧的外部路径 link 先 `remove` 再重新 `add`，然后重启 DSH 服务。
 - 改 `lib/client.js`：已 link 时由 dsh HMR 自动生效；改 `package.json` / `cordis.patch.yml` 需重启服务。
-- 当前桥 `VERSION = 6`（包版本 0.4.0）。方法：`listSessions / subscribe / snapshot / nextEvent / send / cancel / loadOlder /
+  改 `VERSION` 或新增桥方法（如 0052 的 `goal` / `goalAction`）后，原生面板要重新探测能力，需「重启服务」。
+- 当前桥 `VERSION = 8`（包版本 0.5.0）。方法：`listSessions / subscribe / snapshot / nextEvent / send / cancel / loadOlder /
   models / selectModel / permissions / setPermission / renameSession / approvalAnswer / questionAnswer / context /
-  commands / skills / executeCommand / team`。
+  commands / skills / executeCommand / team / subagents / goal / goalAction`。
+  `subscribe` 同时接受会话 id 与子会话地址 `{ parentSessionId, childSessionId, mode }`；`snapshot()` 带 `subagent` 字段。
 - 0017 起 `nextEvent(cursor, timeoutMs, liveCursor)` 同时返回 `liveCursor` / `live`：
   桥同步订阅 `binding.eventSource`，把 `assistant/live-chunk` 累积成正文 / 思考 / 工具参数 tail；
   旧原生端只传两个参数时行为不变（`ping.methods` 里的 `liveStream` 用于能力探测）。
 - `npm run check` 会校验该包的清单并 `node --check lib/index.js` / `lib/client.js`。
-- 只支持 dsh 0.2.x；原生聊天数据桥（0006 的 v2 能力 + 0017 的 v3 liveStream + 0022 的 v4 context + 0025 的 v5 commands / skills / executeCommand + 0035 的 v6 team）都在这个包里。
+- 只支持 dsh 0.2.x；原生聊天数据桥（0006 的 v2 能力 + 0017 的 v3 liveStream + 0022 的 v4 context + 0025 的 v5 commands / skills / executeCommand + 0035 的 v6 team + 0041 的 v7 subagents / addressed subscribe + 0052 的 v8 goal / goalAction）都在这个包里。
   `remote.commands` / `remote.skills` 是 cordis 作用域依赖，必须用 `ctx.inject([...], cb)` 取；profile 缺对应插件时只有这两项报错，桥照常加载。
 
 ## 变更流程：登记 → 路径调研 → 用户选路 → 按提案执行
@@ -209,7 +217,7 @@ node --input-type=module -e "import('/tmp/locator.mjs').then(async (m) => { cons
 9. 设置页「dsh 版本」切换 → 重启服务 → 原生面板正常连接；显式选择后不再弹冲突 Notice。
 10. 0.2.x：控制台出现 `dsh 就绪信号: http://…?token=***`；日志无明文 token。
 11. 端口上留一个 0.2.x 实例再重载插件 → 状态条「需手动结束」+ Notice 给 `pkill`；清掉后恢复。
-12. 重新 link 桥插件并重启 → 设置页「桥接状态」显示「已连接（v6 或更高）」；原生面板发送 / 停止 / 流式正常。
+12. 重新 link 桥插件并重启 → 设置页「桥接状态」显示「已连接（v8）」；原生面板发送 / 停止 / 流式正常。
 13. 输入框输入 `/` → 出现 `/new`、`/compact` 与「技能」分组（当前会话没有技能时显示一行说明）；`/co` 过滤到 compact；点技能行插入 `/技能名 `；`/compact` 执行时输入框上方出现「正在压缩会话历史…」，结束后时间线出现 `/compact` 卡片。
 13. 端口上放一个 0.1.x（裸 URL 200）→ 状态条「版本不支持」+ Notice。
 14. webview 不可用的环境 → 原生视图显示错误提示，不出现 iframe、不静默空白。
@@ -221,7 +229,7 @@ node --input-type=module -e "import('/tmp/locator.mjs').then(async (m) => { cons
 20. 模型菜单（自绘浮层）列出已配置 provider/model（含 reasoning effort）；切换后标签与发送模型同步。
     空菜单时点「配置说明」→ Notice 指向 `$DSH_HOME/profiles/obsidian/cordis.patch.yml`。
 21. 权限菜单列出预设，切换后标签更新；`danger-full-access` 弹二次确认。
-22. 触发审批 → 卡片固定在输入框上方，可「允许一次 / 拒绝」；触发提问 → 选项 / 自定义答案提交后继续。
+22. 触发审批 → 卡片固定在输入框上方，可「允许一次 / 拒绝」；触发提问 → 单题一屏，底部 `‹ n/N ›` 翻页（草稿保留、可回改），单选选中自动前进，`跳过` / `提交` 后继续；整批有未答且未跳过的题时 `提交` 会跳回该题并提示。
 23. 关闭原生视图 → 隐藏 webview 与 React 卸载；重开 → 会话列表恢复；官方面板不会回归。
 24. 与桌面端 / 另一个 Obsidian 窗口同时持有同一会话再发送 → 提示 `session/writer-held`，不静默失败。
 25. 停用桥（profile 移除或换回未装桥的实例）→ 原生面板提示桥缺失，设置页「桥接状态」同步。
@@ -273,3 +281,20 @@ node --input-type=module -e "import('/tmp/locator.mjs').then(async (m) => { cons
 56. 黑名单：添加 `office` → `office` 与 `office-*` 技能行不再出现、其它技能照常；技能行被全部挡掉且原本有技能时菜单显示「技能行已按「/」技能范围过滤：当前没有可显示技能」，命令与原有说明行正常；改完设置不重载插件，下一次打开 `/` 菜单即生效；`/name` 插入与技能加载 / 调用不受影响。
 57. 设置 →「聊天」→ @ / 「/」范围选「白名单」或「黑名单」：添加栏行首出现「选取」；点它弹出可搜索候选（@ 为 vault 文件 / 文件夹、/ 为本地技能目录里的名字），已在名单里或被名单条目覆盖的条目不再出现；点候选只填入输入框并聚焦，仍需「添加」/ 回车提交；候选为空时提示可手动输入（0038）。
 58. 设置 →「聊天」tab：@ 与 / 的范围设置各是一张卡片（徽标 @ / + 标题 + 模式下拉 + 说明），选白 / 黑名单后名单详情出现在同一张卡里；切「不启用」详情消失、卡片保留；「选取」/ 添加 / 移除行为不变（0039）。
+59. 子智能体（0041）：打开有子代理历史的会话 → 标题右侧出现 bot 图标（无子代理的会话不出现）；点开只读目录，头部显示「N 个」与运行中数量，行内显示模式（可继续 / 一次性 / 未知）、状态、耗时、token 与模型；运行中的行左侧是运行点、等待授权 / 未读有橙点与徽标；团队队友行带「团队」徽标；点击外部 / Esc 关闭。
+60. 让模型用 subagent 起一个子代理（或用 subagent_fork）→ 目录无需刷新即出现新行，运行中时图标带数字角标；结束后角标消失、状态转「空闲」或「已完成（未读）」。
+61. 点目录行打开子会话 → 正文 / 流式 / 工具行正常；页头出现面包屑「← 父标题 › 标签 + 模式」，团队入口隐藏；点返回按钮回到父会话，标题、模型与团队入口恢复。
+62. 可继续（continuable）子会话且父会话在线 → composer 正常输入：发追加指令能收到回复（follow-up 进 child FIFO），运行中 Stop 能中断当前轮；父会话历史里出现「子任务状态更新」卡片（不再是「上下文注入」JSON）。
+63. 一次性（one-shot）或类型未知的子会话 → composer 变成只读提示（「只能查看」），没有输入框；父会话不可用且子会话未运行 → 只读；父会话不可用但子会话仍在跑 → 只读提示 + Stop 可用。
+64. 子会话里不显示团队图标 / 团队入口；返回父会话后（若启用「智能体团队」）团队图标恢复。
+65. 旧桥（v6，或 `ping().methods` 不含 `subagents`）→ 原生面板不显示子智能体入口，消息 / 团队 / 流式等其它功能照常；设置页「桥接状态」显示实际桥版本（v8 时「已连接（v8）」）。
+66. 工具行与消息：`subagent` 显示「创建子智能体」、`subagent_fork` 显示「继承上下文创建子智能体」（不再是英文名 + 扳手）；`send_message` / `list_agents` / `interrupt_agent` 显示「发送消息 / 查看子智能体 / 中断子智能体」，非团队场景不再说「协调团队」；展开仍能看到参数 / 结果。
+67. 输入框 “/” 命令菜单透传 dsh 命令（0050）：命令组来自当前会话的 `commands()`（ptc 预设下为 `/compact` `/feedback` `/goal` `/permission` `/plan`，`/export` 因桥直连执行不会触发 Web 下载而隐藏；minimal 预设只有 `/compact`），描述中文、第三方命令回退 dsh 英文描述；本地 `/new` 始终在最前；技能分组照旧。
+68. 选中 `/goal` → 草稿变成 `/goal ` 且**不执行**；补参数后 Enter → 走 `executeCommand`，时间线出现 command 节点；选中 `/compact` 后 Enter → 出现 manual-compaction 节点且输入框上方有「正在压缩会话历史…」提示；手敲 `/compact` + Enter 同样执行；手敲不存在的 `/xyz` 仍按普通消息发送；`hello\n/compact` 不执行（非 leading）。
+69. 设置 →「聊天」第三张卡「命令范围」（⌘ 徽标）：默认不启用、无「添加栏」；白名单添加 `goal` → `/` 菜单只剩 `/goal`（`/new` 与技能仍在）；空白名单 → 命令行全部隐藏 + 说明行；黑名单添加 `goal` → `/goal` 消失、其它命令照常；改完设置不重载插件，下一次打开菜单即生效。
+70. 命令范围「选取」（0051）：原生聊天面板打开并选中会话 → 设置 → 聊天 → 命令范围 → 白名单，添加栏行首出现「选取」；点击弹出当前会话命令候选（compact / feedback / goal / permission / plan，export 不列，类型标「命令」）；点候选只回填输入框，仍需「添加」/ 回车；关闭面板后再点「选取」→ 提示需要先打开面板，仍可手输；@ / 技能范围的「选取」不受影响。
+71. 同名技能 / 子会话（0050）：技能目录里造一个与 dsh 命令同名的技能 → `/` 菜单不显示该技能行（命令优先）；打开 subagent 子会话 → 不显示命令组（与官方 Web 一致）。
+72. 目标条（0052）：在原生输入框敲 `/goal <objective>` + Enter → **输入框上方**（0054 起在运行提示下方）出现目标条：目标图标 + 「进行中的目标」+ 单行目标正文 + 右侧图标动作；点暂停 → 「已暂停的目标」+ 恢复按钮；点恢复 → 回到「进行中的目标」；点编辑 → 条内 textarea（多行随内容长高、6 行后框内滚动；Shift+Enter 换行、Escape 取消、Enter 保存、中文 IME 组合期 Enter 不保存）；点清除 → 条消失；重载面板 / 切走会话再切回 → 条按当前会话恢复。
+73. 目标条降级（0052）：目标 complete 或会话无目标 → 不显示目标条；旧桥（v7，或 `ping().methods` 不含 `goal`）→ 完全不显示目标条，消息 / 流式 / 命令 / 团队 / 子智能体照常；profile 缺 dsh goal 插件 → 条不出现，强行点动作时错误文案在条内 `role="alert"` 显示（不弹 Notice）。
+74. 目标条不闪烁（0053）：使用 goal 且自动续跑时，Obsidian 窗口不再持续闪烁，输入框上方只有一条目标条（不出现「半透明残影 + 实条」双份）；目标条为实色卡片（主题底 + 1px 描边 + 阴影，无模糊底），暂停 / 恢复 / 编辑 / 清除照常。
+75. 目标条位置（0054）：运行中「深度求索中」运行提示在目标条**上方**，目标条紧贴输入卡；运行提示每轮出现 / 消失时目标条不被顶开、与输入卡间距不变；无运行提示时目标条仍是输入卡正上方一张卡，无目标时不占位。

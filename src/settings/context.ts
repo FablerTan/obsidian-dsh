@@ -22,6 +22,8 @@ export interface SettingsHost {
 	getBridgeStatus(): Promise<DshBridgeStatus>;
 	/** 本地技能目录里的技能名（0038：白 / 黑名单「选取」按钮的候选）；读取失败返回空数组。 */
 	getSkillCandidates(): Promise<string[]>;
+	/** 当前会话的 dsh 命令名（0051：命令范围「选取」的候选）；原生面板未打开/未连接时返回空数组。 */
+	getCommandCandidates(): Promise<string[]>;
 	/** profile 的组合插件清单（0031）；`refresh` 跳过缓存。 */
 	getPluginInventory(refresh?: boolean): Promise<DshPluginInventory>;
 	/** 启停一个组件行：写 profile 用户层 patch，重启服务后生效（0031）。 */

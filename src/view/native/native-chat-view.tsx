@@ -7,6 +7,7 @@ import type { DshBridgeStatus } from '../../shared/types';
 import type { DshPanelHost } from '../panel-host';
 import { createDshSurface, type DshSurface } from '../surface';
 import { NativeCoreBridge } from './core-bridge';
+import { filterUnsupportedCommands } from './command-scope';
 import { NoteTracker } from './note-tracker';
 import { NativeChatRoot } from './ui/native-chat-root';
 
@@ -86,12 +87,29 @@ export class DshNativeChatView extends ItemView {
 					onExplainSettings={() => this.explainModelSetup()}
 					onRestartService={() => this.restartService()}
 					getStreamRefresh={() => this.host.getStreamRefresh()}
+					getRunStatusPlacement={() => this.host.getRunStatusPlacement()}
 					getMentionScope={() => this.host.getMentionScope()}
 					getSkillScope={() => this.host.getSkillScope()}
+					getCommandScope={() => this.host.getCommandScope()}
 				/>,
 			);
 		} finally {
 			this.resolveInit();
+		}
+	}
+
+	/**
+	 * 设置页「命令范围」的候选（0051）：从隐藏 core 的桥取当前会话命令目录。
+	 * 面板未打开 / 桥未就绪 / 还没有订阅会话时返回空数组（设置页提示手动输入）。
+	 */
+	async listCommandNames(): Promise<string[]> {
+		const bridge = this.bridge;
+		if (bridge === null || !this.ready) return [];
+		try {
+			const list = await bridge.commands();
+			return filterUnsupportedCommands(list).map((command) => command.name);
+		} catch {
+			return [];
 		}
 	}
 

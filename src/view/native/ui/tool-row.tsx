@@ -18,6 +18,7 @@ const TOOL_TITLES: Record<ProcessCategory, string> = {
 	plan: '更新计划',
 	questions: '提问',
 	team: '团队',
+	agentControl: '子智能体控制',
 	tools: '工具',
 };
 
@@ -35,6 +36,7 @@ const TOOL_ICONS: Record<ProcessCategory, string> = {
 	plan: 'list-checks',
 	questions: 'help-circle',
 	team: 'users',
+	agentControl: 'bot',
 	tools: 'wrench',
 };
 
@@ -48,10 +50,11 @@ const TOOL_ACTIVITY: Record<ProcessCategory, string> = {
 	search: '搜索代码',
 	webSearch: '搜索网页',
 	webFetch: '访问网页',
-	subagents: '协调子智能体',
+	subagents: '创建子智能体',
 	plan: '更新计划',
 	questions: '向你提问',
 	team: '协调团队',
+	agentControl: '与子智能体协作',
 	tools: '调用工具',
 };
 
@@ -65,29 +68,48 @@ const TOOL_PAST: Record<ProcessCategory, string> = {
 	search: '搜索了代码',
 	webSearch: '搜索了网页',
 	webFetch: '访问了网页',
-	subagents: '协调了子智能体',
+	subagents: '创建了子智能体',
 	plan: '更新了计划',
 	questions: '向你提问了',
 	team: '协调了团队',
+	agentControl: '与子智能体协作了',
 	tools: '调用了工具',
+};
+
+/** 子智能体工具（0041）：与 dsh Web 的 tool.title.* 对齐；未知工具退回类目标题。 */
+const SUBAGENT_TOOL_TITLES: Record<string, string> = {
+	subagent: '创建子智能体',
+	subagent_fork: '继承上下文创建子智能体',
 };
 
 /** 团队工具的逐工具标题（与 dsh Web 的 tool.title.* 对齐）；未知时退回类目标题。 */
 const TEAM_TOOL_TITLES: Record<string, string> = {
 	spawn_teammate: '创建队友',
-	send_message: '发送消息',
-	list_agents: '查看子智能体',
 	wait_agent: '等待子智能体',
-	interrupt_agent: '中断智能体',
 	team_task_create: '创建团队任务',
 	team_task_list: '查看团队任务',
 	team_task_get: '读取团队任务',
 	team_task_update: '更新团队任务',
 };
 
+/** 子智能体控制工具（send_message / list_agents / interrupt_agent）的逐工具标题。 */
+const AGENT_CONTROL_TOOL_TITLES: Record<string, string> = {
+	send_message: '发送消息',
+	list_agents: '查看子智能体',
+	interrupt_agent: '中断子智能体',
+};
+
+/** 需要按工具名细分标题的类目；其余类目直接用类目标题。 */
+const TOOL_TITLES_BY_NAME: Partial<Record<ProcessCategory, Record<string, string>>> = {
+	subagents: SUBAGENT_TOOL_TITLES,
+	team: TEAM_TOOL_TITLES,
+	agentControl: AGENT_CONTROL_TOOL_TITLES,
+};
+
 export function toolTitle(tool: ToolCallEntry): string {
 	const title = TOOL_TITLES[tool.category];
-	if (tool.category === 'team') return TEAM_TOOL_TITLES[tool.name] ?? title;
+	const byName = TOOL_TITLES_BY_NAME[tool.category];
+	if (byName !== undefined) return byName[tool.name] ?? title;
 	return tool.category === 'tools' ? tool.name || title : title;
 }
 
@@ -168,6 +190,22 @@ export function toolSummary(tool: ToolCallEntry): string {
 			const target = pick(args, ['target', 'name', 'subject', 'task_id']);
 			const detail = pick(args, ['message', 'description', 'prompt']);
 			summary = target === '' ? detail : detail === '' ? target : target + ' · ' + detail;
+			break;
+		}
+		case 'agentControl': {
+			const target = pick(args, ['target', 'agent_id']);
+			if (tool.name === 'send_message') {
+				const message = pick(args, ['message']);
+				summary =
+					target === '' ? message : message === '' ? target : target + ' · ' + message;
+				break;
+			}
+			if (tool.name === 'list_agents') {
+				summary = pick(args, ['scope']);
+				break;
+			}
+			// interrupt_agent（以及未知的控制工具）：只显示目标会话或队友。
+			summary = target;
 			break;
 		}
 		default:

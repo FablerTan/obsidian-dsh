@@ -52,6 +52,20 @@
 | [0038](0038-scope-picker.md) | 白 / 黑名单添加栏的「选取」按钮：自动获取候选（vault 路径 / 技能名）+ 点选填入添加栏 | ✅ 已完成（2026-10-27；A + A1 + B1 + C1；build/check + 冒烟 + CDP 实测） |
 | [0039](0039-scope-settings-cards.md) | 范围设置分组卡片：@ 与 / 各一张带徽标的卡，标题 + 模式下拉 + 名单详情同卡 | ✅ 已完成（2026-10-27；build/check + CDP 实测 + 截图） |
 | [0040](0040-scope-card-title.md) | 范围卡片标题去掉与徽标重复的 @ /：只留「引用范围」「技能范围」 | ✅ 已完成（2026-10-27；build/check + CDP 实测 + 截图） |
+| [0041](0041-subagent-support.md) | 原生面板支持 dsh「子智能体（subagent）」：子代理列表 / 树 + 打开子会话 / 续聊与 Stop（桥 v7） | ✅ 已完成（2026-10-27；build/check + CDP 实测） |
+| [0042](0042-subagent-panel-layout.md) | 子智能体浮层显示优化：纵向随内容变高、长模型名换行、去掉横向滚动 | ✅ 已完成（2026-10-27；build/check + CDP 实测 + 截图） |
+| [0043](0043-question-card-pager.md) | 提问卡片对齐官方：单题一屏 + 底部翻页、草稿可回改、跳过 / 提交与未答校验、选项与徽标重排 | ✅ 已完成（2026-10-27；build/check + CDP 端到端实测） |
+| [0044](0044-dsh-plugin-panels-in-obsidian.md) | 把 dsh 侧栏插件入口迁移到 Obsidian：中栏 webview 渲染插件面板 + 桥 v8 面板枚举 / 选中（调研完成，待选路） | draft |
+| [0045](0045-timeline-context-render.md) | 时间线渲染修复：卡片类名与上下文圆环冲突被压成 24×24、`question-reply` 节点退化成原始 JSON | ✅ 已完成（2026-10-28；build/check + CDP 实测） |
+| [0046](0046-silent-turn-end-hint.md) | 静默结束兜底：模型只返回思考时，原生面板提示「本轮未产出内容」+ 一键「重试」（发「继续」，不改 dsh 源码） | ✅ 已完成（2026-10-28；build/check + 纯函数冒烟 + CDP 端到端） |
+| [0047](0047-dsh-run-status.md) | 输入框上方 dsh 同款运行提示：鲸鱼尾 + 「深度求索中，用时 N秒 ···」，逐秒刷新、浅深主题配色 | ✅ 已完成（2026-10-28；build/check + 纯函数冒烟 + CDP 实测） |
+| [0048](0048-run-status-placement.md) | 运行提示位置设置：默认输入框上方，可改为输出最下方（随对话滚动，dsh 原生位置） | ✅ 已完成（2026-10-28；build/check + 归一化冒烟 + CDP 实测） |
+| [0049](0049-run-status-shimmer-sweep.md) | 运行提示文字微光修正：改用 dsh 的 105° 蒙版扫光（左 → 右、1.5s + 0.5s 停顿、steps(48)） | ✅ 已完成（2026-10-28；build/check + CDP 动画采样） |
+| [0050](0050-dsh-command-passthrough.md) | 「/」菜单透传 dsh 命令目录 + 命令范围白 / 黑名单（⌘ 卡片） | ✅ 已完成（2026-10-28；build/check + 40 项纯函数冒烟 + CDP 实测） |
+| [0051](0051-command-scope-picker.md) | 命令范围补「选取」：候选来自原生面板桥的当前会话命令目录，点选填入添加栏 | ✅ 已完成（2026-10-28；build/check + 7 项纯函数冒烟 + CDP 实测） |
+| [0052](0052-goal-bar.md) | 输入框上方的 dsh 同款目标条（goal 投影 + 暂停/恢复/编辑/清除，桥 v8） | ✅ 已完成（2026-10-28；build/check + CDP 实测） |
+| [0053](0053-goal-bar-flicker.md) | goal 目标条在 Obsidian 里持续闪烁 / 残影：去掉半透明模糊底改主题实色卡片 + 目标数据没变不重渲染 | ✅ 已完成（2026-10-28；build/check + 用户确认无闪烁） |
+| [0054](0054-goal-bar-below-run-status.md) | 目标条固定到运行提示（深度求索中）下方、紧贴输入框（composer 渲染顺序 RunStatus → goalBar） | ✅ 已完成（2026-10-28；build/check + CDP 实测） |
 
 ## 需求受理（2026-10-27 起）
 
