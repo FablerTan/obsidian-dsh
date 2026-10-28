@@ -73,6 +73,7 @@
 | [0059](0059-live-selection-preview.md) | 选区预览实时化：编辑区选区变化时右栏立即显示/更新引用预览（selectionchange + workspace 事件，80ms 防抖） | ✅ 已完成（2026-10-28；build/check + CDP 实测） |
 | [0060](0060-quote-preview-clickable.md) | 引用预览条可点击：点预览条与点消息内引用卡一致，跳回笔记并选中高亮（× 仍只取消本次引用） | ✅ 已完成（2026-10-28；build/check + CDP 实测） |
 | [0061](0061-release-1.1.0.md) | 发布 1.1.0：提交 0056–0060 并推送到 GitHub，Release 正文只写版本更新内容（安装步骤留在 install.md） | ✅ 已完成（2026-10-28；release v1.1.0，资产校验一致） |
+| [0062](0062-quote-preview-unified-background.md) | 引用预览条统一底色：去掉按钮默认亮底、改与输入卡同色、图标留边 | ✅ 已完成（2026-10-28；check + CDP 计算样式与截图对比） |
 
 ## 需求受理（2026-10-27 起）
 

@@ -3415,16 +3415,17 @@
 	-webkit-line-clamp: 2;
 }
 
-/* 输入框上方的引用预览条：笔记名 + 行范围 + 单行摘录 + 关闭。 */
+/* 输入框上方的引用预览条：笔记名 + 行范围 + 单行摘录 + 关闭。
+   底色与下面的输入卡片一致（--background-primary），整块 composer 只用一种面，不再浮一层更亮的底。 */
 .dsh-native-quote-preview {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 	margin: 0 0 6px;
-	padding: 4px 8px;
+	padding: 4px 10px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-s);
-	background: var(--background-secondary);
+	background: var(--background-primary);
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 	line-height: 1.4;
@@ -3493,4 +3494,33 @@
 	outline: 2px solid var(--interactive-accent);
 	outline-offset: 2px;
 	border-radius: var(--radius-s);
+}
+
+/* 0062：预览条整条一个底色（与输入卡同色），条内不再露出第二层亮底。
+   两个 button 会吃到 Obsidian 的按钮基础样式（button:not(.clickable-icon) 的
+   --interactive-normal 底色 + hover / focus 底色，优先级 0,1,1 高于组件里的单类选择器），
+   所以这里用 .dsh-native-app 前缀把优先级提到 0,2,0 / 0,3,0，默认 / hover / active /
+   focus-visible 四种状态都压成透明；声明位置也放在上面几条单类规则之后，同优先级时不被打回。 */
+.dsh-native-app .dsh-native-quote-preview-main,
+.dsh-native-app .dsh-native-quote-preview-close {
+	padding: 0;
+	border: none;
+	background: transparent;
+	background-color: transparent;
+	box-shadow: none;
+}
+
+.dsh-native-app .dsh-native-quote-preview-close {
+	padding: 2px;
+}
+
+.dsh-native-app .dsh-native-quote-preview-main:hover,
+.dsh-native-app .dsh-native-quote-preview-main:active,
+.dsh-native-app .dsh-native-quote-preview-main:focus-visible,
+.dsh-native-app .dsh-native-quote-preview-close:hover,
+.dsh-native-app .dsh-native-quote-preview-close:active,
+.dsh-native-app .dsh-native-quote-preview-close:focus-visible {
+	background: transparent;
+	background-color: transparent;
+	box-shadow: none;
 }

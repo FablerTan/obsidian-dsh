@@ -68,6 +68,7 @@ dsh 版本选择（[0003](changes/0003-dsh-version-selection-and-token-auth.md)�
 | R-42 | 选区引用预览实时化：编辑区里选中文字时右栏立即显示/更新引用预览，不用先点输入框 | ✅ 已完成（2026-10-28；build/check + CDP 实测） | [0059](changes/0059-live-selection-preview.md) |
 | R-43 | 引用预览条可点击：点输入框上方的预览条与点消息内引用卡一致，跳回笔记并选中高亮原选区（× 仍只取消本次引用） | ✅ 已完成（2026-10-28；build/check + CDP 实测） | [0060](changes/0060-quote-preview-clickable.md) |
 | R-44 | 发布 1.1.0：把 0056–0060 的改动提交并推送到 GitHub，Releases 页面只写版本更新内容 | ✅ 已完成（2026-10-28；build/check/lint + push + release v1.1.0） | [0061](changes/0061-release-1.1.0.md) |
+| R-45 | 引用预览条上面那层更亮的底色去掉、改统一颜色（与输入卡同色），条内按钮默认亮底不再露出，双引号图标离底边留点空隙 | ✅ 已完成（2026-10-28；check + CDP 计算样式与截图对比） | [0062](changes/0062-quote-preview-unified-background.md) |
 
 > 新需求往下追加，编号连续（R-2、R-3…），不要删旧行。状态取值：`待调研` → `等你选路` → `执行中` → `✅ 已完成` / `⏸ 暂缓`。
 
