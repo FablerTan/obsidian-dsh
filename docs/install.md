@@ -219,7 +219,7 @@ grep -m1 "version" "$PLUGIN_DIR/manifest.json"     # 期望 "0.6.7"
 
 **成功判据**：
 
-- 三个文件都存在且非空（`main.js` 约 300 KB，`styles.css` 约 50 KB）；
+- 三个文件都存在且非空（`main.js` 约 330 KB，`styles.css` 约 70 KB）；
 - `manifest.json` 里 `"id": "obsidian-dsh"`、`"version": "0.6.7"`、`"isDesktopOnly": true`；
 - `PLUGIN_DIR` 就是 `<vault>/.obsidian/plugins/obsidian-dsh`（目录名与插件 id 一致，避免多版本混淆）。
 
