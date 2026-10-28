@@ -12,6 +12,8 @@ Chat with a local [DeepSeek Harness](https://github.com/deepseek-ai/dsh) (dsh) a
 - **`/` menu** — the dsh command catalog plus your skills, with optional allow/deny lists per scope.
 - **Agent Teams & subagents** — read-only team roster and task board; open a subagent's child session, continue it or stop it.
 - **Run status and goal bar** — dsh-style "thinking, Ns" indicator and a goal bar (pause / resume / edit / clear) above the composer.
+- **Editor selection quotes** — select text in the editor and it appears as a live quote preview; sending attaches the note path plus the selection, rendered as a quote card that jumps back to and highlights the original range.
+- **Service controls** — "End background dsh" stops the plugin's service or a leftover dsh on the configured port (in-place progress and result), and the dsh version list can use the dsh bundled with the DeepSeek Harness desktop app.
 - **Settings tabs** — service, dsh version, chat, integration and plugins, each managed separately.
 
 ## Requirements
@@ -19,7 +21,7 @@ Chat with a local [DeepSeek Harness](https://github.com/deepseek-ai/dsh) (dsh) a
 | Item | Requirement |
 |---|---|
 | Obsidian | ≥ 1.7.2, **desktop only** (uses Node / `child_process`) |
-| dsh | **0.2.x** (0.1.x is rejected as unsupported) |
+| dsh | **0.2.x** (0.1.x is rejected as unsupported); the copy bundled with the DeepSeek Harness desktop app also works |
 | Platform | macOS (the verified platform) |
 
 The plugin uses its own profile `obsidian` and default port **3081** (so it never clashes with the web UI on 3080). Model providers and credentials are configured in that profile, not in the plugin.
@@ -30,7 +32,7 @@ This plugin works with local resources only. The following disclosures are requi
 
 - **Network** — it talks to the dsh service it starts on `http://127.0.0.1:3081` (localhost). Nothing is sent to the plugin author; model requests are issued by dsh itself with the provider configured in your profile.
 - **Files outside the vault** — it reads the dsh profile directory (default `~/.dsh/profiles/obsidian`), skill directories (`~/.dsh/skills`, `~/.agents/skills`, and the vault's `.dsh/skills`), and the dsh executable. The "Plugins" settings tab edits that profile's `package.json` / `cordis.patch.yml` when you enable or disable dsh plugins.
-- **Child processes** — it spawns `dsh` and runs `dsh --dump-config` / version probes. It only ever stops dsh instances it started itself.
+- **Child processes** — it spawns `dsh` and runs `dsh --dump-config` / version probes. It only stops dsh instances it started itself, except when you explicitly click **End background dsh**: it then also stops the dsh process listening on the configured port, after verifying the process command line.
 - **External dependency** — dsh must already be installed on the machine. The plugin does not download, install or update dsh.
 - **No telemetry, no ads, no self-update.** The dsh agent may access your vault and the network depending on the permissions you grant it in dsh.
 
@@ -48,7 +50,9 @@ The dsh-side bridge plugin `dsh-obsidian-bridge` is required for the panel (inst
 - **First open** — the plugin probes `127.0.0.1:3081` and, when nothing is listening, starts `dsh --profile obsidian --port 3081` with cwd = the current vault. Auto-start is on by default.
 - **Entry points** — the DSH whale ribbon icon, the "Open DeepSeek Harness" command, or the status bar item.
 - **Sessions** — new sessions use the vault as their working directory; the title follows the dsh-generated title.
+- **Selection quotes** — select text in the editor; the panel shows a quote preview. Sending attaches it to the message; click the preview or the quote card to jump back and select the original range.
 - **Settings changes** — after changing the port, profile or dsh binary, click "Restart DSH service".
+- **End / restart** — the Service tab has "End background dsh" for the plugin's service or a leftover instance on the current port (other ports are left alone), and both buttons report progress and results in place.
 - **Disabling** — disabling the plugin stops the dsh process it started; instances you started manually are left alone.
 
 ## Documentation

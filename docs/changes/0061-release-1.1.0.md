@@ -1,5 +1,5 @@
 ---
-status: approved           # draft | approved | done | rejected
+status: done               # draft | approved | done | rejected
 created: 2026-10-28
 approved: 2026-10-28       # 用户当轮明确要求：推送更新到 GitHub，Releases 只写版本更新内容
 scope: manifest.json / package.json / package-lock.json / versions.json / README.md / docs
@@ -85,4 +85,19 @@ R-39–R-43（[0056](0056-dsh-stop-button.md) / [0057](0057-desktop-app-dsh.md) 
 
 ## 9. 实施记录
 
-（发布完成后填写。）
+**落地（2026-10-28）**：
+
+- 版本 1.0.0 → **1.1.0**：`manifest.json` / `package.json` / `package-lock.json`（根与 `packages[""]` 两处）/ `versions.json`（追加 `"1.1.0": "1.7.2"`）；README（中 / 英头部）、`docs/roadmap.md`、`docs/install.md`（事实核对行、`VERSION` 示例、成功判据）同步版本字样；产物大小判据更新为 `main.js` 约 346 KB / `styles.css` 约 74 KB。
+- 文档顺带修正：`README.md` 的 Child processes 披露改为「显式点结束后台 dsh 时会结束当前端口上核实过的 dsh」；`AGENTS.md` 规则 6 补同一例外；README 英文 Features / Usage / Requirements 补选区引用、服务控制与桌面 App 内置 dsh。
+- 提交 `ccd25e1`（40 个文件），打注释 tag `v1.1.0`，推送 `origin/main` 与 tag。
+- Release：<https://github.com/FablerTan/obsidian-dsh/releases/tag/v1.1.0>，正文仅「本版内容」四条（不含安装 / 校验步骤），资产 `main.js` / `manifest.json` / `styles.css` / `versions.json` / `dsh-obsidian-bridge.zip`。
+- 桥 zip 由 `packages/dsh-obsidian-bridge/` 现打包（结构与 1.0.0 资产一致：根目录 `package.json` / `cordis.patch.yml` / `README.md` + `lib/`）。
+
+**验证结果**：
+
+- `npm run build` 通过（esbuild 输出 `main.js` 346.0kb）；`npm run check` 全项通过（版本三处一致 / 无运行时依赖 / manifest 合规 / `tsc` / 桥清单与语法 / `main.js` 与源码构建逐字节一致）；`npm run lint` 0 error（32 条既有 warning）。
+- 本地 tag `v1.1.0` = `ccd25e1`；`git ls-remote` 显示远端 `main` = `ccd25e1`、`refs/tags/v1.1.0` 已存在。
+- 下载 Release 资产逐一比对 SHA-256：`main.js` / `manifest.json` / `styles.css` / `versions.json` / `dsh-obsidian-bridge.zip` 与本地发布文件完全一致；远端 `manifest.json` 的 `version` 为 `1.1.0`。
+- `gh release view v1.1.0` 确认：非 draft / 非 prerelease，正文只有「本版内容」，5 个资产齐全。
+
+**与提案的偏差**：无功能改动；额外把 README 的进程披露与 AGENTS 规则 6 补上 0056 的显式结束例外（发布前发现的文档准确性问题）。
